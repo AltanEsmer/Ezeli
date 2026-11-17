@@ -96,11 +96,11 @@ export function storedOutside(stored: Stored, span: Span | undefined): { before:
 // memory that now holds its first photo; if that photo is gone, to the memory that now holds the
 // earliest of its remaining photos; only if none of its photos remain do they go with it.
 //
-// Comments (issue 18) add one line here: `{ table: 'comments', column: 'memory_id' }`. The column
-// must be `on delete restrict`, so that a table that is not listed stops the import with its name
-// instead of losing rows. Hidden marks (issue 20) do not point at memories: they mark photos and
-// messages by their lasting keys, so the regroup owes them nothing.
-export const followsMemory: { table: string; column: string }[] = []
+// A table that points at memories is listed here, and its column must be `on delete restrict`, so
+// that a table that is not listed stops the import with its name instead of losing rows. Hidden
+// marks (issue 20) do not point at memories: they mark photos and messages by their lasting keys,
+// so the regroup owes them nothing.
+export const followsMemory: { table: string; column: string }[] = [{ table: 'comments', column: 'memory_id' }]
 
 export async function removeWhatNoLongerFits(db: Db, stored: Stored, kept: Kept): Promise<Counts> {
   // Rows first, then files: a leftover file is harmless, a photo row without its files is broken.

@@ -48,4 +48,5 @@ export async function addPersonWithoutAccount(name: string): Promise<void> {
 
 export const apiUrl = stack.apiUrl
 export const publishableKey = stack.publishableKey
+export const secretKey = stack.secretKey
 export const appUrl = stack.appUrl

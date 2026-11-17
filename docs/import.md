@@ -152,9 +152,9 @@ Import a newer export of the chat, or the same one with other grouping numbers, 
 
 ### What follows a memory that disappears
 
-Comments (issue 18) do not exist yet. Rule: **rows attached to a memory that disappears move to the memory that now holds its first photo; if that photo is gone, to the memory that now holds the earliest of its remaining photos; only if none of its photos remain do they go with it.** A memory is keyed by its first photo's message, so after saving, that message says which memory holds it now. Moves are not undone: if two memories are joined and later split again, the comments stay on the first.
+Comments (issue 18) are the one table that points at memories today. Rule: **rows attached to a memory that disappears move to the memory that now holds its first photo; if that photo is gone, to the memory that now holds the earliest of its remaining photos; only if none of its photos remain do they go with it.** A memory is keyed by its first photo's message, so after saving, that message says which memory holds it now. Moves are not undone: if two memories are joined and later split again, the comments stay on the first.
 
-The step is built in `cli/import/regroup.ts` (`followsMemory`). The comments ticket adds one line: `{ table: 'comments', column: 'memory_id' }`. Its column must be `references public.memories (id) on delete restrict`, not cascade: a table that points at memories and is not listed then stops the import with a plain line naming the table, instead of silently losing rows (the run can be repeated once it is listed).
+The step is built in `cli/import/regroup.ts` (`followsMemory`), where `comments.memory_id` is listed. A table that points at memories must be listed there and its column must be `references public.memories (id) on delete restrict`, not cascade: one that is not listed stops the import with a plain line naming the table, instead of silently losing rows (the run can be repeated once it is listed).
 
 Hidden marks (issue 20) do not point at memories. That ticket marks photos and messages by their lasting keys, so the regroup owes them nothing. It still has to make sure the saving does not bring a hidden photo or message back (neither upload the photo's files again nor upsert the message as visible).
 

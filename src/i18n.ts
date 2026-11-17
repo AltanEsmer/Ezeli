@@ -36,6 +36,14 @@ const en = {
   voice: 'Voice message',
   document: 'Document',
   gif: 'GIF',
+  comments: 'Comments',
+  commentsApart: 'Written here in Ezeli, later. Not part of the old chat.',
+  writeComment: 'Add your note',
+  addComment: 'Add comment',
+  deleteComment: 'Delete',
+  deleteAsk: 'Delete this comment?',
+  deleteYes: 'Yes, delete',
+  deleteNo: 'Keep it',
 }
 
 export type Labels = typeof en
@@ -76,6 +84,14 @@ const tr: Labels = {
   voice: 'Sesli mesaj',
   document: 'Belge',
   gif: 'GIF',
+  comments: 'Yorumlar',
+  commentsApart: "Ezeli'de sonradan yazıldı. Eski sohbetin parçası değil.",
+  writeComment: 'Notunu ekle',
+  addComment: 'Yorum ekle',
+  deleteComment: 'Sil',
+  deleteAsk: 'Bu yorum silinsin mi?',
+  deleteYes: 'Evet, sil',
+  deleteNo: 'Vazgeç',
 }
 
 export type Language = 'tr' | 'en'
