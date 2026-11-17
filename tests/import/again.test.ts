@@ -182,17 +182,16 @@ test('a sender who is left out later loses the messages and the photo files alre
   expect((await owner.storage.from('photos').download(left[0]!)).error).toBeNull()
 })
 
-test('a memory that disappears in an older export hands what lies beyond that export to the memory with its first photo', async () => {
+test('a wide photo gap in an older export joins the memories of the newer export too, and nothing is lost', async () => {
   const chat = fresh('Kaş Tatili')
   const people = freshPeople()
   importChat(chat, { people, folder: newerWeekend() })
 
-  // A very wide photo gap joins the weekend's two memories. The newer export's 11:20 message is
-  // after the older export ends, so it is not this import's to remove.
+  // The stored memories after the older export are joined with it before grouping, so the three
+  // memories become one. Every message and photo is still there.
   const older = importChat(chat, { people, extra: ['--photo-gap', '1500'] })
 
-  // The night message between the joined photos now belongs to the memory: one message added.
   expect(older.out).toMatch(/Added:\s+0 memories, 1 message, 0 photos/)
-  expect(older.out).toMatch(/Removed:\s+1 memory, 0 messages, 0 photos/)
-  expect(await counts(chat)).toEqual({ memories: 2, messages: 16, photos: 4 })
+  expect(older.out).toMatch(/Removed:\s+2 memories, 0 messages, 0 photos/)
+  expect(await counts(chat)).toEqual({ memories: 1, messages: 16, photos: 4 })
 })

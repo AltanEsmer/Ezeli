@@ -2,10 +2,10 @@
 // photos. Everything is written by key, so the same export saved twice leaves one copy, and an
 // import that stopped halfway is finished by running it again.
 import type { Db } from '../supabase.ts'
-import { hasPhotoFile, isPhoto, type Memory, type MemoryMessage } from './memories.ts'
+import { buildMemories, hasPhotoFile, isPhoto, type Grouping, type MemoryMessage } from './memories.ts'
 import type { ChatApp } from './people.ts'
 import { makeSizes } from './photos.ts'
-import { chunks, loadStored, nothingStored, removeWhatNoLongerFits, type Counts, type Span } from './regroup.ts'
+import { chunks, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Span } from './regroup.ts'
 import { Stop } from './stop.ts'
 
 export type ChatToSave = { key: string; name: string; app: ChatApp; timezone: string }
@@ -15,10 +15,10 @@ const BUCKET = 'photos'
 // What a saving run did, in rows: new ones, ones that were already stored, ones taken away.
 export type SaveReport = { added: Counts; already: Counts; removed: Counts }
 
-// `span` is the time the export covers: only inside it can stored rows be taken away.
-export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[], span: Span | undefined): Promise<SaveReport> {
-  const messages = memories.flatMap((memory) => memory.messages)
-
+// `exported` are the export's messages in chat order, left-out senders removed. `span` is the
+// time the export covers. What is stored outside that time is joined with the export before the
+// grouping (see regroup.ts), so a memory cut by the edge of the export stays whole.
+export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage[], grouping: Grouping, span: Span | undefined): Promise<SaveReport> {
   // The time zone is fixed at the chat's first import: the dates of what is stored were made
   // with it. Checked before anything is written.
   const existing = await db.from('chats').select('id, timezone').eq('key', chat.key).maybeSingle()
@@ -32,6 +32,13 @@ export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[], spa
 
   const stored = existing.data ? await loadStored(db, existing.data.id) : nothingStored
   const storedPhotos = new Map(stored.photos.map((photo) => [photo.key, photo]))
+  const outside = storedOutside(stored, span)
+  const memories = buildMemories([...outside.before, ...exported, ...outside.after], grouping)
+  const messages = memories.flatMap((memory) => memory.messages)
+
+  const savedChat = await db.from('chats').upsert(chat, { onConflict: 'key' }).select('id').single()
+  if (savedChat.error) throw savedChat.error
+  const chatId = savedChat.data.id
 
   // Photos first, so that a photo row exists only when both its files are in the bucket.
   const sizes = new Map<string, { view: string; thumb: string; width: number; height: number }>()
@@ -49,8 +56,8 @@ export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[], spa
     } catch (error) {
       throw new Stop(`Could not convert the photo ${message.media!.name ?? file}: ${(error as Error).message}`)
     }
-    const view = `${message.key}-view.webp`
-    const thumb = `${message.key}-thumb.webp`
+    const view = `${chatId}/${message.key}-view.webp`
+    const thumb = `${chatId}/${message.key}-thumb.webp`
     for (const [path, body] of [[view, made.view], [thumb, made.thumb]] as const) {
       const uploaded = await db.storage.from(BUCKET).upload(path, body, { contentType: 'image/webp', upsert: true })
       if (uploaded.error) throw uploaded.error
@@ -58,11 +65,9 @@ export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[], spa
     sizes.set(message.key, { view, thumb, width: made.width, height: made.height })
   })
 
-  const savedChat = await db.from('chats').upsert(chat, { onConflict: 'key' }).select('id').single()
-  if (savedChat.error) throw savedChat.error
-  const chatId = savedChat.data.id
-
-  const people = await savePeople(db, messages)
+  // People of the export are saved (and renamed) from the export; the others are known by their rows.
+  const people = await savePeople(db, exported)
+  for (const row of stored.messages) if (!people.has(row.people.slug)) people.set(row.people.slug, row.people.id)
 
   // A memory is known by its first photo message, whether or not its file was there.
   const memoryRows = memories.map((memory) => ({
@@ -96,8 +101,10 @@ export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[], spa
     for (const row of saved.data) messageIds.set(row.key, row.id)
   }
 
-  const photoRows = placed.filter(({ message }) => sizes.has(message.key)).map(({ message, seq, memory }) => {
-    const size = sizes.get(message.key)!
+  // A photo message with a stored row keeps its row (and gets the memory the regroup gives it)
+  // even when this export has no file for it.
+  const photoRows = placed.filter(({ message }) => sizes.has(message.key) || storedPhotos.has(message.key)).map(({ message, seq, memory }) => {
+    const size = sizes.get(message.key) ?? (({ view_path, thumb_path, width, height }) => ({ view: view_path, thumb: thumb_path, width, height }))(storedPhotos.get(message.key)!)
     return {
       memory_id: memory,
       message_id: messageIds.get(message.key)!,
@@ -118,7 +125,9 @@ export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[], spa
 
   // Only now, with every row of this import in place, is anything that no longer fits removed.
   const kept = { memories: new Set(memoryRows.map((row) => row.key)), messages: new Set(messages.map((message) => message.key)) }
-  const removed = await removeWhatNoLongerFits(db, stored, kept, span)
+  const removed = await removeWhatNoLongerFits(db, stored, kept)
+  // Files that no row points at, left by a run that stopped while removing them.
+  await removeFilesWithoutRow(db, chatId)
   const had = {
     memories: stored.memories.filter((memory) => kept.memories.has(memory.key)).length,
     messages: stored.messages.filter((message) => kept.messages.has(message.key)).length,

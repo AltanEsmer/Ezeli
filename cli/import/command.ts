@@ -4,6 +4,7 @@ import { adminClient } from '../supabase.ts'
 import { chatKey, messageKeys } from './keys.ts'
 import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } from './memories.ts'
 import { readPeople } from './people.ts'
+import { spanOf } from './regroup.ts'
 import { whyUnreadable } from './photos.ts'
 import { saveChat, type SaveReport } from './save.ts'
 import { Stop } from './stop.ts'
@@ -82,10 +83,9 @@ async function importExport(args: string[]): Promise<string> {
   if (db) {
     // The time this export covers, left-out senders and all: only inside it is anything stored
     // taken away, so an older export never removes what a newer one added.
-    const moments = chat.messages.map((message) => message.at)
-    const span = moments.length > 0 ? { from: Math.min(...moments), to: Math.max(...moments) } : undefined
+    const span = spanOf(chat.messages.map((message) => message.at))
     try {
-      report = await saveChat(db, { key: chatKey(chat.app, chatName!), name: chatName!.trim(), app: chat.app, timezone }, memories, span)
+      report = await saveChat(db, { key: chatKey(chat.app, chatName!), name: chatName!.trim(), app: chat.app, timezone }, messages, grouping, span)
     } catch (error) {
       if (error instanceof Stop) throw error
       // Plain words, no stack. Everything is saved by key, so the same import finishes the job.
