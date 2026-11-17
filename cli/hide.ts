@@ -1,6 +1,6 @@
 // Owner commands for hiding: `memory` lists what a memory holds, numbered; `hide` and `show` act on
 // a whole memory or on one numbered item. A hidden mark hangs on the lasting key of a photo or a
-// message (see supabase/migrations/20261118010000_hiding.sql). The numbers are printed to the
+// message (see supabase/migrations/20261118020000_hiding.sql). The numbers are printed to the
 // owner's terminal only, and are the position in the memory's conversation at the time of listing.
 import { adminClient, type Db } from './supabase.ts'
 import { chunks, loadHidden } from './import/regroup.ts'
