@@ -15,7 +15,7 @@ test('a trial run saves nothing', async () => {
 
 test('an unknown sender stops the import before anything is saved', async () => {
   const chat = fresh('Kaş Tatili')
-  const result = ezeliImport([`${fixtures}/strangers`, '--people', `${fixtures}/people.json`, '--timezone', 'Europe/Istanbul', '--chat', chat])
+  const result = ezeliImport([`${fixtures}/strangers`, '--people', `${fixtures}/people.json`, '--timezone', 'Europe/Istanbul', '--chat', chat, '--date-order', 'day-first'])
 
   expect(result.status).toBe(1)
   expect(result.err).toContain('Not in the people file')

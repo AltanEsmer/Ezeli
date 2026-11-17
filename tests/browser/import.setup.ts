@@ -9,8 +9,8 @@ const chats = [
   // Two memories: the 14th (two photos) and the 15th of July 2023.
   { name: 'Kaş Tatili', folder: 'weekend', extra: [] as string[] },
   // One memory of three photos from three people, on 5 March 2023: the photos are 30 minutes
-  // apart, so a gap of 31 minutes joins them.
-  { name: 'Mart Gezisi', folder: 'gaps', extra: ['--photo-gap', '31'] },
+  // apart, so a gap of 31 minutes joins them. Its dates alone do not say day first or month first.
+  { name: 'Mart Gezisi', folder: 'gaps', extra: ['--photo-gap', '31', '--date-order', 'day-first'] },
 ]
 
 test('the made-up exports are imported', () => {

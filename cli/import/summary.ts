@@ -1,6 +1,7 @@
 // What an import prints: the numbers an owner checks, before saving (trial run) or after.
 import type { Media, MediaKind } from './chat.ts'
 import { hasPhotoFile, type Memory, type MemoryMessage } from './memories.ts'
+import { removePhoneNumbers } from './text.ts'
 import { clockTimeOf } from './time.ts'
 
 // `savedAs` is the chat name when the import saved; without it this is a trial run.
@@ -49,7 +50,7 @@ function conversationLines(message: MemoryMessage, zone: string): string[] {
 
 function mediaLine(media: Media): string {
   if (media.kind !== 'photo') return `[${placeholders[media.kind]}]`
-  return media.file ? `[Photo: ${media.name}]` : '[Photo missing from the export]'
+  return media.file ? `[Photo: ${removePhoneNumbers(media.name ?? '')}]` : '[Photo missing from the export]'
 }
 
 function countAndNames(messages: MemoryMessage[]): string {

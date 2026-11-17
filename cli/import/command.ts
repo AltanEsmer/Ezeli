@@ -3,17 +3,18 @@ import { parseArgs } from 'node:util'
 import { adminClient } from '../supabase.ts'
 import { chatKey, messageKeys } from './keys.ts'
 import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } from './memories.ts'
-import { readPeople } from './people.ts'
+import { isPhoneNumber, readPeople } from './people.ts'
 import { whyUnreadable } from './photos.ts'
 import { saveChat } from './save.ts'
 import { Stop } from './stop.ts'
 import { importSummary } from './summary.ts'
+import { cleanText, removePhoneNumbers } from './text.ts'
 import { isTimeZone, momentText } from './time.ts'
-import { readWhatsApp } from './whatsapp.ts'
+import { readWhatsApp, type DateOrder } from './whatsapp.ts'
 
 const usage =
   'Usage: pnpm ezeli import <export folder> --people <file> --timezone <zone> --chat <name> [--trial]\n' +
-  '  [--details] [--photo-gap <minutes>] [--before <minutes>] [--after <minutes>] [--max-messages <number>]\n' +
+  '  [--date-order day-first|month-first] [--details] [--photo-gap <minutes>] [--before <minutes>] [--after <minutes>] [--max-messages <number>]\n' +
   '  --chat names the chat; importing a later export of the same chat under the same name keeps it one chat.\n' +
   '  --trial saves nothing (then --chat is not needed). Saving needs SUPABASE_URL and SUPABASE_SECRET_KEY in the environment.'
 
@@ -29,7 +30,7 @@ export async function runImport(args: string[]): Promise<number> {
 }
 
 async function importExport(args: string[]): Promise<string> {
-  const { folder, people, timezone, chat: chatName, trial, details, grouping } = readArgs(args)
+  const { folder, people, timezone, chat: chatName, trial, details, grouping, dateOrder } = readArgs(args)
   if (!isTimeZone(timezone)) {
     throw new Stop(`Unknown time zone: ${timezone}. Use a name such as Europe/Istanbul.`)
   }
@@ -38,11 +39,22 @@ async function importExport(args: string[]): Promise<string> {
   const db = trial ? undefined : databaseOrStop()
 
   const who = readPeople(people)
-  const chat = readWhatsApp(folder, timezone)
+  const chat = readWhatsApp(folder, timezone, dateOrder)
 
-  const unknown = [...new Set(chat.messages.map((m) => m.sender).filter((sender) => !who.find(chat.app, sender)))]
+  // A phone number is never printed: it is named by the first message it sent.
+  const unknown: string[] = []
+  const numbers = new Set<string>()
+  for (const { sender, minute } of chat.messages) {
+    if (who.find(chat.app, sender)) continue
+    if (!isPhoneNumber(sender)) unknown.push(sender)
+    else if (!numbers.has(sender)) {
+      numbers.add(sender)
+      unknown.push(`a phone number (first message ${minute})`)
+    }
+  }
   if (unknown.length > 0) {
-    throw new Stop(`Not in the people file: ${unknown.sort((a, b) => a.localeCompare(b, 'tr')).join(', ')}\nAdd them, or mark them "leftOut". See docs/import.md.`)
+    const list = [...new Set(unknown)].sort((a, b) => a.localeCompare(b, 'tr')).join(', ')
+    throw new Stop(`Not in the people file: ${list}\nAdd them, or mark them "leftOut". A number is written in the file as it is in the chat. See docs/import.md.`)
   }
 
   // Left-out senders are dropped here, before grouping and before problems are worked out, so
@@ -50,9 +62,12 @@ async function importExport(args: string[]): Promise<string> {
   const key = messageKeys(chatKey(chat.app, chatName ?? ''))
   const messages: MemoryMessage[] = []
   const problems = [...chat.problems]
-  for (const { sender, at, minute, text, media } of chat.messages) {
+  for (const { sender, at, minute, text: written, media } of chat.messages) {
     const person = who.find(chat.app, sender)!
     if (person.leftOut) continue
+    // Mentions become names and phone numbers are removed, before anything is keyed or kept.
+    const text = cleanText(written, who)
+    if (!text && !media) continue
     const message: MemoryMessage = {
       key: key({ minute, personId: person.id, text, ...(media && { media }) }),
       at,
@@ -88,7 +103,7 @@ async function importExport(args: string[]): Promise<string> {
       throw new Stop(`Saving stopped before it finished: ${reason}. Fix that and run the same import again; it finishes the job.`)
     }
   }
-  return importSummary(memories, problems, timezone, details, trial ? undefined : chatName!.trim())
+  return importSummary(memories, problems.map(removePhoneNumbers), timezone, details, trial ? undefined : chatName!.trim())
 }
 
 function databaseOrStop() {
@@ -114,6 +129,7 @@ function readArgs(args: string[]) {
         before: { type: 'string' },
         after: { type: 'string' },
         'max-messages': { type: 'string' },
+        'date-order': { type: 'string' },
       },
     })
     const [folder, ...rest] = positionals
@@ -124,7 +140,12 @@ function readArgs(args: string[]) {
         afterMinutes: number(values, 'after', startingGrouping.afterMinutes),
         maxMessages: number(values, 'max-messages', startingGrouping.maxMessages),
       }
+      const dateOrder = values['date-order']
+      if (dateOrder !== undefined && dateOrder !== 'day-first' && dateOrder !== 'month-first') {
+        throw new Stop('--date-order must be day-first or month-first.')
+      }
       return {
+        dateOrder: dateOrder as DateOrder | undefined,
         folder,
         people: values.people,
         timezone: values.timezone,

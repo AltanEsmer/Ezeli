@@ -9,8 +9,10 @@ function ezeliImport(...args: string[]) {
   return { status: result.status, out: result.stdout, err: result.stderr }
 }
 
+// These made-up exports are day-first. Several have only dates that could be read either way,
+// so the order is given (deciding it from the dates is tested in whatsapp-variants.test.ts).
 function trial(folder: string, ...options: string[]) {
-  return ezeliImport(`${fixtures}/${folder}`, '--people', people, '--timezone', 'Europe/Istanbul', '--trial', ...options)
+  return ezeliImport(`${fixtures}/${folder}`, '--people', people, '--timezone', 'Europe/Istanbul', '--trial', '--date-order', 'day-first', ...options)
 }
 
 test('a trial run prints the memories, photos, people, date range and problems', () => {
@@ -160,11 +162,11 @@ test('a grouping number that is not a number stops the import', () => {
   expect(result.err).toContain('--photo-gap must be a whole number of minutes')
 })
 
-test('a folder that is not an iPhone export stops the import', () => {
+test('a folder with no chat text stops the import', () => {
   const result = ezeliImport(`${fixtures}/no-such-folder`, '--people', people, '--timezone', 'Europe/Istanbul', '--trial')
 
   expect(result.status).toBe(1)
-  expect(result.err).toContain('No _chat.txt in')
+  expect(result.err).toContain('No chat text in')
 })
 
 test('an impossible date or time stops the run and names the line', () => {
