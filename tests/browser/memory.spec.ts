@@ -113,11 +113,15 @@ test.describe('a friend on a memory', () => {
     await page.keyboard.press('ArrowLeft')
     await expect(viewer.getByText('1 / 2')).toBeVisible()
 
-    // A real swipe with a finger, from right to left: the next photo.
+    // The strip has stopped sliding back, then a real swipe with a finger, from right to left: the next photo.
+    await expect.poll(() => viewer.locator('.strip').evaluate((box) => box.scrollLeft)).toBe(0)
     const cdp = await page.context().newCDPSession(page)
     const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: 400 }] })
     await touch('touchStart', 330)
-    for (let x = 300; x >= 60; x -= 30) await touch('touchMove', x)
+    for (let x = 300; x >= 60; x -= 30) {
+      await touch('touchMove', x)
+      await page.waitForTimeout(16)
+    }
     await touch('touchEnd', 60)
     await expect(viewer.getByText('2 / 2')).toBeVisible()
 
