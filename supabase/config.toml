@@ -1,0 +1,41 @@
+# Local Supabase. CI uses these values as they are; each worktree overrides the
+# project id and ports in supabase/.env (see scripts/supabase-env.sh).
+project_id = "ezeli"
+
+[api]
+port = 54321
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+# Not needed by the app: left out, so only five containers start.
+[realtime]
+enabled = false
+[studio]
+enabled = false
+[local_smtp]
+enabled = false
+[edge_runtime]
+enabled = false
+[analytics]
+enabled = false
+
+[storage]
+enabled = true
+
+[auth]
+# The app is served by Vite on this address while developing.
+site_url = "http://127.0.0.1:5173"
+# Only accounts the owners create. No public sign-up, no anonymous sign-in.
+enable_signup = false
+enable_anonymous_sign_ins = false
+# A personal link's secret is 64 characters; refuse anything short.
+minimum_password_length = 32
+
+[auth.email]
+# Password sign-in runs through the email provider, so it stays on.
+# No mail is ever sent: the addresses are made up and confirmed by the owner command.
+enabled = true
+enable_confirmations = false
