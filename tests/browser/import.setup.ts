@@ -9,8 +9,8 @@ const chats = [
   // Two memories: the 14th (two photos) and the 15th of July 2023.
   { name: 'Kaş Tatili', folder: 'whatsapp-iphone/weekend', people: 'whatsapp-iphone', extra: [] as string[] },
   // One memory of three photos from three people, on 5 March 2023: the photos are 30 minutes
-  // apart, so a gap of 31 minutes joins them.
-  { name: 'Mart Gezisi', folder: 'whatsapp-iphone/gaps', people: 'whatsapp-iphone', extra: ['--photo-gap', '31'] },
+  // apart, so a gap of 31 minutes joins them. Its dates alone do not say day first or month first.
+  { name: 'Mart Gezisi', folder: 'whatsapp-iphone/gaps', people: 'whatsapp-iphone', extra: ['--photo-gap', '31', '--date-order', 'day-first'] },
   // The Discord chat: one memory of two photos from Limon. Sent at 22:30 UTC on 21 January 2023,
   // which is 22 January in Istanbul, the zone the chat is read in.
   { name: 'Kış Sunucusu', folder: 'discord/winter', people: 'discord', extra: [] as string[] },

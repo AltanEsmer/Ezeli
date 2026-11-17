@@ -36,6 +36,7 @@ const en = {
   voice: 'Voice message',
   document: 'Document',
   gif: 'GIF',
+  mediaNotInExport: 'Media (not in the export)',
 }
 
 export type Labels = typeof en
@@ -76,6 +77,7 @@ const tr: Labels = {
   voice: 'Sesli mesaj',
   document: 'Belge',
   gif: 'GIF',
+  mediaNotInExport: 'Medya (dışa aktarımda yok)',
 }
 
 export type Language = 'tr' | 'en'
