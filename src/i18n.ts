@@ -18,6 +18,20 @@ const en = {
   emptyBody: 'They will show up here once the owners load the chats.',
   sentBy: (names: string) => `Sent by ${names}`,
   photoBy: (name: string) => `Photo sent by ${name}`,
+  allMemories: 'All memories',
+  conversation: 'Conversation',
+  earlierMemory: 'Earlier memory',
+  laterMemory: 'Later memory',
+  memoryMissingTitle: 'This memory is not here',
+  memoryMissingBody: 'The address may be wrong, or the memory is not there any more.',
+  photo: 'Photo',
+  previousPhoto: 'Previous photo',
+  nextPhoto: 'Next photo',
+  openPhoto: (n: number, total: number) => `Open photo ${n} of ${total}`,
+  video: 'Video',
+  voice: 'Voice message',
+  document: 'Document',
+  gif: 'GIF',
 }
 
 export type Labels = typeof en
@@ -40,6 +54,20 @@ const tr: Labels = {
   emptyBody: 'Sahipler sohbetleri yükleyince burada görünecek.',
   sentBy: (names: string) => `${names} gönderdi`,
   photoBy: (name: string) => `${name} gönderdi`,
+  allMemories: 'Tüm anılar',
+  conversation: 'Konuşma',
+  earlierMemory: 'Önceki anı',
+  laterMemory: 'Sonraki anı',
+  memoryMissingTitle: 'Bu anı burada yok',
+  memoryMissingBody: 'Adres yanlış olabilir ya da anı artık yerinde değil.',
+  photo: 'Fotoğraf',
+  previousPhoto: 'Önceki fotoğraf',
+  nextPhoto: 'Sonraki fotoğraf',
+  openPhoto: (n: number, total: number) => `${total} fotoğraftan ${n}. fotoğrafı aç`,
+  video: 'Video',
+  voice: 'Sesli mesaj',
+  document: 'Belge',
+  gif: 'GIF',
 }
 
 // Turkish when the browser is set to Turkish, English otherwise.

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { t } from './i18n.ts'
 import { Memories } from './Memories.tsx'
+import { MemoryPage } from './MemoryPage.tsx'
+import { useRoute } from './route.ts'
 import { type Person, useSession } from './session.ts'
 
 export function App() {
@@ -24,8 +26,14 @@ export function App() {
         </Note>
       )
     case 'in':
-      return <Timeline person={session.person} onSignOut={signOut} />
+      return <Signed person={session.person} onSignOut={signOut} />
   }
+}
+
+// The screens of a signed-in person, by address.
+function Signed({ person, onSignOut }: { person: Person; onSignOut: () => void }) {
+  const route = useRoute()
+  return route.name === 'memory' ? <MemoryPage key={route.key} memoryKey={route.key} /> : <Timeline person={person} onSignOut={onSignOut} />
 }
 
 // One taped slip of paper in the middle of the page: the private page and its variants.

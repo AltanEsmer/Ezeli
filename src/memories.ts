@@ -4,6 +4,8 @@ import { supabase } from './supabase.ts'
 // One row of the `timeline` view: a memory with its main photos, in one request.
 export type MemoryCard = {
   id: string
+  // The memory's lasting key: its address is built from it.
+  key: string
   at: string
   timezone: string
   photo_count: number

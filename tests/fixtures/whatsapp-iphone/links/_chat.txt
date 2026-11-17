@@ -1,0 +1,9 @@
+[02.09.2023, 17:55:00] Limon L: Rota burada https://example.com/rota?gun=2, bir de www.example.org/kas.
+[02.09.2023, 17:56:00] Limon L: Bu bağlantı değil: javascript:alert(1) ve kas.example
+‎[02.09.2023, 18:00:00] Karpuz K: ‎<attached: 00000002-PHOTO-2023-09-02-18-00-00.jpg>
+[02.09.2023, 18:00:30] Karpuz K: Tam <b>burası</b> (https://example.com/yer)
+‎[02.09.2023, 18:01:00] Fıstık F: ‎<attached: 00000003-VIDEO-2023-09-02-18-01-00.mp4>
+‎[02.09.2023, 18:02:00] Fıstık F: ‎<attached: 00000004-PHOTO-2023-09-02-18-02-00.jpg>
+‎[02.09.2023, 18:03:00] Limon L: ‎<attached: 00000005-AUDIO-2023-09-02-18-03-00.opus>
+‎[02.09.2023, 18:04:00] Limon L: ‎<attached: 00000006-Rota.pdf>
+[02.09.2023, 18:20:00] Karpuz K: Gece yarısına az kaldı
