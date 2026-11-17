@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { type Language, browserLanguage, setLanguage } from './i18n.ts'
 import { supabase } from './supabase.ts'
 
-export type Person = { id: string; display_name: string; is_owner: boolean }
+export type Person = { id: string; display_name: string; is_owner: boolean; language: Language | null }
 
 export type Session =
   | { status: 'loading' }
@@ -69,7 +70,10 @@ export function useSession() {
   const reload = useCallback(async () => {
     const mine = ++latest.current
     const next = await readSession()
-    if (mine === latest.current) setSession(next)
+    if (mine !== latest.current) return
+    // The person's own choice, or the browser's until they choose.
+    setLanguage((next.status === 'in' && next.person.language) || browserLanguage())
+    setSession(next)
   }, [])
 
   useEffect(() => {
