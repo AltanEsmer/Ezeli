@@ -5,7 +5,7 @@ import { runPerson } from './person.ts'
 type Command = { summary: string; run: (args: string[]) => Promise<number> }
 
 const commands: Record<string, Command> = {
-  person: { summary: 'Create a person and their personal link (person add --name <name> [--owner])', run: runPerson },
+  person: { summary: 'People and their personal links (person add --name <name> [--owner] | relink --name <name> | list)', run: runPerson },
   import: { summary: 'Load a chat export (WhatsApp so far, trial run only)', run: runImport },
 }
 
