@@ -64,6 +64,12 @@ export async function loadStored(db: Db, chatId: string): Promise<Stored> {
   }
 }
 
+// The lasting keys of everything an owner has hidden (issue 20). The import never stores the files
+// of a hidden photo; the rows of hidden messages stay, and stay hidden by the access rules.
+export async function loadHidden(db: Db): Promise<Set<string>> {
+  return new Set((await pages<{ key: string }>((from, to) => db.from('hidden').select('key').order('key').range(from, to))).map((row) => row.key))
+}
+
 function loadPhotos(db: Db, chatId: string) {
   return pages<StoredPhoto>((from, to) =>
     db.from('photos').select('key, view_path, thumb_path, width, height, memories!inner(chat_id)').eq('memories.chat_id', chatId).order('key').range(from, to),

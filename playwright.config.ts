@@ -16,6 +16,8 @@ export default defineConfig({
     { name: 'memories', testMatch: ['timeline.spec.ts', 'language.spec.ts'], dependencies: ['import'] },
     // Imports more chats of its own, so it runs after the timeline tests have counted.
     { name: 'memory', testMatch: 'memory.spec.ts', dependencies: ['memories'] },
+    // Hides things of a chat of its own, after the tests that count memories.
+    { name: 'hiding', testMatch: 'hiding.spec.ts', dependencies: ['memory'] },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',

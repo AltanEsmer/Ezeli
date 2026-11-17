@@ -156,7 +156,7 @@ Comments (issue 18) do not exist yet. Rule: **rows attached to a memory that dis
 
 The step is built in `cli/import/regroup.ts` (`followsMemory`). The comments ticket adds one line: `{ table: 'comments', column: 'memory_id' }`. Its column must be `references public.memories (id) on delete restrict`, not cascade: a table that points at memories and is not listed then stops the import with a plain line naming the table, instead of silently losing rows (the run can be repeated once it is listed).
 
-Hidden marks (issue 20) do not point at memories. That ticket marks photos and messages by their lasting keys, so the regroup owes them nothing. It still has to make sure the saving does not bring a hidden photo or message back (neither upload the photo's files again nor upsert the message as visible).
+Hidden marks (see `docs/hiding.md`) do not point at memories. They mark photos and messages by their lasting keys, in the table `hidden`, so the regroup owes them nothing. The saving reads the marks first: a hidden photo is never converted, uploaded or given a `photos` row again, and a hidden message is saved like any other row and stays hidden by its mark. A memory whose photos are all hidden still exists in the database but is read by nobody signed in.
 
 ## What the trial run prints
 

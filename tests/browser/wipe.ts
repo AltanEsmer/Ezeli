@@ -17,6 +17,10 @@ export default async function wipe() {
   const chats = await db.from('chats').delete().not('id', 'is', null)
   if (chats.error) throw chats.error
 
+  // Hidden marks outlive their chats on purpose; a clean start needs them gone too.
+  const hidden = await db.from('hidden').delete().not('key', 'is', null)
+  if (hidden.error) throw hidden.error
+
   // Photos are in one folder per chat, so look inside the folders too.
   const bucket = db.storage.from('photos')
   for (;;) {

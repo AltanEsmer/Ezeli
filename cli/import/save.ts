@@ -5,7 +5,7 @@ import type { Db } from '../supabase.ts'
 import { buildMemories, hasPhotoFile, isPhoto, type Grouping, type MemoryMessage } from './memories.ts'
 import type { ChatApp } from './people.ts'
 import { makeSizes } from './photos.ts'
-import { chunks, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Span } from './regroup.ts'
+import { chunks, loadHidden, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Span } from './regroup.ts'
 import { Stop } from './stop.ts'
 
 export type ChatToSave = { key: string; name: string; app: ChatApp; timezone: string }
@@ -31,6 +31,7 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   }
 
   const stored = existing.data ? await loadStored(db, existing.data.id) : nothingStored
+  const hidden = await loadHidden(db)
   const storedPhotos = new Map(stored.photos.map((photo) => [photo.key, photo]))
   const outside = storedOutside(stored, span)
   const memories = buildMemories([...outside.before, ...exported, ...outside.after], grouping)
@@ -40,9 +41,11 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   if (savedChat.error) throw savedChat.error
   const chatId = savedChat.data.id
 
-  // Photos first, so that a photo row exists only when both its files are in the bucket.
+  // Photos first, so that a photo row exists only when both its files are in the bucket. A hidden
+  // photo is never converted or uploaded again; its message row is saved like any other and stays
+  // hidden by its mark.
   const sizes = new Map<string, { view: string; thumb: string; width: number; height: number }>()
-  await mapLimit(messages.filter(hasPhotoFile), 4, async (message) => {
+  await mapLimit(messages.filter((message) => hasPhotoFile(message) && !hidden.has(message.key)), 4, async (message) => {
     // Already stored with both files: nothing to convert or upload again.
     const there = storedPhotos.get(message.key)
     if (there) {
@@ -103,7 +106,7 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
 
   // A photo message with a stored row keeps its row (and gets the memory the regroup gives it)
   // even when this export has no file for it.
-  const photoRows = placed.filter(({ message }) => sizes.has(message.key) || storedPhotos.has(message.key)).map(({ message, seq, memory }) => {
+  const photoRows = placed.filter(({ message }) => !hidden.has(message.key) && (sizes.has(message.key) || storedPhotos.has(message.key))).map(({ message, seq, memory }) => {
     const size = sizes.get(message.key) ?? (({ view_path, thumb_path, width, height }) => ({ view: view_path, thumb: thumb_path, width, height }))(storedPhotos.get(message.key)!)
     return {
       memory_id: memory,
