@@ -6,7 +6,9 @@ export type ChatApp = 'whatsapp' | 'discord'
 // `id` is the fixed id from the people file (a lowercase slug the owners choose once and never
 // change): lasting keys and the saved person are made from it, not from the display name.
 export type Person = { id: string; name: string; leftOut: boolean }
-export type People = { find: (app: ChatApp, sender: string) => Person | undefined }
+// `others` are more names of the same sender to try after the first (a Discord account id comes
+// first, then its username and nickname).
+export type People = { find: (app: ChatApp, sender: string, others?: string[]) => Person | undefined }
 
 const appNames: Record<ChatApp, string> = { whatsapp: 'WhatsApp', discord: 'Discord' }
 
@@ -74,7 +76,10 @@ export function readPeople(file: string): People {
     }
   }
 
-  return { find: (app, sender) => bySender.get(senderKey(app, sender)) }
+  return {
+    find: (app, sender, others = []) =>
+      [sender, ...others].map((name) => bySender.get(senderKey(app, name))).find((person) => person !== undefined),
+  }
 }
 
 const allowedKeys = ['id', 'name', 'whatsapp', 'discord', 'leftOut']

@@ -14,6 +14,10 @@ export type ChatMessage = {
   sender: string // the name or id exactly as the export has it
   text: string
   media?: Media
+  // Discord only: the chat app's own lasting id of this message or attachment. Keys are made from
+  // it instead of from the content, and `sender` is the account id; `names` are its other names.
+  id?: string
+  names?: string[]
 }
 
 export type ChatExport = {
