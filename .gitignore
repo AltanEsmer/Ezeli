@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+
+# Real exports, the people file and secret keys. Never committed.
+private/
+
+# Test output
+test-results/
+playwright-report/
