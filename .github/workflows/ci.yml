@@ -21,7 +21,15 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm check:size
       - name: Start the local Supabase
-        run: pnpm exec supabase start
+        # The image registry sometimes rate-limits and the runner sometimes has the
+        # database port still bound; both pass on a second try.
+        run: |
+          for attempt in 1 2 3; do
+            pnpm exec supabase start && exit 0
+            pnpm exec supabase stop --no-backup || true
+            sleep 20
+          done
+          exit 1
       - run: pnpm test
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:browser
