@@ -80,7 +80,24 @@ Without `--trial` the import saves, with the secret key from the environment (`S
   - memory: the key of its first photo **message**, whether or not that photo's file is in the export or can be read. A photo message without a readable file still counts for grouping and for the key; only its files and its `photos` row are missing, and a later import that has the file adds them to the same memory.
 - A memory with no stored photo is not shown on the timeline. A `photos` row exists only when both of its files are in the bucket.
 - If saving fails (the bucket or the database), the command prints one plain line and exits with an error. Files go first and rows are written by key, so running the same import again finishes the job.
-- Saving is by key, so saving the same export twice leaves one copy. Making a second import correct (new grouping, hidden marks, comments) is issues 13 and 20.
+- Saving is by key, so saving the same export twice leaves one copy. What importing again does with a newer export, other grouping numbers and what people added is under "Importing again".
+
+## Importing again
+
+Import a newer export of the chat, or the same one with other grouping numbers, with the same command and the same `--chat` name.
+
+- **Same export twice:** nothing changes.
+- **A newer export:** only the new memories, messages and photos are added. The last memory of the older export may grow when the newer export continues it; it is the same memory, because its first photo is the same. Photo files already stored are not converted or uploaded again.
+- **Other grouping numbers:** the memories are regrouped. A photo is never doubled: it keeps its row and moves to the memory it now belongs to. Messages that no longer belong to any memory are removed (only messages inside memories are stored). A memory whose first photo now belongs to another memory disappears.
+- **What the export covers decides what can be removed.** Only stored messages and memories dated between the export's first and last message are compared with it. Anything outside that time is left alone, so an older export imported after a newer one removes nothing the newer one added. The same rule removes messages, and the photo files with them, of a sender who is marked `leftOut` since.
+- An edited message text is a new message (the text is part of the key): the old one is removed and the edited one added. An edited photo caption is not (see the photo key).
+- **The summary** of a saving run starts with three lines, each counting memories, messages and photos: `Added:` (new), `Already there:` (in this export and already stored, even if moved to another memory) and `Removed:`. The lines below describe the export itself.
+
+### Where comments and hidden marks go when a memory disappears
+
+Comments (issue 18) and hidden marks (issue 20) do not exist yet. Rule: **what people attached to a memory that disappears moves to the memory that now holds its first photo.** The memory's key is the key of its first photo's message, so after saving, that message says which memory holds the photo now.
+
+The regroup does this already in `cli/import/regroup.ts`: for each memory that disappears it finds that memory, moves whatever is left in it there, and then runs one step for every table listed in `followsMemory`. Those tickets only add one line to that list, naming their table and the column that points at a memory: `by: 'id'` for a `memory_id` column, `by: 'key'` for a column that holds the memory's lasting key (as a hidden mark may). Comments with `on delete cascade` on `memory_id` need the line, or they are deleted with the memory. If the first photo is itself gone (its sender was left out since), there is no such memory and what was attached is removed with it.
 
 ## What the trial run prints
 
@@ -89,4 +106,3 @@ The number of memories, photos and people, the date range, the problems found (s
 ## Not handled yet
 
 - Phone numbers inside message text are stored as written (issue 12). Do not import real chats into a shared stack before that.
-- A newer export that changes grouping can leave an older memory behind (issue 13).

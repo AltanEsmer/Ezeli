@@ -5,19 +5,23 @@ import type { Db } from '../supabase.ts'
 import { hasPhotoFile, isPhoto, type Memory, type MemoryMessage } from './memories.ts'
 import type { ChatApp } from './people.ts'
 import { makeSizes } from './photos.ts'
+import { chunks, loadStored, nothingStored, removeWhatNoLongerFits, type Counts, type Span } from './regroup.ts'
 import { Stop } from './stop.ts'
 
 export type ChatToSave = { key: string; name: string; app: ChatApp; timezone: string }
 
 const BUCKET = 'photos'
-const CHUNK = 200
 
-export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[]): Promise<void> {
+// What a saving run did, in rows: new ones, ones that were already stored, ones taken away.
+export type SaveReport = { added: Counts; already: Counts; removed: Counts }
+
+// `span` is the time the export covers: only inside it can stored rows be taken away.
+export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[], span: Span | undefined): Promise<SaveReport> {
   const messages = memories.flatMap((memory) => memory.messages)
 
   // The time zone is fixed at the chat's first import: the dates of what is stored were made
   // with it. Checked before anything is written.
-  const existing = await db.from('chats').select('timezone').eq('key', chat.key).maybeSingle()
+  const existing = await db.from('chats').select('id, timezone').eq('key', chat.key).maybeSingle()
   if (existing.error) throw existing.error
   if (existing.data && existing.data.timezone !== chat.timezone) {
     throw new Stop(
@@ -26,9 +30,18 @@ export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[]): Pr
     )
   }
 
+  const stored = existing.data ? await loadStored(db, existing.data.id) : nothingStored
+  const storedPhotos = new Map(stored.photos.map((photo) => [photo.key, photo]))
+
   // Photos first, so that a photo row exists only when both its files are in the bucket.
   const sizes = new Map<string, { view: string; thumb: string; width: number; height: number }>()
   await mapLimit(messages.filter(hasPhotoFile), 4, async (message) => {
+    // Already stored with both files: nothing to convert or upload again.
+    const there = storedPhotos.get(message.key)
+    if (there) {
+      sizes.set(message.key, { view: there.view_path, thumb: there.thumb_path, width: there.width, height: there.height })
+      return
+    }
     const file = message.media!.file!
     let made
     try {
@@ -102,6 +115,21 @@ export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[]): Pr
     const saved = await db.from('photos').upsert(part, { onConflict: 'key' })
     if (saved.error) throw saved.error
   }
+
+  // Only now, with every row of this import in place, is anything that no longer fits removed.
+  const kept = { memories: new Set(memoryRows.map((row) => row.key)), messages: new Set(messages.map((message) => message.key)) }
+  const removed = await removeWhatNoLongerFits(db, stored, kept, span)
+  const had = {
+    memories: stored.memories.filter((memory) => kept.memories.has(memory.key)).length,
+    messages: stored.messages.filter((message) => kept.messages.has(message.key)).length,
+    photos: photoRows.filter((photo) => storedPhotos.has(photo.key)).length,
+  }
+  const now = { memories: kept.memories.size, messages: kept.messages.size, photos: photoRows.length }
+  return {
+    added: { memories: now.memories - had.memories, messages: now.messages - had.messages, photos: now.photos - had.photos },
+    already: had,
+    removed,
+  }
 }
 
 // People are matched by the fixed id of the people file, saved as `people.slug`. With no row for
@@ -141,12 +169,6 @@ async function savePeople(db: Db, messages: MemoryMessage[]): Promise<Map<string
     rowIds.set(slug, created.data.id)
   }
   return rowIds
-}
-
-function chunks<T>(items: T[]): T[][] {
-  const parts: T[][] = []
-  for (let i = 0; i < items.length; i += CHUNK) parts.push(items.slice(i, i + CHUNK))
-  return parts
 }
 
 // Runs `work` on every item, a few at a time. Stops at the first failure.
