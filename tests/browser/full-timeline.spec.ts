@@ -14,7 +14,7 @@ const tabs = (page: Page) => page.getByRole('navigation', { name: 'Jump to a yea
 
 test.beforeAll(() => {
   for (const [folder, chat] of [['line-before', 'Akşam Yemeği'], ['caption', 'Kıyı Notu']] as const) {
-    const result = ownerCommand(['import', `${fixtures}/${folder}`, '--people', `${fixtures}/people.json`, '--timezone', 'Europe/Istanbul', '--chat', chat])
+    const result = ownerCommand(['import', `${fixtures}/${folder}`, '--people', `${fixtures}/people.json`, '--timezone', 'Europe/Istanbul', '--chat', chat, '--date-order', 'day-first'])
     expect(result.stderr).toBe('')
     expect(result.status).toBe(0)
   }
