@@ -36,7 +36,7 @@ test('a trial run prints the memories, photos, people, date range and problems',
 })
 
 test('an import that is missing the folder, people file or time zone shows how to run it', () => {
-  const usage = 'Usage: pnpm ezeli import <export folder> --people <file> --timezone <zone> --trial'
+  const usage = 'Usage: pnpm ezeli import <export folder> --people <file> --timezone <zone> --chat <name> [--trial]'
 
   for (const args of [
     ['--people', people, '--timezone', 'Europe/Istanbul', '--trial'],
@@ -74,11 +74,11 @@ test('a people file that cannot be read or is not in the documented shape stops 
   expect(twice.err).toContain('The people file lists the WhatsApp sender "Limon L" twice.')
 })
 
-test('without --trial the import says saving is not built yet and fails', () => {
+test('without --trial the import needs a name for the chat', () => {
   const result = ezeliImport(`${fixtures}/weekend`, '--people', people, '--timezone', 'Europe/Istanbul')
 
   expect(result.status).toBe(1)
-  expect(result.err).toContain('Saving is not built yet (issue 11). Add --trial to see what would be imported.')
+  expect(result.err).toContain('Saving needs a name for the chat.')
   expect(result.out).toBe('')
 })
 
@@ -199,7 +199,21 @@ test('a people file with a value of the wrong type or an unknown key stops the r
 
   const typo = run('people-typo.json')
   expect(typo.status).toBe(1)
-  expect(typo.err).toContain('Limon in the people file has an unknown key "whatsap". Allowed: name, whatsapp, discord, leftOut.')
+  expect(typo.err).toContain('Limon in the people file has an unknown key "whatsap". Allowed: id, name, whatsapp, discord, leftOut.')
+})
+
+test('every person in the people file needs a fixed id: a lowercase word, used once', () => {
+  const run = (file: string) =>
+    ezeliImport(`${fixtures}/weekend`, '--people', `${fixtures}/${file}`, '--timezone', 'Europe/Istanbul', '--trial')
+
+  for (const file of ['people-no-id.json', 'people-id-bad.json']) {
+    const result = run(file)
+    expect(result.status).toBe(1)
+    expect(result.err).toContain('Karpuz in the people file needs an "id"')
+  }
+  const twice = run('people-id-twice.json')
+  expect(twice.status).toBe(1)
+  expect(twice.err).toContain('The people file has the id "kisi" twice.')
 })
 
 test('media files that no message mentions are reported, so an unread layout does not pass quietly', () => {

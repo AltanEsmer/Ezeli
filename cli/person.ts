@@ -1,7 +1,7 @@
 // Owner commands about people and their personal links.
-import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'node:crypto'
 import { parseArgs } from 'node:util'
+import { adminClient as sharedAdminClient } from './supabase.ts'
 
 const USAGE = [
   'Usage: pnpm ezeli person add --name <display name> [--owner]',
@@ -9,21 +9,10 @@ const USAGE = [
   '       pnpm ezeli person list',
 ].join('\n')
 
-// The secret key comes from the environment, never from a file in the repo.
+// The secret key client comes from cli/supabase.ts. The app address is only needed where a link is printed.
 function adminClient({ needsAppUrl = true } = {}) {
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_SECRET_KEY
-  const appUrl = process.env.EZELI_APP_URL
-  const missing = [
-    ['SUPABASE_URL', url],
-    ['SUPABASE_SECRET_KEY', key],
-    ...(needsAppUrl ? [['EZELI_APP_URL', appUrl]] : []),
-  ].filter(([, value]) => !value)
-  if (missing.length > 0 || !url || !key || (needsAppUrl && !appUrl)) {
-    throw new Error(`Set ${missing.map(([name]) => name).join(', ')} in the environment first.`)
-  }
-  const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
-  return { client, appUrl: (appUrl ?? '').replace(/\/+$/, '') }
+  const client = sharedAdminClient(needsAppUrl ? ['EZELI_APP_URL'] : [])
+  return { client, appUrl: (process.env.EZELI_APP_URL ?? '').replace(/\/+$/, '') }
 }
 
 // A reserved top-level domain: no mailbox can exist there, so no mail can ever arrive.

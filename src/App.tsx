@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { t } from './i18n.ts'
+import { Memories } from './Memories.tsx'
 import { type Person, useSession } from './session.ts'
 
 export function App() {
@@ -59,16 +60,7 @@ function Timeline({ person, onSignOut }: { person: Person; onSignOut: () => void
         </button>
       </header>
 
-      <section className="empty" aria-labelledby="empty-title">
-        <figure className="print">
-          <i className="tape" aria-hidden="true" />
-          <div className="photo" aria-hidden="true" />
-          <figcaption className="hand" id="empty-title">
-            {t.emptyTitle}
-          </figcaption>
-        </figure>
-        <p>{t.emptyBody}</p>
-      </section>
+      <Memories />
 
       {menuOpen && <Menu person={person} onClose={closeMenu} onSignOut={onSignOut} />}
     </main>

@@ -1,5 +1,5 @@
 {
   "people": [
-    { "name": "Limon", "whatsap": ["Limon L"] }
+    { "id": "limon", "name": "Limon", "whatsap": ["Limon L"] }
   ]
 }

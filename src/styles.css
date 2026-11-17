@@ -11,6 +11,8 @@
   --stamp: #8e2414;
   --tape1: #f2c94c;
   --tape2: #7fc7bd;
+  --tape3: #f2a0a0;
+  --tape4: #a9bdf0;
   --tape-ink: #2b1e12;
   --shadow: 0 2px 3px rgb(43 30 18 / 0.28), 0 8px 18px rgb(43 30 18 / 0.18);
   --focus: #1d3c8a;
@@ -34,6 +36,7 @@
   /* Prints, slips and notes stay light paper on the dark page. */
   .slip,
   .print,
+  .mprint,
   .card,
   .me {
     --ink: #2b1e12;
@@ -227,6 +230,72 @@ button {
   font-size: 24px;
   line-height: 1.1;
   color: var(--pen);
+}
+
+/* A memory: a stack of prints held by tape, slightly tilted, with the date written on the top
+   print and who sent the photos underneath. */
+.memories {
+  display: grid;
+  gap: 54px;
+  padding: 44px 8px 0;
+}
+.mem {
+  display: grid;
+  gap: 22px;
+}
+.stack {
+  position: relative;
+  transform: rotate(var(--tilt));
+}
+.mprint {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.mprint img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+  background: #efe3cc;
+}
+.mprint.front {
+  position: relative;
+  padding: 10px 10px 0;
+}
+.mprint.back {
+  position: absolute;
+  inset: 0;
+  padding: 10px 10px 46px;
+}
+.mprint.back img {
+  height: 100%;
+}
+.back1 {
+  transform: rotate(5deg) translate(10px, 2px);
+}
+.back2 {
+  transform: rotate(-4.5deg) translate(-9px, 5px);
+}
+.mem .tape {
+  background: var(--tape);
+}
+.cap {
+  min-height: 46px;
+  padding: 13px 4px 7px;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--pen);
+  text-wrap: balance;
+}
+.by {
+  padding-left: 8px;
+  font-weight: 700;
+}
+.empty > h1 {
+  font-size: 30px;
+  color: var(--ink);
 }
 
 /* The menu: a taped card. */

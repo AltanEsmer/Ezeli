@@ -1,0 +1,29 @@
+// Lasting keys. An export has no message ids, so a message is known by its content: the chat,
+// the clock time as written in the export cut to the minute (never the time zone or UTC), the
+// person's fixed id from the people file (never the display name), what it carried, and how many
+// identical ones came before it in the chat ("tamam" twice in a minute is two messages).
+// A photo leaves the text out, so an edited caption stays the same photo, and its position is
+// among that person's photos in that minute. Photo file names are not used: they differ between
+// phones. Importing a newer export of the same chat gives the same keys for the same messages.
+import { createHash } from 'node:crypto'
+import type { ChatApp } from './people.ts'
+
+const hash = (...parts: (string | number)[]) =>
+  createHash('sha256').update(parts.join('\u0001')).digest('hex').slice(0, 32)
+
+// The app and the name the owner gave, ignoring case and spaces around it.
+export function chatKey(app: ChatApp, name: string): string {
+  return `${app}:${name.normalize('NFC').trim().toLowerCase()}`
+}
+
+// Call it once per message of the chat, in chat order, left-out senders already removed.
+export function messageKeys(chat: string) {
+  const seen = new Map<string, number>()
+  return (message: { minute: string; personId: string; text: string; media?: { kind: string } }): string => {
+    const kind = message.media?.kind ?? ''
+    const same = hash(chat, message.minute, message.personId, kind, kind === 'photo' ? '' : message.text)
+    const count = (seen.get(same) ?? 0) + 1
+    seen.set(same, count)
+    return hash(same, count)
+  }
+}
