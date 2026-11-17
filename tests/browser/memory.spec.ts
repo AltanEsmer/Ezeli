@@ -102,7 +102,7 @@ test.describe('a friend on a memory', () => {
 
     // A real swipe with a finger, from right to left: the next photo.
     const cdp = await page.context().newCDPSession(page)
-    const touch = (type: string, x: number) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: 400 }] })
+    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: 400 }] })
     await touch('touchStart', 330)
     for (let x = 300; x >= 60; x -= 30) await touch('touchMove', x)
     await touch('touchEnd', 60)
