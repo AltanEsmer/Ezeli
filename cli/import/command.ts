@@ -8,7 +8,8 @@ import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } fr
 import { isDiscordExport, readDiscord, withMentions } from './discord.ts'
 import { readPeople } from './people.ts'
 import { readablePhoto, removeConvertedPhotos } from './photos.ts'
-import { saveChat } from './save.ts'
+import { spanOf } from './regroup.ts'
+import { saveChat, type SaveReport } from './save.ts'
 import { Stop } from './stop.ts'
 import { importSummary } from './summary.ts'
 import { cleanText, removePhoneNumbers } from './text.ts'
@@ -108,9 +109,13 @@ async function importExport(args: string[]): Promise<string> {
   }
 
   const memories = buildMemories(messages, grouping)
+  let report: SaveReport | undefined
   if (db) {
+    // The time this export covers, left-out senders and all: only inside it is anything stored
+    // taken away, so an older export never removes what a newer one added.
+    const span = spanOf(chat.messages.map((message) => message.at))
     try {
-      await saveChat(db, { key: chatKey(chat.app, chatName!), name: chatName!.trim(), app: chat.app, timezone }, memories)
+      report = await saveChat(db, { key: chatKey(chat.app, chatName!), name: chatName!.trim(), app: chat.app, timezone }, messages, grouping, span)
     } catch (error) {
       if (error instanceof Stop) throw error
       // Plain words, no stack. Everything is saved by key, so the same import finishes the job.
@@ -118,7 +123,7 @@ async function importExport(args: string[]): Promise<string> {
       throw new Stop(`Saving stopped before it finished: ${reason}. Fix that and run the same import again; it finishes the job.`)
     }
   }
-  return importSummary(memories, problems.map(removePhoneNumbers), timezone, details, trial ? undefined : chatName!.trim())
+  return importSummary(memories, problems.map(removePhoneNumbers), timezone, details, report && chatName!.trim(), report)
 }
 
 function databaseOrStop() {

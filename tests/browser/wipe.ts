@@ -17,12 +17,23 @@ export default async function wipe() {
   const chats = await db.from('chats').delete().not('id', 'is', null)
   if (chats.error) throw chats.error
 
+  // Photos are in one folder per chat, so look inside the folders too.
   const bucket = db.storage.from('photos')
   for (;;) {
     const listed = await bucket.list('', { limit: 1000 })
     if (listed.error) throw listed.error
-    if (listed.data.length === 0) break
-    const removed = await bucket.remove(listed.data.map((file) => file.name))
+    const paths: string[] = []
+    for (const entry of listed.data) {
+      if (entry.id) {
+        paths.push(entry.name)
+        continue
+      }
+      const inside = await bucket.list(entry.name, { limit: 1000 })
+      if (inside.error) throw inside.error
+      paths.push(...inside.data.map((file) => `${entry.name}/${file.name}`))
+    }
+    if (paths.length === 0) break
+    const removed = await bucket.remove(paths)
     if (removed.error) throw removed.error
   }
 }
