@@ -6,7 +6,7 @@ type Command = { summary: string; run: (args: string[]) => Promise<number> }
 
 const commands: Record<string, Command> = {
   person: { summary: 'Create a person and their personal link (person add --name <name> [--owner])', run: runPerson },
-  import: { summary: 'Load a chat export (WhatsApp so far, trial run only)', run: runImport },
+  import: { summary: 'Load a chat export (WhatsApp iPhone layout so far; import <folder> --people <file> --timezone <zone> --chat <name> [--trial])', run: runImport },
 }
 
 const [name, ...args] = process.argv.slice(2)

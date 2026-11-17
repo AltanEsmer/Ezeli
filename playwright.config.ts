@@ -1,13 +1,20 @@
 // The one browser test setup: a phone-size browser, the app served by Vite,
 // and the local Supabase that is already running (pnpm exec supabase start).
 import { defineConfig, devices } from '@playwright/test'
-import { localStack } from './tests/browser/stack.ts'
+import { localStack } from './tests/stack.ts'
 
 const stack = localStack()
 
 export default defineConfig({
   testDir: 'tests/browser',
-  testMatch: '**/*.spec.ts',
+  globalSetup: './tests/browser/wipe.ts',
+  // In order: the tests that need an empty timeline, then the real import on the made-up
+  // exports, then the tests that look at what it saved.
+  projects: [
+    { name: 'sign-in', testMatch: 'sign-in.spec.ts' },
+    { name: 'import', testMatch: 'import.setup.ts', dependencies: ['sign-in'] },
+    { name: 'memories', testMatch: 'timeline.spec.ts', dependencies: ['import'] },
+  ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',
   use: {

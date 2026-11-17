@@ -1,12 +1,13 @@
-// What a trial run prints: the numbers an owner checks before anything is saved.
+// What an import prints: the numbers an owner checks, before saving (trial run) or after.
 import type { Media, MediaKind } from './chat.ts'
 import { isPhoto, type Memory, type MemoryMessage } from './memories.ts'
 import { clockTimeOf } from './time.ts'
 
-export function trialSummary(memories: Memory[], problems: string[], zone: string, details: boolean): string {
+// `savedAs` is the chat name when the import saved; without it this is a trial run.
+export function importSummary(memories: Memory[], problems: string[], zone: string, details: boolean, savedAs?: string): string {
   const all = memories.flatMap((memory) => memory.messages)
   const lines = [
-    'Trial run. Nothing was saved.',
+    savedAs === undefined ? 'Trial run. Nothing was saved.' : `Saved to the chat "${savedAs}".`,
     '',
     `Memories:    ${memories.length}`,
     `Photos:      ${all.filter(isPhoto).length}`,

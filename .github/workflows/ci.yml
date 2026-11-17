@@ -20,8 +20,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm check:size
-      - run: pnpm test
       - name: Start the local Supabase
         run: pnpm exec supabase start
+      - run: pnpm test
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:browser

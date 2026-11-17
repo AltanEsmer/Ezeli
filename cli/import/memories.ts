@@ -15,7 +15,8 @@ export const startingGrouping: Grouping = {
   maxMessages: 30,
 }
 
-export type MemoryMessage = { at: number; person: string; text: string; media?: Media }
+// `key` is the message's lasting key (see keys.ts).
+export type MemoryMessage = { key: string; at: number; person: string; text: string; media?: Media }
 export type Memory = { at: number; messages: MemoryMessage[] } // `at` is when the first photo was sent
 
 export function isPhoto(message: MemoryMessage): boolean {

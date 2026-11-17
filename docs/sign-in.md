@@ -30,8 +30,17 @@ pnpm ezeli person add --name Karpuz --owner # prints the personal link; open it
 
 Stop it with `pnpm exec supabase stop --no-backup` (never `--all`: that stops other worktrees' stacks).
 
+## What a signed-in person can read
+
+Added with the import (issue 11). The rules follow the sign-in pattern: every table has row level security, `anon` and `authenticated` lose all rights and `authenticated` gets `select` back, and every policy asks `private.current_person_id()`.
+
+- `chats`, `memories`, `messages`, `photos` (and `people`): a person with a live session reads; nobody writes from the app; a visitor reads nothing.
+- `timeline`: a view (`security_invoker`, so the rules above apply to it) of memories newest first with their first three photos, the photo count and the senders, in one request. The timeline reads it and orders by `at`.
+- The bucket `photos` is private. A person with a live session can read objects, which is what lets the app ask for signed links (`createSignedUrls`, valid for an hour). Nobody can upload or remove from the app, and a visitor cannot list, download or sign.
+- A new table or bucket needs the same three things: row level security on, rights revoked then `select` granted, and a policy through `current_person_id()`. The tests in `tests/import/access.test.ts` show what to check.
+
 ## Tests
 
-- `pnpm test`: the import seam.
-- `pnpm test:browser`: the app in a phone-size browser against the running local Supabase. One-time browser download: `pnpm exec playwright install chromium`. Data is made by running the real owner command.
+- `pnpm test`: the import seam. The command runs on made-up exports and the result is read from the running local Supabase (database and bucket), so Supabase must be up. Each test uses names of its own.
+- `pnpm test:browser`: the app in a phone-size browser against the running local Supabase. One-time browser download: `pnpm exec playwright install chromium`. Data is made by running the real owner commands: sign-in tests first on an empty timeline, then the real import of two made-up exports, then the timeline tests. Before it starts, it deletes all chats (with their memories, messages and photos) and the photos in the bucket of the local stack. Never run it against a stack that holds anything you want to keep, and not at the same time as `pnpm test` on the same stack.
 - `pnpm check:size`: the size cap on `src/`.

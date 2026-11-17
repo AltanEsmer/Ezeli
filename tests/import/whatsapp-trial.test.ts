@@ -36,7 +36,7 @@ test('a trial run prints the memories, photos, people, date range and problems',
 })
 
 test('an import that is missing the folder, people file or time zone shows how to run it', () => {
-  const usage = 'Usage: pnpm ezeli import <export folder> --people <file> --timezone <zone> --trial'
+  const usage = 'Usage: pnpm ezeli import <export folder> --people <file> --timezone <zone> --chat <name> [--trial]'
 
   for (const args of [
     ['--people', people, '--timezone', 'Europe/Istanbul', '--trial'],
@@ -74,11 +74,11 @@ test('a people file that cannot be read or is not in the documented shape stops 
   expect(twice.err).toContain('The people file lists the WhatsApp sender "Limon L" twice.')
 })
 
-test('without --trial the import says saving is not built yet and fails', () => {
+test('without --trial the import needs a name for the chat', () => {
   const result = ezeliImport(`${fixtures}/weekend`, '--people', people, '--timezone', 'Europe/Istanbul')
 
   expect(result.status).toBe(1)
-  expect(result.err).toContain('Saving is not built yet (issue 11). Add --trial to see what would be imported.')
+  expect(result.err).toContain('Saving needs a name for the chat.')
   expect(result.out).toBe('')
 })
 

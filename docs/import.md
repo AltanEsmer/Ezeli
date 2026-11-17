@@ -1,15 +1,17 @@
 # Import
 
-An owner loads a chat export with one command. So far it reads a WhatsApp export in the iPhone layout and only does a trial run: it prints what would be imported and saves nothing.
+An owner loads a chat export with one command. So far it reads a WhatsApp export in the iPhone layout. It can try the import first (`--trial`, saves nothing) and then save it.
 
 ```
 pnpm ezeli import <export folder> --people <file> --timezone <zone> --trial
+pnpm ezeli import <export folder> --people <file> --timezone <zone> --chat "<chat name>"
 ```
 
 - `<export folder>`: the unzipped export, with `_chat.txt` and the media files next to it.
 - `--people <file>`: the people file, described below.
 - `--timezone <zone>`: the time zone the phone that made the export was in, such as `Europe/Istanbul`. Exports carry clock times without a zone.
-- `--trial`: print the summary and save nothing. Without it the command stops, because saving is not built yet.
+- `--chat <name>`: the name of the chat, needed when saving. Importing a later export of the same chat under the same name is the same chat (case and spaces around the name are ignored).
+- `--trial`: print the summary and save nothing (no `--chat`, no secret key needed).
 - `--details`: also print the conversation of every memory, to check the grouping.
 
 ## What is read
@@ -61,6 +63,21 @@ A JSON file with one entry per person who ever sent something in the chats. A ma
 The whole file is checked: a value of the wrong type (such as `"leftOut": "true"`) or an unknown key stops the run.
 
 A sender who is in the export but not in this file stops the run. All unknown senders are listed, so they can be added in one go.
+
+## Saving
+
+Without `--trial` the import saves, with the secret key from the environment (`SUPABASE_URL`, `SUPABASE_SECRET_KEY`), like `person add`. It never runs from the app.
+
+- **Tables:** `chats`, `memories`, `messages`, `photos`. Only messages that belong to a memory are stored. A message that carried a video, voice message, GIF or document is stored with that kind and no text, and shows as a placeholder line. Left-out senders are never stored.
+- **People:** each person in the people file who appears in a stored message is matched to a row in `people` by display name, and created without an account when there is none. `person add --name <display name>` later gives such a person a link.
+- **A memory's date** is when its first photo was sent, read in `--timezone`. The time zone is kept with the chat, and the app shows the date in it.
+- **Photos:** each is stored twice in the private bucket `photos`, as WebP: a viewing size (longest side at most 1600 px) and a small one for the timeline (720 px). Photos that are already smaller are not enlarged. The photo's own metadata (such as where it was taken) is dropped. Originals are never uploaded. A photo this build cannot read, such as an iPhone HEIC photo (issue 12), is listed under problems and stays in the conversation as a missing photo; the rest is imported.
+- **Lasting keys.** An export has no message ids, so each row carries a key made from the chat's content, for the later import of a newer export (issue 13) and for hiding (issue 20):
+  - chat: the app and the name, without case and surrounding spaces (`whatsapp:kaş tatili`);
+  - message: a hash of chat, moment sent, display name of the sender, kind of media, text, and a count of identical earlier ones (two "tamam" in the same second differ);
+  - photo: the key of its message (the file name is not used: it differs between phones);
+  - memory: the key of its first photo, which includes the chat.
+- Saving is by key, so saving the same export twice leaves one copy. Making a second import correct (new grouping, hidden marks, comments) is issues 13 and 20.
 
 ## What the trial run prints
 

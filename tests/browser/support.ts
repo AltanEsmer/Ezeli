@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { localStack } from './stack.ts'
+import { localStack } from '../stack.ts'
 
 const stack = localStack()
 
@@ -34,7 +34,8 @@ export function addPerson(name: string, options: { owner?: boolean } = {}): stri
   return link
 }
 
-// Stands in for the import (issue 11): a person who exists but has no account and no link yet.
+// A person as the import leaves them: a row with no account and no link yet. Made directly, as the
+// import would also add memories, and the sign-in tests run before the timeline's data exists.
 export async function addPersonWithoutAccount(name: string): Promise<void> {
   const response = await fetch(`${stack.apiUrl}/rest/v1/people`, {
     method: 'POST',
