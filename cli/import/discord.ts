@@ -6,6 +6,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 import type { ChatExport, ChatMessage, Media, MediaKind } from './chat.ts'
+import type { Person } from './people.ts'
 import { Stop } from './stop.ts'
 import { momentText } from './time.ts'
 
@@ -35,11 +36,15 @@ export function readDiscord(folder: string, zone: string): ChatExport {
   if (!Array.isArray(parsed.messages)) return mismatch('it has no "messages" list')
 
   const messages: ChatMessage[] = []
+  let real = 0
   parsed.messages.forEach((raw: unknown, index) => {
     if (!isObject(raw)) return mismatch(`message ${index + 1} is not an object`)
     const id = raw.id
     if (typeof id !== 'string' || id === '') return mismatch(`message ${index + 1} has no "id"`)
     const where = `message ${index + 1} (id ${id})`
+    if (typeof raw.type === 'number') {
+      return mismatch(`${where} has a "type" that is a number (${raw.type}), not a word such as "Default". This looks like Discord's own format, not the JSON of DiscordChatExporter`)
+    }
     if (typeof raw.type !== 'string') return mismatch(`${where} has no "type"`)
     // Joins, pins, calls and the like are notices. Only real messages are read.
     if (raw.type !== 'Default' && raw.type !== 'Reply') return
@@ -58,9 +63,13 @@ export function readDiscord(folder: string, zone: string): ChatExport {
       at,
       minute: momentText(at, zone),
       sender: author.id,
-      names: [author.name, author.nickname].filter((name): name is string => typeof name === 'string' && name.trim() !== ''),
+      names: namesOf(author),
     }
+    const mentions = Array.isArray(raw.mentions)
+      ? raw.mentions.filter(isObject).filter((m) => typeof m.id === 'string').map((m) => ({ id: m.id as string, names: nameList(m) }))
+      : []
     const text = raw.content
+    real++
     const attachments = raw.attachments.map((item: unknown) => {
       if (!isObject(item) || typeof item.id !== 'string' || item.id === '') return mismatch(`${where} has an attachment without an "id"`)
       if (typeof item.fileName !== 'string' || item.fileName === '') return mismatch(`${where} has an attachment without a "fileName"`)
@@ -71,7 +80,7 @@ export function readDiscord(folder: string, zone: string): ChatExport {
     // Every attachment is a message of its own, with its own lasting id, so a photo keeps its
     // key however its message is edited. A caption goes with the first photo.
     const firstPhoto = attachments.findIndex((a) => kindOf(a.fileName) === 'photo')
-    if (text.trim() !== '' && firstPhoto < 0) messages.push({ ...base, id: `message:${id}`, text })
+    if (text.trim() !== '' && firstPhoto < 0) messages.push({ ...base, id: `message:${id}`, text, mentions })
     attachments.forEach((a, i) => {
       const kind = kindOf(a.fileName)
       const media: Media = { kind, name: a.fileName }
@@ -80,9 +89,17 @@ export function readDiscord(folder: string, zone: string): ChatExport {
         const found = localFile(folder, a.url)
         if (found) media.file = found
       }
-      messages.push({ ...base, id: `attachment:${a.id}`, text: i === firstPhoto ? text : '', media })
+      messages.push({ ...base, id: `attachment:${a.id}`, text: i === firstPhoto ? text : '', media, mentions })
     })
   })
+
+  if (messages.length === 0) {
+    throw new Stop(
+      real === 0
+        ? `${file} has no messages from people (an empty export, or only notices and bots).`
+        : `${file} has ${real} messages but none has text or an attachment. Was the bot's Message Content Intent switched on? See docs/import.md.`,
+    )
+  }
 
   // Exports come oldest first; sorting keeps that order for messages of the same moment.
   messages.sort((a, b) => a.at - b.at)
@@ -126,4 +143,37 @@ function kindOf(fileName: string): MediaKind {
 
 function isObject(value: unknown): value is Json {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+// Server name first, then the username: how an owner recognises the person. Only printed.
+function namesOf(account: Json): string[] {
+  return [...new Set(nameList(account))]
+}
+
+function nameList(account: Json): string[] {
+  return [account.nickname, account.name].filter((name): name is string => typeof name === 'string' && name.trim() !== '')
+}
+
+// The export writes a mention as `@name` (the name shown in the server). A mentioned person who
+// is kept is shown under their Ezeli name; one who is left out or not in the people file is
+// removed from the text, name and all, so a left-out person's name never reaches the database.
+export function withMentions(
+  text: string,
+  mentions: { id: string; names: string[] }[],
+  find: (account: string) => Person | undefined,
+): string {
+  const byName = new Map<string, string>()
+  for (const { id, names } of mentions) for (const name of names) byName.set(name, id)
+  if (byName.size === 0) return text
+  // Longest names first, and not when the name goes on as a longer word ("@Ayva" in "@Ayvalık").
+  const names = [...byName.keys()].sort((a, b) => b.length - a.length).map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  const mention = new RegExp(`@(${names.join('|')})(?![\\p{L}\\p{N}_])( ?)`, 'gu')
+  let removed = false
+  const shown = text.replace(mention, (_all, name: string, space: string) => {
+    const person = find(byName.get(name)!)
+    if (person && !person.leftOut) return `@${person.name}${space}`
+    removed = true
+    return ''
+  })
+  return removed ? shown.replace(/ {2,}/g, ' ').trim() : shown
 }

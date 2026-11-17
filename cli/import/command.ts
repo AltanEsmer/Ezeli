@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { chatKey, idKey, messageKeys } from './keys.ts'
 import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } from './memories.ts'
-import { isDiscordExport, readDiscord } from './discord.ts'
+import { isDiscordExport, readDiscord, withMentions } from './discord.ts'
 import { readPeople } from './people.ts'
 import { whyUnreadable } from './photos.ts'
 import { saveChat } from './save.ts'
@@ -51,8 +51,8 @@ async function importExport(args: string[]): Promise<string> {
   const unknown = [
     ...new Set(
       chat.messages
-        .filter((m) => !who.find(chat.app, m.sender, m.names))
-        .map((m) => (m.names?.[0] ? `${m.names[0]} (${m.sender})` : m.sender)),
+        .filter((m) => !who.find(chat.app, m.sender))
+        .map((m) => (m.names?.length ? `${m.names.join(' / ')} (${m.sender})` : m.sender)),
     ),
   ]
   if (unknown.length > 0) {
@@ -65,9 +65,12 @@ async function importExport(args: string[]): Promise<string> {
   const key = messageKeys(chatText)
   const messages: MemoryMessage[] = []
   const problems = [...chat.problems]
-  for (const { sender, names, id, at, minute, text, media } of chat.messages) {
-    const person = who.find(chat.app, sender, names)!
+  for (const { sender, id, at, minute, media, mentions, ...said } of chat.messages) {
+    const person = who.find(chat.app, sender)!
     if (person.leftOut) continue
+    // A mention shows the person's Ezeli name; a left-out or unknown person is removed.
+    const text = mentions ? withMentions(said.text, mentions, (account) => who.find(chat.app, account)) : said.text
+    if (id !== undefined && !media && text.trim() === '') continue
     const message: MemoryMessage = {
       key: id === undefined ? key({ minute, personId: person.id, text, ...(media && { media }) }) : idKey(chatText, id),
       at,

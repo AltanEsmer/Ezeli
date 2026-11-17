@@ -24,6 +24,8 @@ The iPhone layout: lines such as `[14.07.2023, 20:58:11] Name: text`, day first,
 - Joined, left, added, created and encryption notices are skipped: the iPhone starts each of them with an invisible left-to-right mark, which a written message never has. Deleted-message notices are skipped by their words (English and Turkish). The marker for an edited message is removed from the text.
 - Files in the folder that no message mentions are listed under problems. If no photo was read although photo files exist, the summary says so: the export is probably in a layout this reader does not know.
 
+Not handled (Discord): a symbolic link inside the export folder is followed. The exporter never writes one.
+
 Not handled: when clocks go back, the repeated hour is read as its second occurrence.
 
 Keep real exports and the people file in `private/` or outside the repo. Neither is ever committed.
@@ -68,7 +70,8 @@ For newer history later, run the same command into the same folder and import it
 - Only real messages: `type` is `Default` or `Reply` and the author is not a bot. Joins, pins, calls and other notices, bot messages, link previews, stickers, reactions and forwarded messages are skipped. A message with no text and no attachment is skipped.
 - Times are `timestamp` (written in UTC because of `--utc`; the offset in the text is honoured, and a time without an offset stops the run). Dates are shown in `--timezone`.
 - Photos come only from a message's `attachments`, never from listing `media` (which also holds avatars, emoji and link-preview images). A photo is decided by the file extension of `fileName`: jpg, jpeg, png, webp, gif, heic, heif. Each attachment is stored as its own message, with the message's text as the caption of its first photo. An attachment is read from `url`, a path relative to the folder of `messages.json`; if it is still a web address (`https://...`) or the file is not there, the photo is missing media and is listed under problems. A video becomes the placeholder line `[Video]`, a voice message (ogg, opus, mp3, m4a, wav, aac...) `[Voice message]`, any other file `[Document]`.
-- Text is the export's own `content`, unchanged (mentions are already written as `@name`, custom emoji as `:name:`).
+- Text is the export's own `content`, unchanged, except mentions. The export writes a mention as `@name`; using the export's `mentions` list, a mentioned person from the people file is shown under their Ezeli name, and a mentioned person who is left out or not in the people file is removed from the text, name and all. Custom emoji stay `:name:`.
+- An export with no messages from people, or where no message has text or an attachment (usually the bot's Message Content Intent was left off), stops the run and stores nothing. So does a `type` that is a number (Discord's own format).
 - Grouping, people matching, saving and the summary are the same as for WhatsApp.
 
 ### What to compare on the first real export
@@ -76,7 +79,7 @@ For newer history later, run the same command into the same folder and import it
 - The time in `timestamp`: expected like `2021-03-04T18:22:05.123+00:00`.
 - That every message has `id`, `type`, `timestamp`, `content`, `author.id` and `attachments[]` with `id`, `fileName` and `url`.
 - That `attachments[].url` is `media/<name>-<16 hex characters>.<ext>`. The reader tries the path as written and with `%20`-style escapes undone, in case the tool escapes file names.
-- That `author.id` is the account id and `author.name` the username, to fill the people file.
+- That `author.id` is the account id (used in the people file) and `author.name` / `author.nickname` the username and server name, and that each `mentions[]` entry has the same shape.
 - That `type` is the word (`Default`, `Reply`, ...), and what a forwarded message and a thread starter look like.
 - That a photo uploaded from an iPhone (`.heic`) is present; this build cannot read HEIC yet (issue 12), so it is listed under problems.
 
@@ -110,7 +113,7 @@ A JSON file with one entry per person who ever sent something in the chats. A ma
 - `id`: required. A short lowercase word (letters a to z, digits, `-`) that you pick once for this person and **never change**. It is unique. Lasting keys and the saved person are made from it, so a person keeps their memories, photos and hidden marks when their display name or sender names change. It is stored as `people.slug`.
 - `name`: the display name friends see. Each name appears once. It may change later: the next import renames the person.
 - `whatsapp`: every sender name the person appears under in the WhatsApp exports, written as in the export. A person who changed their name has several.
-- `discord`: the same for Discord: an account id (best: it never changes; Discord shows it with Developer Mode on, and the trial run prints it for a sender it does not know) or a name (the username, or the name shown in the server). Listing both `whatsapp` and `discord` joins the two into one person.
+- `discord`: the same for Discord: the account id, a string of digits that never changes (Discord shows it with Developer Mode on, and the run prints it, with the server name and username, for a sender it does not know). Names are not matched: server names are not unique and change, so an account that is not listed by id stops the run. Those names are printed for you only and never stored. Listing both `whatsapp` and `discord` joins the two into one person.
 - `leftOut`: set to `true` for someone whose messages and photos must not be imported, such as a former member. Their `name` is only a label for the owners.
 
 The whole file is checked: a value of the wrong type (such as `"leftOut": "true"`) or an unknown key stops the run.

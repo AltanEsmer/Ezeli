@@ -27,8 +27,7 @@ function trial(folder: string, ...extra: string[]) {
   return ezeliImport([folder, '--people', `${discord}/people.json`, '--timezone', timezone, '--trial', ...extra])
 }
 
-// A people file in which each person is on both chats: WhatsApp names and Discord ids (Fıstık by
-// her Discord username). Names and ids are made fresh, as the database is shared by the tests.
+// A people file in which each person is on both chats: WhatsApp names and Discord account ids. Names and ids are made fresh, as the database is shared by the tests.
 function bothChats(names: Names): string {
   const file = join(mkdtempSync(join(tmpdir(), 'ezeli-people-')), 'people.json')
   writeFileSync(
@@ -37,7 +36,7 @@ function bothChats(names: Names): string {
       people: [
         { id: names.ids.karpuz, name: names.karpuz, whatsapp: ['Karpuz K'], discord: ['200000000000000001'] },
         { id: names.ids.limon, name: names.limon, whatsapp: ['Limon L', 'Limon 🌻'], discord: ['200000000000000002'] },
-        { id: names.ids.fistik, name: names.fistik, whatsapp: ['Fıstık F'], discord: ['fistik.f'] },
+        { id: names.ids.fistik, name: names.fistik, whatsapp: ['Fıstık F'], discord: ['200000000000000003'] },
         { id: names.ids.cilek, name: names.cilek, whatsapp: ['Çilek Ç'], discord: ['200000000000000004'], leftOut: true },
       ],
     }),
@@ -187,7 +186,7 @@ test('a person who used different names on WhatsApp and Discord is one person in
   expect(await rows(owner.from('people').select('id').eq('display_name', names.limon))).toHaveLength(1)
 })
 
-test('a sender who is not in the people file stops the run and is named by Discord name and id', () => {
+test('a sender who is not in the people file stops the run and is named by server name, username and id', () => {
   const people = join(mkdtempSync(join(tmpdir(), 'ezeli-people-')), 'people.json')
   writeFileSync(people, JSON.stringify({ people: [{ id: 'karpuz', name: 'Karpuz', discord: ['200000000000000001'] }] }))
 
@@ -195,8 +194,8 @@ test('a sender who is not in the people file stops the run and is named by Disco
 
   expect(result.status).toBe(1)
   expect(result.out).toBe('')
-  expect(result.err).toContain('fistik.f (200000000000000003)')
-  expect(result.err).toContain('limon.l (200000000000000002)')
+  expect(result.err).toContain('Fıstık / fistik.f (200000000000000003)')
+  expect(result.err).toContain('Limon 🌻 / limon.l (200000000000000002)')
   expect(result.err).not.toContain('hatirlatici')
 })
 
@@ -276,4 +275,161 @@ test('a folder with neither a WhatsApp nor a Discord export stops the run', () =
   expect(result.status).toBe(1)
   expect(result.err).toContain('No _chat.txt in')
   expect(result.err).toContain('messages.json')
+})
+
+// A Discord name in the people file never joins a sender: names are not unique and they change.
+test('an account that only shares a server nickname with a person is not that person', () => {
+  const people = join(mkdtempSync(join(tmpdir(), 'ezeli-people-')), 'people.json')
+  writeFileSync(
+    people,
+    JSON.stringify({
+      people: [
+        { id: 'karpuz', name: 'Karpuz', discord: ['200000000000000001', 'Karpuz', 'karpuz.k'] },
+        { id: 'limon', name: 'Limon', discord: ['200000000000000002'] },
+        { id: 'fistik', name: 'Fıstık', discord: ['Fıstık', 'fistik.f'] },
+      ],
+    }),
+  )
+
+  const result = ezeliImport([weekend, '--people', people, '--timezone', timezone, '--trial'])
+
+  expect(result.status).toBe(1)
+  expect(result.err).toContain('Fıstık / fistik.f (200000000000000003)')
+})
+
+// Mentions: the export gives each mentioned account with its id.
+function mentioning(text: string, ...who: { id: string; name: string; nickname: string }[]) {
+  const folder = changed((file) => {
+    const sample = file.messages[0]!
+    file.messages.push({ ...sample, id: '110000000000000060', timestamp: '2023-07-14T18:00:00.000+00:00', content: text, mentions: who, attachments: [] })
+    file.messageCount = file.messages.length
+  })
+  return folder
+}
+const cilek = { id: '200000000000000004', name: 'cilek.c', nickname: 'Çilek' }
+const limon = { id: '200000000000000002', name: 'limon.l', nickname: 'Limon 🌻' }
+const stranger = { id: '200000000000000088', name: 'muz.m', nickname: 'Muz' }
+
+test('a mention shows the person under their Ezeli name, and a left-out or unknown person is removed from the text', () => {
+  const folder = mentioning('@Çilek geliyor musun? @Limon 🌻 sen? @Muz da gelsin. @Limon🌻x', cilek, limon, stranger)
+
+  const { status, out } = trial(folder, '--details')
+
+  expect(status).toBe(0)
+  expect(out).toContain('Karpuz: geliyor musun? @Limon sen? da gelsin. @Limon🌻x')
+  for (const name of ['Çilek', 'Muz']) expect(out).not.toContain(name)
+})
+
+test('the name of a left-out person reaches the database through no mention', async () => {
+  const chat = fresh('Kaş Sunucusu')
+  const names = freshPeople()
+  const folder = mentioning('@Çilek geliyor musun? @Limon 🌻 sen?', cilek, limon)
+  expect(save(folder, chat, names).status).toBe(0)
+
+  const stored = await rows<{ text: string }>(owner.from('messages').select('text, memories!inner(chat_id)').eq('memories.chat_id', (await storedChat(chat))!.id as string))
+  expect(stored.map((m) => m.text)).toContain(`geliyor musun? @${names.limon} sen?`)
+  expect(stored.some((m) => m.text.includes('Çilek'))).toBe(false)
+})
+
+test.each([
+  ['an export with no messages', { messages: [] }, 'has no messages'],
+  [
+    'an export where every message is empty (Message Content Intent off)',
+    null,
+    'Message Content Intent',
+  ],
+])('%s stops the run and stores nothing', async (_name, content, message) => {
+  const folder = changed((file) => {
+    if (content) file.messages = content.messages
+    else for (const m of file.messages) (m.content = ''), (m.attachments = [])
+  })
+  const chat = fresh('Kaş Sunucusu')
+
+  const result = save(folder, chat, freshPeople())
+
+  expect(result.status).toBe(1)
+  expect(result.out).toBe('')
+  expect(result.err).toContain(message)
+  expect(await storedChat(chat)).toBeUndefined()
+})
+
+test('a file that does not match the layout stops a saving run and stores nothing', async () => {
+  const folder = changed((file) => {
+    delete file.messages[12]!.author.id
+  })
+  const chat = fresh('Kaş Sunucusu')
+
+  const result = save(folder, chat, freshPeople())
+
+  expect(result.status).toBe(1)
+  expect(result.err).toContain('message 13')
+  expect(await storedChat(chat)).toBeUndefined()
+})
+
+test('a "type" that is a number says the export is in Discord\'s own format', () => {
+  const folder = changed((file) => {
+    file.messages[2]!.type = 0
+  })
+
+  const result = trial(folder)
+
+  expect(result.status).toBe(1)
+  expect(result.err).toContain('message 3 (id 110000000000000003) has a "type" that is a number (0)')
+})
+
+test.each([
+  ['../outside.jpg'],
+  ['media/../../outside.jpg'],
+  ['%2e%2e/outside.jpg'],
+  ['..%2foutside.jpg'],
+  [join(tmpdir(), 'ezeli-outside', 'outside.jpg')],
+  ['file:///etc/hosts.jpg'],
+])('an attachment path that leaves the export folder (%s) is not read', (url) => {
+  const folder = changed((file) => {
+    file.messages[2]!.attachments[0].url = url
+  })
+  const parent = join(folder, '..')
+  cpSync(`${weekend}/media/IMG_2041-3f9a1c0b7e2d4a61.jpg`, join(parent, 'outside.jpg'))
+  mkdirSync(join(tmpdir(), 'ezeli-outside'), { recursive: true })
+  cpSync(`${weekend}/media/IMG_2041-3f9a1c0b7e2d4a61.jpg`, join(tmpdir(), 'ezeli-outside', 'outside.jpg'))
+  cpSync(`${weekend}/media`, join(folder, 'media'), { recursive: true })
+
+  const result = trial(folder)
+
+  expect(result.out).toContain('Photo missing from the export: IMG_2041.jpg')
+  expect(result.out).toContain('Photos:      3')
+})
+
+test.each([
+  ['an escaped space and Turkish letters', 'media/k%C4%B1%C5%9F%20rotas%C4%B1-ab12cd34ef567890.jpg'],
+  ['unescaped Turkish letters and a space', 'media/kış rotası-ab12cd34ef567890.jpg'],
+])('an attachment file name with %s is found', (_name, url) => {
+  const folder = changed((file) => {
+    Object.assign(file.messages[2]!.attachments[0], { url, fileName: 'kış rotası.jpg' })
+  })
+  cpSync(`${weekend}/media`, join(folder, 'media'), { recursive: true })
+  cpSync(`${weekend}/media/IMG_2041-3f9a1c0b7e2d4a61.jpg`, join(folder, 'media', 'kış rotası-ab12cd34ef567890.jpg'))
+
+  const result = trial(folder)
+
+  expect(result.out).toContain('Problems:    none')
+  expect(result.out).toContain('Photos:      4')
+})
+
+test.each([
+  ['no fraction', '2023-07-14T17:58:11+00:00'],
+  ['a short fraction', '2023-07-14T17:58:11.5+00:00'],
+  ['seven digits of fraction', '2023-07-14T17:58:11.1234567+00:00'],
+  ['a Z', '2023-07-14T17:58:11Z'],
+  ['an offset of +03:00', '2023-07-14T20:58:11+03:00'],
+])('a time with %s is read as the same moment', (_name, time) => {
+  const folder = changed((file) => {
+    file.messages[2]!.timestamp = time
+  })
+
+  const result = trial(folder, '--details')
+
+  expect(result.status).toBe(0)
+  expect(result.out).toContain('2023-07-14 20:58  3 photos')
+  expect(result.out).toContain('20:58  Limon: [Photo: IMG_2041.jpg] Bakın')
 })
