@@ -11,6 +11,8 @@ A friend opens a personal link and is signed in as themselves. No email, no pass
 - Sign-out uses `signOut({ scope: 'local' })`: it ends this device only.
 - Labels are in `src/i18n.ts`, English and Turkish, picked from the browser's language.
 
+On the hosted project (not set up yet) the same things are dashboard switches under Authentication: turn off "Allow new users to sign up", leave anonymous sign-ins off, keep the Email provider on, set no custom SMTP and no external providers. Then create one account and check that the hosted admin API accepts the `.invalid` address.
+
 The secret key reaches owner commands only through the environment: `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `EZELI_APP_URL`.
 
 ## Run it on your computer
