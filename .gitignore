@@ -10,3 +10,9 @@ private/
 # Test output
 test-results/
 playwright-report/
+
+# Agent worktrees and each worktree's own local Supabase settings.
+.claude/worktrees/
+supabase/.env
+supabase/.temp/
+supabase/.branches/

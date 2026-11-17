@@ -8,6 +8,8 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      DO_NOT_TRACK: 1
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -17,4 +19,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
+      - run: pnpm check:size
       - run: pnpm test
+      - name: Start the local Supabase
+        run: pnpm exec supabase start
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:browser

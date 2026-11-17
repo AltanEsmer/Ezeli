@@ -1,9 +1,11 @@
 // The owner commands. Run as: pnpm ezeli <command>
 import { runImport } from './import/command.ts'
+import { runPerson } from './person.ts'
 
 type Command = { summary: string; run: (args: string[]) => Promise<number> }
 
 const commands: Record<string, Command> = {
+  person: { summary: 'Create a person and their personal link (person add --name <name> [--owner])', run: runPerson },
   import: { summary: 'Load a chat export (WhatsApp so far, trial run only)', run: runImport },
 }
 
