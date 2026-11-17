@@ -13,6 +13,10 @@ export default async function wipe() {
   }
   const db = createClient(stack.apiUrl, stack.secretKey, { auth: { persistSession: false } })
 
+  // Comments are kept apart from their memory on purpose (a memory with comments cannot be deleted).
+  const comments = await db.from('comments').delete().not('id', 'is', null)
+  if (comments.error) throw comments.error
+
   // Memories, messages and photos go with their chat.
   const chats = await db.from('chats').delete().not('id', 'is', null)
   if (chats.error) throw chats.error

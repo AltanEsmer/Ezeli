@@ -5,7 +5,7 @@ import type { Db } from '../supabase.ts'
 import { buildMemories, hasPhotoFile, isPhoto, type Grouping, type MemoryMessage } from './memories.ts'
 import type { ChatApp } from './people.ts'
 import { makeSizes } from './photos.ts'
-import { chunks, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Span } from './regroup.ts'
+import { chunks, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Removed, type Span } from './regroup.ts'
 import { Stop } from './stop.ts'
 
 export type ChatToSave = { key: string; name: string; app: ChatApp; timezone: string }
@@ -13,7 +13,7 @@ export type ChatToSave = { key: string; name: string; app: ChatApp; timezone: st
 const BUCKET = 'photos'
 
 // What a saving run did, in rows: new ones, ones that were already stored, ones taken away.
-export type SaveReport = { added: Counts; already: Counts; removed: Counts }
+export type SaveReport = { added: Counts; already: Counts; removed: Removed }
 
 // `exported` are the export's messages in chat order, left-out senders removed. `span` is the
 // time the export covers. What is stored outside that time is joined with the export before the
