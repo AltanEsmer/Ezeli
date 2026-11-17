@@ -35,6 +35,12 @@ export function navigate(path: string, options: { replace?: boolean } = {}) {
   window.dispatchEvent(new Event(CHANGED))
 }
 
+// A layer on top of a screen (the full-screen photo) is a step of its own in the history, so the
+// phone's Back closes it. The address stays the same.
+export function pushLayer() {
+  history.pushState({ depth: depth() + 1, layer: true }, '')
+}
+
 // Back to the timeline: the browser's own back when this app has a screen behind, else forward to it.
 export function toTimeline() {
   if (depth() > 0) history.back()

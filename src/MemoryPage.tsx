@@ -1,20 +1,26 @@
-import { type CSSProperties, type ReactNode, useEffect, useState } from 'react'
+import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react'
 import { type Language, formatDate, language, t } from './i18n.ts'
 import { type MemoryDetail, useMemory } from './memory.ts'
-import { memoryPath, navigate, toTimeline, viewed } from './route.ts'
-import { Viewer } from './Viewer.tsx'
+import { memoryPath, navigate, pushLayer, toTimeline, viewed } from './route.ts'
+import { Pic, Viewer } from './Viewer.tsx'
 
 // One memory: the date as a heading, the chat it came from as a stamp, every photo as a large
 // print, and the conversation as a taped slip. The place under the conversation is left free for
 // comments (issue 18).
-export function MemoryPage({ memoryKey }: { memoryKey: string }) {
-  const { state, reload } = useMemory(memoryKey)
+export function MemoryPage({ memoryKey, onSessionLost }: { memoryKey: string; onSessionLost: () => void }) {
+  const { state, reload, relink } = useMemory(memoryKey)
   useEffect(() => {
     viewed(memoryKey)
     window.scrollTo(0, 0)
   }, [memoryKey])
 
-  if (state.status === 'loading') return <main className="page" aria-busy="true" aria-label={t.loading} />
+  // A replaced link: the app asks who is signed in again, and shows the private page.
+  const lost = state.status === 'gone'
+  useEffect(() => {
+    if (lost) onSessionLost()
+  }, [lost, onSessionLost])
+
+  if (state.status === 'loading' || state.status === 'gone') return <main className="page" aria-busy="true" aria-label={t.loading} />
   if (state.status !== 'ready') {
     const missing = state.status === 'missing'
     return (
@@ -35,7 +41,7 @@ export function MemoryPage({ memoryKey }: { memoryKey: string }) {
       </main>
     )
   }
-  return <Memory memory={state.memory} links={state.links} />
+  return <Memory memory={state.memory} links={state.links} relink={relink} />
 }
 
 const tilts = [-1.6, 1.3, -0.8, 1.8]
@@ -44,8 +50,20 @@ const tapes = ['var(--tape2)', 'var(--tape1)', 'var(--tape3)', 'var(--tape4)']
 const pens = ['#1d3c8a', '#8e2414', '#1e6e68', '#6b3fa0', '#8a5a00']
 const pen = (name: string) => pens[[...name].reduce((sum, ch) => sum + ch.codePointAt(0)!, 0) % pens.length]
 
-function Memory({ memory, links }: { memory: MemoryDetail; links: Map<string, string> }) {
+function Memory({ memory, links, relink }: { memory: MemoryDetail; links: Map<string, string>; relink: () => Promise<boolean> }) {
   const [open, setOpen] = useState<number | null>(null)
+  // The full-screen view is a step in the history, so the phone's Back closes it and stays here.
+  const show = (index: number) => {
+    pushLayer()
+    setOpen(index)
+  }
+  useEffect(() => {
+    const closed = () => {
+      if (!(history.state as { layer?: boolean } | null)?.layer) setOpen(null)
+    }
+    window.addEventListener('popstate', closed)
+    return () => window.removeEventListener('popstate', closed)
+  }, [])
   const photoOf = new Map(memory.photos.map((photo, index) => [photo.message, index]))
 
   return (
@@ -64,15 +82,8 @@ function Memory({ memory, links }: { memory: MemoryDetail; links: Map<string, st
         {memory.photos.map((photo, index) => (
           <figure key={photo.view} className="mprint big" style={{ '--tilt': `${tilts[index % tilts.length]}deg`, '--tape': tapes[index % tapes.length] } as CSSProperties}>
             <i className="tape" aria-hidden="true" />
-            <button aria-label={t.openPhoto(index + 1, memory.photos.length)} onClick={() => setOpen(index)}>
-              <img
-                src={links.get(photo.view)}
-                alt={t.photoBy(photo.by)}
-                width={photo.width}
-                height={photo.height}
-                style={{ aspectRatio: `${photo.width} / ${photo.height}` }}
-                loading={index === 0 ? 'eager' : 'lazy'}
-              />
+            <button aria-label={t.openPhoto(index + 1, memory.photos.length)} onClick={() => show(index)}>
+              <Pic src={links.get(photo.view)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={relink} loading={index === 0 ? 'eager' : 'lazy'} />
             </button>
             <figcaption className="cap hand">{photo.by}</figcaption>
           </figure>
@@ -81,23 +92,24 @@ function Memory({ memory, links }: { memory: MemoryDetail; links: Map<string, st
 
       <section className="slip talk" aria-label={t.conversation}>
         <i className="tape" aria-hidden="true" />
-        {groups(memory.messages).map((group) => (
-          <div className="group" key={group[0]!.id}>
-            <div className="who hand" style={{ color: pen(group[0]!.by) }}>
-              {group[0]!.by}
+        {groups(memory).map((group) => (
+          <div className="group" key={group.messages[0]!.id}>
+            {group.day && <p className="day hand">{formatDate(language, group.day, memory.timezone)}</p>}
+            <div className="who hand" style={{ color: pen(group.messages[0]!.by_id ?? group.by) }}>
+              {group.by}
             </div>
-            {group.map((message) => {
+            {group.messages.map((message) => {
               const index = photoOf.get(message.id)
               const photo = index === undefined ? undefined : memory.photos[index]
               return (
                 <div className="msg" key={message.id}>
                   <div className="body">
                     {photo && (
-                      <button className="small" aria-label={t.openPhoto(index! + 1, memory.photos.length)} onClick={() => setOpen(index!)}>
-                        <img src={links.get(photo.thumb)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} loading="lazy" />
+                      <button className="small" aria-label={t.openPhoto(index! + 1, memory.photos.length)} onClick={() => show(index!)}>
+                        <Pic src={links.get(photo.thumb)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={relink} loading="lazy" />
                       </button>
                     )}
-                    {message.text ? <p>{linkify(message.text)}</p> : !photo && <em className="ph">{placeholder(message.kind)}</em>}
+                    {message.text ? <p dir="auto">{linkify(message.text)}</p> : !photo && <em className="ph">{placeholder(message.kind)}</em>}
                   </div>
                   <time className="at" dateTime={message.at}>
                     {formatTime(language, message.at, memory.timezone)}
@@ -128,7 +140,7 @@ function Memory({ memory, links }: { memory: MemoryDetail; links: Map<string, st
         )}
       </nav>
 
-      {open !== null && <Viewer photos={memory.photos} links={links} start={open} onClose={() => setOpen(null)} />}
+      {open !== null && <Viewer photos={memory.photos} links={links} relink={relink} start={open} onClose={() => history.back()} />}
     </main>
   )
 }
@@ -140,12 +152,21 @@ const go = (key: string) => (event: React.MouseEvent) => {
   navigate(memoryPath(key), { replace: true })
 }
 
-function groups(messages: MemoryDetail['messages']) {
-  const result: MemoryDetail['messages'][] = []
-  for (const message of messages) {
+type Group = { by: string; day: string | null; messages: MemoryDetail['messages'] }
+
+// Messages of one sender in a row sit together; a group also starts where the day changes (in the
+// chat's time zone), and says which day it is.
+function groups(memory: MemoryDetail): Group[] {
+  const dayOf = (moment: string) => new Intl.DateTimeFormat('en-CA', { timeZone: memory.timezone }).format(new Date(moment))
+  const result: Group[] = []
+  let today = dayOf(memory.at)
+  for (const message of memory.messages) {
+    const day = dayOf(message.at)
+    const changed = day !== today
+    today = day
     const last = result[result.length - 1]
-    if (last && last[0]!.by === message.by) last.push(message)
-    else result.push([message])
+    if (last && !changed && last.by === message.by) last.messages.push(message)
+    else result.push({ by: message.by, day: changed ? message.at : null, messages: [message] })
   }
   return result
 }

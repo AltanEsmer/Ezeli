@@ -10,10 +10,23 @@ const address = /\/m\/[0-9a-f]{32}$/
 const CHAT = 'Gezi Notları'
 
 test.beforeAll(() => {
-  const result = ownerCommand(['import', `${fixtures}/links`, '--people', `${fixtures}/people.json`, '--timezone', 'Europe/Istanbul', '--chat', CHAT])
-  expect(result.stderr).toBe('')
-  expect(result.status).toBe(0)
+  // Gezi Notları: 2 September 2023 and 10 January 2023 (passes midnight). İkiz A and B: one photo
+  // each at the very same moment, 1 February 2023 10:00.
+  for (const [folder, chat] of [['links', CHAT], ['twin', 'İkiz A'], ['twin', 'İkiz B']] as const) {
+    const result = ownerCommand(['import', `${fixtures}/${folder}`, '--people', `${fixtures}/people.json`, '--timezone', 'Europe/Istanbul', '--chat', chat])
+    expect(result.stderr).toBe('')
+    expect(result.status).toBe(0)
+  }
 })
+
+// The access token the app keeps on this device.
+const accessToken = (page: Page) =>
+  page.evaluate(() => {
+    const key = Object.keys(localStorage).find((name) => name.endsWith('-auth-token'))!
+    return JSON.parse(localStorage.getItem(key)!).access_token as string
+  })
+
+const heading = (page: Page) => page.getByRole('heading', { level: 1 })
 
 async function signIn(page: Page) {
   await page.goto(addPerson(fruit('Karpuz')))
@@ -51,7 +64,7 @@ test.describe('a friend on a memory', () => {
 
     const talk = page.getByRole('region', { name: 'Conversation' })
     // Messages of one sender in a row sit under one name.
-    await expect(talk.locator('.who')).toHaveText(['Limon', 'Karpuz', 'Fıstık', 'Limon', 'Karpuz'])
+    await expect(talk.locator('.who')).toHaveText(['Limon', 'Karpuz', 'Fıstık', 'Limon', 'Karpuz', 'Fıstık'])
     await expect(talk.getByText('17:55', { exact: true })).toBeVisible()
     await expect(talk.getByText('18:20', { exact: true })).toBeVisible()
     await expect(talk.getByText('Rota burada')).toBeVisible()
@@ -184,6 +197,178 @@ test.describe('a friend on a memory', () => {
     await expect(page.getByText(CHAT)).toHaveCount(0)
   })
 
+  test('shows every photo whole on the full-screen view, tall or wide, upright or sideways', async ({ page }) => {
+    await openNewest(page)
+
+    await page.locator('.prints img').first().click()
+    const viewer = page.getByRole('dialog', { name: 'Photo' })
+    const whole = async (index: number) => {
+      const view = page.viewportSize()!
+      const image = viewer.locator('.slide img').nth(index)
+      await expect(image).toHaveJSProperty('complete', true)
+      // The strip may still be sliding to this photo.
+      await expect.poll(async () => Math.abs((await image.boundingBox())!.x)).toBeLessThan(2)
+      const box = (await image.boundingBox())!
+      expect(box.x).toBeGreaterThanOrEqual(-1)
+      expect(box.y).toBeGreaterThanOrEqual(-1)
+      expect(box.x + box.width).toBeLessThanOrEqual(view.width + 1)
+      expect(box.y + box.height).toBeLessThanOrEqual(view.height + 1)
+    }
+    // Photo 1 is a tall 9:16 portrait, photo 2 a wide 16:9 landscape.
+    await whole(0)
+    await viewer.getByRole('button', { name: 'Next photo' }).click()
+    await expect(viewer.getByText('2 / 2')).toBeVisible()
+    await whole(1)
+
+    await page.setViewportSize({ width: 844, height: 390 })
+    await whole(1)
+    await viewer.getByRole('button', { name: 'Previous photo' }).click()
+    await expect(viewer.getByText('1 / 2')).toBeVisible()
+    await whole(0)
+  })
+
+  test('closes the full-screen view with the phone\'s Back and stays on the memory', async ({ page }) => {
+    await openNewest(page)
+    const memoryAddress = page.url()
+
+    await page.locator('.prints img').first().click()
+    const viewer = page.getByRole('dialog', { name: 'Photo' })
+    await expect(viewer).toBeVisible()
+    await page.goBack()
+    await expect(viewer).toHaveCount(0)
+    await expect(page).toHaveURL(memoryAddress)
+    await expect(heading(page)).toHaveText('Saturday, September 2, 2023')
+
+    // Closing with the button leaves no extra step behind: one Back leads to the timeline.
+    await page.locator('.prints img').first().click()
+    await viewer.getByRole('button', { name: 'Close' }).click()
+    await expect(viewer).toHaveCount(0)
+    await page.goBack()
+    await expect(articles(page).first()).toBeVisible()
+  })
+
+  test('asks for fresh links once when a photo\'s link has run out, then shows the photo', async ({ page }) => {
+    const signed: string[] = []
+    page.on('request', (request) => request.method() === 'POST' && request.url().endsWith('/object/sign/photos') && signed.push(request.url()))
+    // The first request of every large photo fails, as an expired link would.
+    const tried = new Set<string>()
+    await page.route(/\/object\/sign\/photos\/.+-view\.webp\?token=/, (route) => {
+      const path = new URL(route.request().url()).pathname
+      if (tried.has(path)) return route.continue()
+      tried.add(path)
+      return route.abort()
+    })
+    await openNewest(page)
+    const photos = page.locator('.prints img')
+    await expect(photos).toHaveCount(2)
+    for (const photo of await photos.all()) {
+      await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
+    }
+    expect(tried.size).toBe(2)
+    // The timeline's links, the memory's links, and one request for fresh ones (not one per photo).
+    expect(signed.length).toBe(3)
+  })
+
+  test('shows a paper placeholder in the photo\'s shape when the fresh link fails too', async ({ page }) => {
+    await page.route(/\/object\/sign\/photos\/.+-view\.webp\?token=/, (route) => route.abort())
+    await openNewest(page)
+
+    const gone = page.locator('.prints .gone')
+    await expect(gone).toHaveCount(2)
+    await expect(page.locator('.prints img')).toHaveCount(0)
+    const tall = (await gone.nth(0).boundingBox())!
+    const wide = (await gone.nth(1).boundingBox())!
+    expect(tall.height).toBeGreaterThan(tall.width)
+    expect(wide.width).toBeGreaterThan(wide.height)
+  })
+
+  test('puts a day line where the conversation passes midnight', async ({ page }) => {
+    await signIn(page)
+    // 10 January 2023: the photo at 23:50, a message at 00:10 the next day.
+    await articles(page).last().getByRole('link').click()
+    await expect(heading(page)).toHaveText('Tuesday, January 10, 2023')
+    const talk = page.getByRole('region', { name: 'Conversation' })
+    await expect(talk.getByText('Wednesday, January 11, 2023')).toBeVisible()
+    await expect(talk.locator('.day')).toHaveCount(1)
+    await expect(talk.getByText('00:10', { exact: true })).toBeVisible()
+  })
+
+  test('sets the direction of each message by its own letters', async ({ page }) => {
+    await openNewest(page)
+
+    await expect(page.getByText('مرحبا يا أصدقاء')).toHaveAttribute('dir', 'auto')
+  })
+
+  test('reaches both of two memories from the same moment with earlier and later', async ({ page }) => {
+    await signIn(page)
+    // Newest first: 2 Sep, 15 Jul, 14 Jul, 5 Mar, then two memories of 1 Feb 10:00, then 10 Jan.
+    await articles(page).nth(3).getByRole('link').click()
+    await expect(heading(page)).toHaveText('Sunday, March 5, 2023')
+    const earlier = page.getByRole('link', { name: 'Earlier memory' })
+    const later = page.getByRole('link', { name: 'Later memory' })
+
+    await earlier.click()
+    await expect(heading(page)).toHaveText('Wednesday, February 1, 2023')
+    const first = page.url()
+    await earlier.click()
+    await expect(heading(page)).toHaveText('Wednesday, February 1, 2023')
+    const second = page.url()
+    expect(second).not.toBe(first)
+    await earlier.click()
+    await expect(heading(page)).toHaveText('Tuesday, January 10, 2023')
+    await expect(earlier).toHaveCount(0)
+
+    await later.click()
+    await expect(page).toHaveURL(second)
+    await later.click()
+    await expect(page).toHaveURL(first)
+    await later.click()
+    await expect(heading(page)).toHaveText('Sunday, March 5, 2023')
+  })
+
+  test('shows the timeline at its own address for a path the app does not know', async ({ page }) => {
+    await signIn(page)
+    await page.goto('/people/xyz')
+    await expect(articles(page).first()).toBeVisible()
+    await expect(page).toHaveURL(/\/$/)
+  })
+
+  test('is shown the private page, not "not here", when the link was replaced while a memory is open', async ({ page }) => {
+    const name = fruit('Karpuz')
+    await page.goto(addPerson(name))
+    await expect(articles(page).first()).toBeVisible()
+    await articles(page).first().getByRole('link').click()
+    await expect(page.getByRole('link', { name: 'Earlier memory' })).toBeVisible()
+    const oldToken = await accessToken(page)
+
+    expect(ownerCommand(['person', 'relink', '--name', name]).status).toBe(0)
+
+    // The old token is still one the auth server would accept for a while, yet the function gives it nothing.
+    const key = page.url().split('/m/')[1]!
+    const read = await page.request.post(`${apiUrl}/rest/v1/rpc/memory_detail`, { headers: { apikey: publishableKey, authorization: `Bearer ${oldToken}` }, data: { p_key: key } })
+    expect(read.status()).toBe(200)
+    expect(await read.json()).toBeNull()
+
+    await page.getByRole('link', { name: 'Earlier memory' }).click()
+    await expect(page.getByRole('heading', { name: 'Ezeli is private' })).toBeVisible()
+    await expect(page.getByText('This memory is not here')).toHaveCount(0)
+    await expect(page.getByText('Open your personal link first. After that, this address will work.')).toBeVisible()
+  })
+
+  test('gets each sender\'s lasting person id with the display name, in the one request', async ({ page }) => {
+    await openNewest(page)
+    const key = page.url().split('/m/')[1]!
+    const read = await page.request.post(`${apiUrl}/rest/v1/rpc/memory_detail`, {
+      headers: { apikey: publishableKey, authorization: `Bearer ${await accessToken(page)}` },
+      data: { p_key: key },
+    })
+    const memory = await read.json()
+    expect(memory.messages.map((m: { by: string; by_id: string }) => `${m.by}:${m.by_id}`)).toEqual(
+      expect.arrayContaining(['Limon:limon', 'Karpuz:karpuz', 'Fıstık:fistik']),
+    )
+    expect(memory.photos.every((p: { by_id: string }) => typeof p.by_id === 'string')).toBe(true)
+  })
+
   test.describe('with the browser set to Turkish', () => {
     test.use({ locale: 'tr-TR' })
 
@@ -219,7 +404,7 @@ test.describe('a visitor without a session', () => {
     page.on('request', (request) => asked.push(request.url()))
     await page.goto(memoryAddress)
     await expect(page.getByRole('heading', { name: 'Ezeli is private' })).toBeVisible()
-    await expect(page.getByText('personal link', { exact: false })).toBeVisible()
+    await expect(page.getByText('Open your personal link first. After that, this address will work.')).toBeVisible()
     await expect(page).toHaveTitle('Ezeli')
     await expect(page.locator('body')).not.toContainText(CHAT)
     await expect(page.locator('body')).not.toContainText('Rota burada')
@@ -229,7 +414,8 @@ test.describe('a visitor without a session', () => {
     const key = memoryAddress.split('/m/')[1]!
     for (const probe of [key, '0'.repeat(32)]) {
       const read = await page.request.post(`${apiUrl}/rest/v1/rpc/memory_detail`, { headers: { apikey: publishableKey }, data: { p_key: probe } })
-      expect(await read.text()).not.toContain(CHAT)
+      expect(read.status()).toBe(401)
+      expect(await read.json()).toMatchObject({ code: '42501', message: 'permission denied for function memory_detail' })
     }
 
     // After signing in with the personal link on this device, the address opens the memory.
@@ -238,5 +424,14 @@ test.describe('a visitor without a session', () => {
     await page.goto(memoryAddress)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Saturday, September 2, 2023')
     await friend.close()
+  })
+})
+
+test.describe("a visitor without a session, with the browser set to Turkish", () => {
+  test.use({ locale: "tr-TR" })
+
+  test("is told in Turkish to open their personal link first", async ({ page }) => {
+    await page.goto(`/m/${"0".repeat(32)}`)
+    await expect(page.getByText("Önce kişisel bağlantını aç. Ondan sonra bu adres çalışacak.")).toBeVisible()
   })
 })

@@ -29,7 +29,7 @@ export function useTimeline(): { timeline: Timeline; reload: () => void } {
   const reload = useCallback(() => {
     setTimeline({ status: 'loading' })
     void (async () => {
-      const found = await supabase.from('timeline').select('*').order('at', { ascending: false }).limit(FIRST_MEMORIES)
+      const found = await supabase.from('timeline').select('*').order('at', { ascending: false }).order('key', { ascending: false }).limit(FIRST_MEMORIES)
       if (found.error) return setTimeline({ status: 'failed' })
       const memories = found.data as MemoryCard[]
 

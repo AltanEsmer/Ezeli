@@ -3,6 +3,7 @@
 const en = {
   privateTitle: 'Ezeli is private',
   privateBody: 'This place is only for our friends. Ask an owner for your personal link.',
+  privateMemoryBody: 'Open your personal link first. After that, this address will work.',
   badLinkTitle: 'This link does not work',
   badLinkBody: 'It has been replaced or it is not complete. Ask an owner for a new personal link.',
   failedTitle: 'Could not load',
@@ -18,6 +19,7 @@ const en = {
   emptyBody: 'They will show up here once the owners load the chats.',
   sentBy: (names: string) => `Sent by ${names}`,
   photoBy: (name: string) => `Photo sent by ${name}`,
+  photoGone: 'Photo could not load',
   allMemories: 'All memories',
   conversation: 'Conversation',
   earlierMemory: 'Earlier memory',
@@ -39,6 +41,7 @@ export type Labels = typeof en
 const tr: Labels = {
   privateTitle: 'Ezeli özel',
   privateBody: 'Burası sadece arkadaşlarımız için. Kişisel bağlantın için sahiplerden birine yaz.',
+  privateMemoryBody: 'Önce kişisel bağlantını aç. Ondan sonra bu adres çalışacak.',
   badLinkTitle: 'Bu bağlantı çalışmıyor',
   badLinkBody: 'Yenilenmiş ya da eksik olabilir. Sahiplerden yeni bir kişisel bağlantı iste.',
   failedTitle: 'Yüklenemedi',
@@ -54,6 +57,7 @@ const tr: Labels = {
   emptyBody: 'Sahipler sohbetleri yükleyince burada görünecek.',
   sentBy: (names: string) => `${names} gönderdi`,
   photoBy: (name: string) => `${name} gönderdi`,
+  photoGone: 'Fotoğraf yüklenemedi',
   allMemories: 'Tüm anılar',
   conversation: 'Konuşma',
   earlierMemory: 'Önceki anı',

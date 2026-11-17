@@ -4,7 +4,7 @@ import type { MemoryDetail } from './memory.ts'
 
 // A photo full screen. The photos sit side by side in a strip that snaps one at a time, so a swipe
 // is the browser's own scrolling; the buttons and the arrow keys move the same strip.
-export function Viewer(props: { photos: MemoryDetail['photos']; links: Map<string, string>; start: number; onClose: () => void }) {
+export function Viewer(props: { photos: MemoryDetail['photos']; links: Map<string, string>; relink: () => Promise<boolean>; start: number; onClose: () => void }) {
   const { photos, start, onClose } = props
   const strip = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDivElement>(null)
@@ -69,7 +69,7 @@ export function Viewer(props: { photos: MemoryDetail['photos']; links: Map<strin
       >
         {photos.map((photo, i) => (
           <div className="slide" key={photo.view}>
-            <img src={props.links.get(photo.view)} alt={t.photoBy(photo.by)} loading={Math.abs(i - start) < 2 ? 'eager' : 'lazy'} />
+            <Pic src={props.links.get(photo.view)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={props.relink} loading={Math.abs(i - start) < 2 ? 'eager' : 'lazy'} />
           </div>
         ))}
       </div>
@@ -87,4 +87,19 @@ export function Viewer(props: { photos: MemoryDetail['photos']; links: Map<strin
       </p>
     </div>
   )
+}
+
+// A photo. When its link has run out it asks for fresh links once; when that does not help either,
+// a paper placeholder of the photo's shape stands in, never the browser's broken-image icon.
+export function Pic(props: { src: string | undefined; alt: string; width: number; height: number; relink: () => Promise<boolean>; loading?: 'eager' | 'lazy' }) {
+  // 0: the first try. 1: tried again after the fresh links arrived. Failing then is the end.
+  const [attempt, setAttempt] = useState(0)
+  const failed = () => {
+    if (!props.src || attempt > 0) return setAttempt(2)
+    void props.relink().then((ok) => setAttempt(ok ? 1 : 2))
+  }
+  const shape = { aspectRatio: `${props.width} / ${props.height}` }
+  if (attempt === 2 || !props.src) return <div className="gone" role="img" aria-label={t.photoGone} style={shape} />
+  // The key makes the browser ask again even when the fresh link looks the same.
+  return <img key={attempt} src={props.src} alt={props.alt} width={props.width} height={props.height} style={shape} loading={props.loading} onError={failed} />
 }

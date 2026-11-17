@@ -1,3 +1,6 @@
+‎[10.01.2023, 23:50:00] Limon L: ‎<attached: 00000008-PHOTO-2023-01-10-23-50-00.jpg>
+[10.01.2023, 23:58:00] Karpuz K: Yılbaşından sonra ilk kar
+[11.01.2023, 00:10:00] Limon L: Gece yarısını geçti, hâlâ yağıyor
 [02.09.2023, 17:55:00] Limon L: Rota burada https://example.com/rota?gun=2, bir de www.example.org/kas.
 [02.09.2023, 17:56:00] Limon L: Bu bağlantı değil: javascript:alert(1) ve kas.example
 ‎[02.09.2023, 18:00:00] Karpuz K: ‎<attached: 00000002-PHOTO-2023-09-02-18-00-00.jpg>
@@ -7,3 +10,4 @@
 ‎[02.09.2023, 18:03:00] Limon L: ‎<attached: 00000005-AUDIO-2023-09-02-18-03-00.opus>
 ‎[02.09.2023, 18:04:00] Limon L: ‎<attached: 00000006-Rota.pdf>
 [02.09.2023, 18:20:00] Karpuz K: Gece yarısına az kaldı
+[02.09.2023, 18:21:00] Fıstık F: مرحبا يا أصدقاء
