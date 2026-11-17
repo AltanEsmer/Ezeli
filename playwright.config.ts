@@ -14,6 +14,9 @@ export default defineConfig({
     { name: 'sign-in', testMatch: ['sign-in.spec.ts', 'replace-link.spec.ts'] },
     { name: 'import', testMatch: 'import.setup.ts', dependencies: ['sign-in'] },
     { name: 'memories', testMatch: 'timeline.spec.ts', dependencies: ['import'] },
+    // Last: a few thousand made-up memories, made at test time, which the tests above must not see.
+    { name: 'large-import', testMatch: 'large.setup.ts', dependencies: ['memories'] },
+    { name: 'large', testMatch: 'large.spec.ts', dependencies: ['large-import'], fullyParallel: false },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',

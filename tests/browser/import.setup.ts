@@ -11,6 +11,8 @@ const chats = [
   // One memory of three photos from three people, on 5 March 2023: the photos are 30 minutes
   // apart, so a gap of 31 minutes joins them.
   { name: 'Mart Gezisi', folder: 'gaps', extra: ['--photo-gap', '31'] },
+  // One memory on 1 December 2022 whose messages all come before its photo.
+  { name: 'Akşam Yemeği', folder: 'line-before', extra: [] as string[] },
 ]
 
 test('the made-up exports are imported', () => {
