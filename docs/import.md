@@ -24,8 +24,6 @@ The iPhone layout: lines such as `[14.07.2023, 20:58:11] Name: text`, day first,
 - Joined, left, added, created and encryption notices are skipped: the iPhone starts each of them with an invisible left-to-right mark, which a written message never has. Deleted-message notices are skipped by their words (English and Turkish). The marker for an edited message is removed from the text.
 - Files in the folder that no message mentions are listed under problems. If no photo was read although photo files exist, the summary says so: the export is probably in a layout this reader does not know.
 
-Not handled (Discord): a symbolic link inside the export folder is followed. The exporter never writes one.
-
 Not handled: when clocks go back, the repeated hour is read as its second occurrence.
 
 Keep real exports and the people file in `private/` or outside the repo. Neither is ever committed.
@@ -144,5 +142,6 @@ The number of memories, photos and people, the date range, the problems found (s
 
 ## Not handled yet
 
+- Discord: a symbolic link inside the export folder is followed (the exporter never writes one), and forwarded messages and exported threads are not read.
 - Phone numbers inside message text are stored as written (issue 12). Do not import real chats into a shared stack before that.
 - A newer export that changes grouping can leave an older memory behind (issue 13).
