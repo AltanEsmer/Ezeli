@@ -14,6 +14,7 @@ const en = {
   signedInAs: 'Signed in as',
   owner: 'Owner',
   signOut: 'Sign out on this device',
+  language: 'Language',
   emptyTitle: 'No memories yet',
   emptyBody: 'They will show up here once the owners load the chats.',
   sentBy: (names: string) => `Sent by ${names}`,
@@ -36,21 +37,39 @@ const tr: Labels = {
   signedInAs: 'Giriş yapan',
   owner: 'Sahip',
   signOut: 'Bu cihazdan çık',
+  language: 'Dil',
   emptyTitle: 'Henüz anı yok',
   emptyBody: 'Sahipler sohbetleri yükleyince burada görünecek.',
   sentBy: (names: string) => `${names} gönderdi`,
   photoBy: (name: string) => `${name} gönderdi`,
 }
 
+export type Language = 'tr' | 'en'
+export const labels: Record<Language, Labels> = { en, tr }
+
 // Turkish when the browser is set to Turkish, English otherwise.
-export function pickLanguage(): 'tr' | 'en' {
+export function browserLanguage(): Language {
   return navigator.language.toLowerCase().startsWith('tr') ? 'tr' : 'en'
 }
 
-export const language = pickLanguage()
-export const t: Labels = language === 'tr' ? tr : en
+// The language of the screen, and its labels. Both are live bindings: setLanguage changes them and
+// tells the subscribers, App re-renders, and everything below it reads the new `t` and `language`.
+// A screen just imports `t` and `language`; a new label is a key in `en` and in `tr`.
+export let language: Language = browserLanguage()
+export let t: Labels = labels[language]
 
-export type Language = 'tr' | 'en'
+const listeners = new Set<() => void>()
+export function setLanguage(next: Language) {
+  if (next === language) return
+  language = next
+  t = labels[next]
+  listeners.forEach((listener) => listener())
+}
+export function subscribeLanguage(listener: () => void) {
+  listeners.add(listener)
+  return () => void listeners.delete(listener)
+}
+export const getLanguage = () => language
 
 // Every date and every list of names the app writes goes through here, so the language switch
 // (issue 9) has one place to reach. `zone` is the time zone of the chat the date comes from: a

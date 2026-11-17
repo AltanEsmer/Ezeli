@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { t } from './i18n.ts'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { type Language, getLanguage, setLanguage, subscribeLanguage, t } from './i18n.ts'
 import { Memories } from './Memories.tsx'
 import { type Person, useSession } from './session.ts'
+import { supabase } from './supabase.ts'
 
 export function App() {
   const { session, signOut, reload } = useSession()
+  // Re-renders everything below when the language changes; `t` is read fresh on each render.
+  const language = useSyncExternalStore(subscribeLanguage, getLanguage)
+  useEffect(() => {
+    document.documentElement.lang = language
+  }, [language])
 
   switch (session.status) {
     case 'loading':
@@ -111,10 +117,32 @@ function Menu(props: { person: Person; onClose: () => void; onSignOut: () => voi
         <small>{t.signedInAs}</small>
         <strong className="hand who">{props.person.display_name}</strong>
         {props.person.is_owner && <span className="stamp">{t.owner}</span>}
+        <LanguageSwitch />
         <button className="btn" onClick={props.onSignOut}>
           {t.signOut}
         </button>
       </div>
     </>
+  )
+}
+
+// The two names are always written in their own language. The chosen one is circled in pen.
+function LanguageSwitch() {
+  const current = useSyncExternalStore(subscribeLanguage, getLanguage)
+  const choose = async (next: Language) => {
+    if (next === current) return
+    setLanguage(next)
+    // Remembered on the person. If it cannot be saved, go back rather than pretend.
+    const { error } = await supabase.rpc('set_my_language', { chosen: next })
+    if (error) setLanguage(current)
+  }
+  return (
+    <div className="lang" role="group" aria-label={t.language}>
+      {(['tr', 'en'] as const).map((code) => (
+        <button key={code} lang={code} className={`hand${code === current ? ' on' : ''}`} aria-pressed={code === current} onClick={() => void choose(code)}>
+          {code === 'tr' ? 'Türkçe' : 'English'}
+        </button>
+      ))}
+    </div>
   )
 }
