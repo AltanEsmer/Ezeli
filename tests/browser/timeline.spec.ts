@@ -1,5 +1,6 @@
 // The timeline as a friend sees it. The memories were saved by the real import of the made-up
-// exports (import.setup.ts): 15 July and 14 July 2023 from one chat, 5 March 2023 from another.
+// exports (import.setup.ts): 15 July and 14 July 2023 from one WhatsApp chat, 5 March 2023 from
+// another, and 22 January 2023 from a Discord chat.
 import { type Page, expect, test } from '@playwright/test'
 import { addPerson, apiUrl, fruit, publishableKey } from './support.ts'
 
@@ -32,24 +33,41 @@ test.describe('a friend on the timeline', () => {
   test('sees the memories newest first, each with its date, its photos and who sent them', async ({ page }) => {
     await openTimeline(page)
 
-    await expect(memories(page)).toHaveCount(3)
-    await expect(memories(page).getByRole('heading')).toHaveText(['Saturday, July 15, 2023', 'Friday, July 14, 2023', 'Sunday, March 5, 2023'])
+    await expect(memories(page)).toHaveCount(4)
+    await expect(memories(page).getByRole('heading')).toHaveText(['Saturday, July 15, 2023', 'Friday, July 14, 2023', 'Sunday, March 5, 2023', 'Sunday, January 22, 2023'])
     await expect(memories(page).locator('.by')).toHaveText([
       'Sent by Fıstık',
       'Sent by Limon and Karpuz',
       'Sent by Karpuz, Limon, and Fıstık',
+      'Sent by Limon',
     ])
     // One photo, two, three: the main photos are stacked behind the first.
     await expect(memories(page).nth(0).locator('img')).toHaveCount(1)
     await expect(memories(page).nth(1).locator('img')).toHaveCount(2)
     await expect(memories(page).nth(2).locator('img')).toHaveCount(3)
+    await expect(memories(page).nth(3).locator('img')).toHaveCount(2)
+  })
+
+  test('sees a Discord memory among the WhatsApp ones, on the day it was sent in its chat, from the same Limon', async ({ page }) => {
+    await openTimeline(page)
+
+    // 21 January 22:30 UTC is 22 January in Istanbul. It sorts by time with the WhatsApp memories,
+    // and Limon is one person on both chats (the people file joins the Discord id to the WhatsApp names).
+    const discord = memories(page).filter({ hasText: 'Sunday, January 22, 2023' })
+    await expect(discord).toHaveCount(1)
+    await expect(discord.locator('.by')).toHaveText('Sent by Limon')
+    await expect(memories(page).filter({ hasText: 'Sent by Limon and Karpuz' })).toHaveCount(1)
+    for (const picture of await discord.locator('img').all()) {
+      await expect(picture).toHaveJSProperty('complete', true)
+      expect(await picture.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
+    }
   })
 
   test('sees the photos, which load from short-lived links to a private bucket', async ({ page }) => {
     await openTimeline(page)
 
     const pictures = memories(page).locator('img')
-    await expect(pictures).toHaveCount(6)
+    await expect(pictures).toHaveCount(8)
     for (const picture of await pictures.all()) {
       await expect(picture).toHaveJSProperty('complete', true)
       expect(await picture.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
@@ -64,7 +82,7 @@ test.describe('a friend on the timeline', () => {
     const page = await context.newPage()
     await openTimeline(page)
 
-    await expect(memories(page).getByRole('heading')).toHaveText(['Saturday, July 15, 2023', 'Friday, July 14, 2023', 'Sunday, March 5, 2023'])
+    await expect(memories(page).getByRole('heading')).toHaveText(['Saturday, July 15, 2023', 'Friday, July 14, 2023', 'Sunday, March 5, 2023', 'Sunday, January 22, 2023'])
     await context.close()
   })
 
@@ -74,11 +92,12 @@ test.describe('a friend on the timeline', () => {
     test('reads dates and the sender line in Turkish, and the names as they are', async ({ page }) => {
       await openTimeline(page)
 
-      await expect(memories(page).getByRole('heading')).toHaveText(['15 Temmuz 2023 Cumartesi', '14 Temmuz 2023 Cuma', '5 Mart 2023 Pazar'])
+      await expect(memories(page).getByRole('heading')).toHaveText(['15 Temmuz 2023 Cumartesi', '14 Temmuz 2023 Cuma', '5 Mart 2023 Pazar', '22 Ocak 2023 Pazar'])
       await expect(memories(page).locator('.by')).toHaveText([
         'Fıstık gönderdi',
         'Limon ve Karpuz gönderdi',
         'Karpuz, Limon ve Fıstık gönderdi',
+        'Limon gönderdi',
       ])
     })
   })

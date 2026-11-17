@@ -1,9 +1,12 @@
 // pnpm ezeli import <export folder> --people <file> --timezone <zone> --chat <name> [--trial]
 import { parseArgs } from 'node:util'
 import { adminClient } from '../supabase.ts'
-import { chatKey, messageKeys } from './keys.ts'
+import { existsSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { chatKey, idKey, messageKeys } from './keys.ts'
 import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } from './memories.ts'
-import { isPhoneNumber, readPeople } from './people.ts'
+import { isDiscordExport, readDiscord, withMentions } from './discord.ts'
+import { readPeople } from './people.ts'
 import { whyUnreadable } from './photos.ts'
 import { saveChat } from './save.ts'
 import { Stop } from './stop.ts'
@@ -39,37 +42,45 @@ async function importExport(args: string[]): Promise<string> {
   const db = trial ? undefined : databaseOrStop()
 
   const who = readPeople(people)
-  const chat = readWhatsApp(folder, timezone, dateOrder)
-
-  // A phone number is never printed: it is named by the first message it sent.
-  const unknown: string[] = []
-  const numbers = new Set<string>()
-  for (const { sender, minute } of chat.messages) {
-    if (who.find(chat.app, sender)) continue
-    if (!isPhoneNumber(sender)) unknown.push(sender)
-    else if (!numbers.has(sender)) {
-      numbers.add(sender)
-      unknown.push(`a phone number (first message ${minute})`)
-    }
+  // The kind of export is recognised from the folder's contents.
+  const hasText = existsSync(folder) && readdirSync(folder).some((name) => /\.txt$/i.test(name))
+  if (!hasText && !existsSync(join(folder, 'messages.json'))) {
+    throw new Stop(`No _chat.txt in ${folder} (WhatsApp iPhone export), no .txt chat file (Android), and no messages.json (Discord export).`)
   }
+  const chat = isDiscordExport(folder) ? readDiscord(folder, timezone) : readWhatsApp(folder, timezone, dateOrder)
+
+  // The one place a sender is printed as written: the owner cannot fill in the people file
+  // without it. A Discord sender is its account id; the name only helps to add it.
+  const unknown = [
+    ...new Set(
+      chat.messages
+        .filter((m) => !who.find(chat.app, m.sender))
+        .map((m) => (m.names?.length ? `${m.names.join(' / ')} (${m.sender})` : m.sender)),
+    ),
+  ]
   if (unknown.length > 0) {
     const list = [...new Set(unknown)].sort((a, b) => a.localeCompare(b, 'tr')).join(', ')
-    throw new Stop(`Not in the people file: ${list}\nAdd them, or mark them "leftOut". A number is written in the file as it is in the chat. See docs/import.md.`)
+    throw new Stop(
+      'This list is exactly as written in the export. It can hold phone numbers: do not paste it anywhere.\n' +
+        `Not in the people file: ${list}\nAdd them, or mark them "leftOut". See docs/import.md.`,
+    )
   }
 
   // Left-out senders are dropped here, before grouping and before problems are worked out, so
   // nothing about them reaches the result. Problems name the person by display name only.
-  const key = messageKeys(chatKey(chat.app, chatName ?? ''))
+  const chatText = chatKey(chat.app, chatName ?? '')
+  const key = messageKeys(chatText)
   const messages: MemoryMessage[] = []
   const problems = [...chat.problems]
-  for (const { sender, at, minute, text: written, media } of chat.messages) {
+  for (const { sender, id, at, minute, media, mentions, ...said } of chat.messages) {
     const person = who.find(chat.app, sender)!
     if (person.leftOut) continue
-    // Mentions become names and phone numbers are removed, before anything is keyed or kept.
-    const text = cleanText(written, who)
-    if (!text && !media) continue
+    // A mention shows the person's Ezeli name; a left-out or unknown person is removed.
+    // WhatsApp mentions and phone numbers are cleaned in the same way, before anything is keyed.
+    const text = mentions ? withMentions(said.text, mentions, (account) => who.find(chat.app, account)) : id === undefined ? cleanText(said.text, who) : said.text
+    if (!media && text.trim() === '') continue
     const message: MemoryMessage = {
-      key: key({ minute, personId: person.id, text, ...(media && { media }) }),
+      key: id === undefined ? key({ minute, personId: person.id, text, ...(media && { media }) }) : idKey(chatText, id),
       at,
       person: person.name,
       personId: person.id,

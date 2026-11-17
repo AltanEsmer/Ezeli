@@ -128,7 +128,7 @@ export function readWhatsApp(folder: string, zone: string, chosenOrder?: DateOrd
 // The chat text: `_chat.txt` (iPhone), or the one .txt file of an Android export. Among several,
 // the one with "WhatsApp" in its name.
 function findChatFile(folder: string): string {
-  const missing = new Stop(`No chat text in ${folder}. Give the unzipped export folder: _chat.txt (iPhone) or the .txt file (Android).`)
+  const missing = new Stop(`No _chat.txt in ${folder} (iPhone export) and no .txt chat file (Android). Give the unzipped export folder.`)
   if (!existsSync(folder) || !statSync(folder).isDirectory()) throw missing
   const names = readdirSync(folder).filter((name) => !name.startsWith('.'))
   if (names.includes('_chat.txt')) return join(folder, '_chat.txt')

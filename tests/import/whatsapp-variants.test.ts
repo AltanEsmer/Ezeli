@@ -179,7 +179,7 @@ test('an export folder with no chat text, or with two, says what to give', async
   writeFileSync(`${two}/notes.txt`, 'something else')
 
   const none = trial(`${variants}/no-such-folder`)
-  expect(none.err).toContain('No chat text in')
+  expect(none.err).toContain('No _chat.txt in')
   const unreadable = trial(empty)
   expect(unreadable.err).toContain('has no messages')
   const picked = trial(two)

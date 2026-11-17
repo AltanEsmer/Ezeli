@@ -16,6 +16,12 @@ export function chatKey(app: ChatApp, name: string): string {
   return `${app}:${name.normalize('NFC').trim().toLowerCase()}`
 }
 
+// A message or attachment that the chat app gives a lasting id of its own (Discord): the key is
+// made from the chat and that id alone, so editing the text or importing a newer export changes nothing.
+export function idKey(chat: string, id: string): string {
+  return hash(chat, 'id', id)
+}
+
 // Call it once per message of the chat, in chat order, left-out senders already removed.
 export function messageKeys(chat: string) {
   const seen = new Map<string, number>()

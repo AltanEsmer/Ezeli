@@ -166,7 +166,7 @@ test('a folder with no chat text stops the import', () => {
   const result = ezeliImport(`${fixtures}/no-such-folder`, '--people', people, '--timezone', 'Europe/Istanbul', '--trial')
 
   expect(result.status).toBe(1)
-  expect(result.err).toContain('No chat text in')
+  expect(result.err).toContain('No _chat.txt in')
 })
 
 test('an impossible date or time stops the run and names the line', () => {
