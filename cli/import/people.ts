@@ -23,6 +23,11 @@ export function readPeople(file: string): People {
   }
 
   const entries = isRecord(content) ? content.people : undefined
+  if (isRecord(content)) {
+    for (const key of Object.keys(content)) {
+      if (key !== 'people') throw new Stop(`The people file has an unknown key "${key}". ${seeDocs}`)
+    }
+  }
   if (!Array.isArray(entries)) throw new Stop(`The people file needs a "people" list. ${seeDocs}`)
 
   const bySender = new Map<string, Person>()
@@ -32,12 +37,20 @@ export function readPeople(file: string): People {
       throw new Stop(`Every person in the people file needs a "name". ${seeDocs}`)
     }
     const person: Person = { name: entry.name.trim(), leftOut: entry.leftOut === true }
+    for (const key of Object.keys(entry)) {
+      if (!allowedKeys.includes(key)) {
+        throw new Stop(`${person.name} in the people file has an unknown key "${key}". Allowed: ${allowedKeys.join(', ')}.`)
+      }
+    }
+    if (entry.leftOut !== undefined && typeof entry.leftOut !== 'boolean') {
+      throw new Stop(`"leftOut" of ${person.name} must be true or false, without quotes.`)
+    }
     if (names.has(person.name)) throw new Stop(`The people file has the name "${person.name}" twice.`)
     names.add(person.name)
 
     for (const app of Object.keys(appNames) as ChatApp[]) {
       const senders = entry[app] ?? []
-      if (!Array.isArray(senders) || senders.some((sender) => typeof sender !== 'string')) {
+      if (!Array.isArray(senders) || senders.some((sender) => typeof sender !== 'string' || cleanSender(sender) === '')) {
         throw new Stop(`"${app}" of ${person.name} in the people file must be a list of sender names. ${seeDocs}`)
       }
       for (const sender of senders as string[]) {
@@ -53,6 +66,7 @@ export function readPeople(file: string): People {
   return { find: (app, sender) => bySender.get(senderKey(app, sender)) }
 }
 
+const allowedKeys = ['name', 'whatsapp', 'discord', 'leftOut']
 const seeDocs = 'See docs/import.md.'
 
 // Chat apps wrap some names in invisible direction marks and use odd spaces. A sender is the

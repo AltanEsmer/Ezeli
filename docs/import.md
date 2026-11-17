@@ -14,12 +14,15 @@ pnpm ezeli import <export folder> --people <file> --timezone <zone> --trial
 
 ## What is read
 
-The iPhone layout: lines such as `[14.07.2023, 20:58:11] Name: text`, day first, with dots or slashes. Android layouts and other date formats are issue 12.
+The iPhone layout: lines such as `[14.07.2023, 20:58:11] Name: text`, day first, with dots or slashes. A date or time that cannot exist (month 14, 31 February, 25:61) stops the run and names the line; this also catches month-first exports. Android layouts and other date formats are issue 12.
 
-- A line that does not start like that continues the message before it.
-- A photo is `<attached: file>` (or the older `file (file attached)`). A photo whose file is not in the folder is listed under problems and the run goes on.
+- A line that does not start like that continues the message before it. Messages are put in time order.
+- A photo is a tag such as `<attached: file>` anywhere in the message (only its shape is matched, as the word may be translated), or the older `file (file attached)`. A photo whose file is not in the folder is listed under problems, by the sender's display name, and the run goes on.
 - Videos, voice messages, GIFs and documents become a placeholder line such as `[Video]`. Stickers are skipped.
-- Joined, left, added, created and encryption notices are skipped: the iPhone starts each of them with an invisible left-to-right mark, which a written message never has. Deleted-message notices are skipped by their words (English and Turkish). The made-up exports are modelled on this and not yet checked against a real export.
+- Joined, left, added, created and encryption notices are skipped: the iPhone starts each of them with an invisible left-to-right mark, which a written message never has. Deleted-message notices are skipped by their words (English and Turkish). The marker for an edited message is removed from the text.
+- Files in the folder that no message mentions are listed under problems. If no photo was read although photo files exist, the summary says so: the export is probably in a layout this reader does not know.
+
+Not handled: when clocks go back, the repeated hour is read as its second occurrence.
 
 Keep real exports and the people file in `private/` or outside the repo. Neither is ever committed.
 
@@ -43,9 +46,9 @@ A JSON file with one entry per person who ever sent something in the chats. A ma
 ```json
 {
   "people": [
-    { "name": "Deniz", "whatsapp": ["Deniz Arslan"] },
-    { "name": "Elif", "whatsapp": ["Elif Kara", "Elif 🌻"], "discord": ["elif.kara"] },
-    { "name": "Tolga", "whatsapp": ["Tolga Eski"], "leftOut": true }
+    { "name": "Karpuz", "whatsapp": ["Karpuz K"] },
+    { "name": "Limon", "whatsapp": ["Limon L", "Limon 🌻"], "discord": ["limon.l"] },
+    { "name": "Çilek", "whatsapp": ["Çilek Ç"], "leftOut": true }
   ]
 }
 ```
@@ -54,6 +57,8 @@ A JSON file with one entry per person who ever sent something in the chats. A ma
 - `whatsapp`: every sender name the person appears under in the WhatsApp exports, written as in the export. A person who changed their name has several.
 - `discord`: the same for Discord. Listing both joins the two into one person.
 - `leftOut`: set to `true` for someone whose messages and photos must not be imported, such as a former member. Their `name` is only a label for the owners.
+
+The whole file is checked: a value of the wrong type (such as `"leftOut": "true"`) or an unknown key stops the run.
 
 A sender who is in the export but not in this file stops the run. All unknown senders are listed, so they can be added in one go.
 

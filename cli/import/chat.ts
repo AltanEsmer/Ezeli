@@ -18,5 +18,5 @@ export type ChatMessage = {
 export type ChatExport = {
   app: ChatApp
   messages: ChatMessage[] // in the order of the chat; notices and stickers already skipped
-  problems: string[]
+  problems: string[] // about the export as a whole; problems about a message are worked out from `messages`
 }

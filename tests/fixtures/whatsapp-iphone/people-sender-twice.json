@@ -1,6 +1,6 @@
 {
   "people": [
-    { "name": "Elif", "whatsapp": ["Elif Kara"] },
-    { "name": "Deniz", "whatsapp": ["Deniz Arslan", "Elif Kara"] }
+    { "name": "Limon", "whatsapp": ["Limon L"] },
+    { "name": "Karpuz", "whatsapp": ["Karpuz K", "Limon L"] }
   ]
 }

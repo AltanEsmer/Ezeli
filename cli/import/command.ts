@@ -4,7 +4,7 @@ import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } fr
 import { readPeople } from './people.ts'
 import { Stop } from './stop.ts'
 import { trialSummary } from './summary.ts'
-import { isTimeZone } from './time.ts'
+import { isTimeZone, momentText } from './time.ts'
 import { readWhatsApp } from './whatsapp.ts'
 
 const usage =
@@ -39,13 +39,20 @@ function importExport(args: string[]): string {
     throw new Stop(`Not in the people file: ${unknown.sort((a, b) => a.localeCompare(b, 'tr')).join(', ')}\nAdd them, or mark them "leftOut". See docs/import.md.`)
   }
 
+  // Left-out senders are dropped here, before grouping and before problems are worked out, so
+  // nothing about them reaches the result. Problems name the person by display name only.
   const messages: MemoryMessage[] = []
+  const problems = [...chat.problems]
   for (const { sender, at, text, media } of chat.messages) {
     const person = who.find(chat.app, sender)!
-    if (!person.leftOut) messages.push({ at, person: person.name, text, ...(media && { media }) })
+    if (person.leftOut) continue
+    messages.push({ at, person: person.name, text, ...(media && { media }) })
+    if (media?.kind === 'photo' && !media.file) {
+      problems.push(`Photo missing from the export: ${media.name ?? 'no file in the export'} (${person.name}, ${momentText(at, timezone)})`)
+    }
   }
 
-  return trialSummary(buildMemories(messages, grouping), chat.problems, timezone, details)
+  return trialSummary(buildMemories(messages, grouping), problems, timezone, details)
 }
 
 function readArgs(args: string[]) {

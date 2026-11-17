@@ -24,12 +24,12 @@ test('a trial run prints the memories, photos, people, date range and problems',
       '',
       'Memories:    2',
       'Photos:      3',
-      'People:      3 (Çağrı, Deniz, Elif)',
+      'People:      3 (Fıstık, Karpuz, Limon)',
       'Date range:  2023-07-14 to 2023-07-15',
       'Problems:    none',
       '',
-      '  1. 2023-07-14 20:58  2 photos, 7 messages  Çağrı, Deniz, Elif',
-      '  2. 2023-07-15 11:05  1 photo, 1 message  Çağrı, Deniz',
+      '  1. 2023-07-14 20:58  2 photos, 7 messages  Fıstık, Karpuz, Limon',
+      '  2. 2023-07-15 11:05  1 photo, 1 message  Fıstık, Karpuz',
       '',
     ].join('\n'),
   )
@@ -71,7 +71,7 @@ test('a people file that cannot be read or is not in the documented shape stops 
 
   const twice = run('people-sender-twice.json')
   expect(twice.status).toBe(1)
-  expect(twice.err).toContain('The people file lists the WhatsApp sender "Elif Kara" twice.')
+  expect(twice.err).toContain('The people file lists the WhatsApp sender "Limon L" twice.')
 })
 
 test('without --trial the import says saving is not built yet and fails', () => {
@@ -88,23 +88,23 @@ test('what the conversation of a memory holds, read from the made-up export', ()
   expect(result.status).toBe(0)
   const conversation = result.out.split('\n').slice(8)
   expect(conversation).toEqual([
-    '  1. 2023-07-14 20:58  2 photos, 7 messages  Çağrı, Deniz, Elif',
-    '       20:47  Çağrı: Ben geldim bile 😎',
-    '       20:50  Deniz: İskeleye gelin',
-    '                     gün batımı çok güzel',
+    '  1. 2023-07-14 20:58  2 photos, 7 messages  Fıstık, Karpuz, Limon',
+    '       20:47  Fıstık: Ben geldim bile 😎',
+    '       20:50  Karpuz: İskeleye gelin',
+    '                      gün batımı çok güzel',
     '',
-    '                     şarj aletini unutmayın',
-    '       20:58  Elif: [Photo: 00000007-PHOTO-2023-07-14-20-58-11.jpg]',
-    '       20:59  Çağrı: Çok güzel çıkmış! Işık şahane',
-    '       21:10  Deniz: [Photo: 00000009-PHOTO-2023-07-14-21-10-05.jpg]',
-    '       21:15  Çağrı: [Video]',
-    '       21:20  Deniz: [Voice message]',
-    '       21:22  Çağrı: [Document]',
-    '       21:25  Elif: Yarın tekneye gidiyoruz, unutmayın',
+    '                      şarj aletini unutmayın',
+    '       20:58  Limon: [Photo: 00000007-PHOTO-2023-07-14-20-58-11.jpg]',
+    '       20:59  Fıstık: Çok güzel çıkmış! Işık şahane',
+    '       21:10  Karpuz: [Photo: 00000009-PHOTO-2023-07-14-21-10-05.jpg]',
+    '       21:15  Fıstık: [Video]',
+    '       21:20  Karpuz: [Voice message]',
+    '       21:22  Fıstık: [Document]',
+    '       21:25  Limon: Yarın tekneye gidiyoruz, unutmayın',
     '',
-    '  2. 2023-07-15 11:05  1 photo, 1 message  Çağrı, Deniz',
-    '       11:05  Çağrı: [Photo: 00000020-PHOTO-2023-07-15-11-05-00.jpg]',
-    '       11:06  Deniz: Şu suyun rengine bak',
+    '  2. 2023-07-15 11:05  1 photo, 1 message  Fıstık, Karpuz',
+    '       11:05  Fıstık: [Photo: 00000020-PHOTO-2023-07-15-11-05-00.jpg]',
+    '       11:06  Karpuz: Şu suyun rengine bak',
     '',
   ])
 })
@@ -112,7 +112,7 @@ test('what the conversation of a memory holds, read from the made-up export', ()
 test('joined and left notices, deleted messages, stickers and a left-out sender are absent', () => {
   const result = trial('weekend', '--details')
 
-  for (const absent of ['şifrelidir', 'oluşturdu', 'sizi ekledi', 'katıldı', 'ayrıldı', 'silindi', 'STICKER', 'Tolga', 'Ben de çektim', '00000010']) {
+  for (const absent of ['şifrelidir', 'oluşturdu', 'sizi ekledi', 'katıldı', 'ayrıldı', 'silindi', 'STICKER', 'Çilek', 'Ben de çektim', '00000010']) {
     expect(result.out).not.toContain(absent)
   }
 })
@@ -123,7 +123,11 @@ test('a photo that is missing from the export is reported and the run goes on', 
   expect(result.status).toBe(0)
   expect(result.out).toContain('Photos:      1')
   expect(result.out).toContain('Problems:    1')
-  expect(result.out).toContain('  - Photo missing from the export: 00000004-PHOTO-2023-08-02-18-02-00.jpg (Elif Kara, 2023-08-02 18:02)')
+  expect(result.out).toContain('  - Photo missing from the export: 00000004-PHOTO-2023-08-02-18-02-00.jpg (Limon, 2023-08-02 18:02)')
+  // The left-out sender's missing photo is not reported, and no raw sender name is printed.
+  expect(result.out).not.toContain('Çilek')
+  expect(result.out).not.toContain('00000007')
+  expect(result.out).not.toContain('Limon L')
   expect(result.out).toContain('1 photo, 4 messages')
 })
 
@@ -132,7 +136,7 @@ test('a sender who is not in the people file stops the run and all of them are l
 
   expect(result.status).toBe(1)
   expect(result.out).toBe('')
-  expect(result.err).toContain('Not in the people file: Mert Aksoy, Zeynep Acar')
+  expect(result.err).toContain('Not in the people file: İncir İ, Nar N')
 })
 
 test('the grouping numbers can be changed on the command line', () => {
@@ -161,4 +165,92 @@ test('a folder that is not an iPhone export stops the import', () => {
 
   expect(result.status).toBe(1)
   expect(result.err).toContain('No _chat.txt in')
+})
+
+test('an impossible date or time stops the run and names the line', () => {
+  const monthFirst = trial('bad-date-month-first')
+  expect(monthFirst.status).toBe(1)
+  expect(monthFirst.out).toBe('')
+  expect(monthFirst.err).toContain('Line 1: 07/14/2023, 10:00:00 is not a day-first date and time.')
+
+  const february = trial('bad-date-feb31')
+  expect(february.status).toBe(1)
+  expect(february.err).toContain('Line 2: 31.02.2023, 10:00:00 is not a day-first date and time.')
+
+  const clock = trial('bad-time')
+  expect(clock.status).toBe(1)
+  expect(clock.err).toContain('Line 2: 05.03.2023, 25:61:00 is not a day-first date and time.')
+})
+
+test('messages are put in time order, so a line out of order does not make a small gap', () => {
+  const result = trial('out-of-order')
+
+  expect(result.out).toContain('Memories:    2')
+})
+
+test('a people file with a value of the wrong type or an unknown key stops the run', () => {
+  const run = (file: string) =>
+    ezeliImport(`${fixtures}/weekend`, '--people', `${fixtures}/${file}`, '--timezone', 'Europe/Istanbul', '--trial')
+
+  const asText = run('people-left-out-string.json')
+  expect(asText.status).toBe(1)
+  expect(asText.out).toBe('')
+  expect(asText.err).toContain('"leftOut" of Limon must be true or false, without quotes.')
+
+  const typo = run('people-typo.json')
+  expect(typo.status).toBe(1)
+  expect(typo.err).toContain('Limon in the people file has an unknown key "whatsap". Allowed: name, whatsapp, discord, leftOut.')
+})
+
+test('media files that no message mentions are reported, so an unread layout does not pass quietly', () => {
+  const result = trial('unread-media')
+
+  expect(result.status).toBe(0)
+  expect(result.out).toContain('Memories:    0')
+  expect(result.out).toContain('1 media file in the export is not mentioned in the chat: 00000001-PHOTO-2023-03-05-10-00-00.jpg')
+  expect(result.out).toContain('no photo was read')
+})
+
+test('the marker for an edited message is removed from the text', () => {
+  const result = trial('edited', '--details')
+
+  expect(result.out).toContain('Karpuz: düzeltilmiş mesaj\n')
+  expect(result.out).toContain('Limon: bu da öyle\n')
+  expect(result.out).not.toContain('edited')
+  expect(result.out).not.toContain('düzenlendi')
+})
+
+test('a gap of exactly the set time starts a new memory, one second less does not', () => {
+  const result = trial('gaps')
+
+  expect(result.out).toContain('Memories:    2')
+  expect(result.out).toContain('2 photos, 0 messages  Karpuz, Limon')
+  expect(result.out).toContain('1 photo, 0 messages  Fıstık')
+})
+
+test('a memory takes at most 30 messages on each side', () => {
+  const result = trial('chatty')
+
+  expect(result.out).toContain('1 photo, 60 messages')
+})
+
+test('two memories close together keep their own messages', () => {
+  const result = trial('close', '--details')
+  const lines = result.out.split('\n')
+  const second = lines.findIndex((line) => line.startsWith('  2.'))
+
+  expect(lines.slice(0, second).join('\n')).toContain('ilk anıya ait')
+  expect(lines.slice(0, second).join('\n')).not.toContain('ikinciye ait')
+  expect(lines.slice(second).join('\n')).toContain('ikinciye ait')
+})
+
+test('a photo in the "(file attached)" form and an "image omitted" line are read, a deleted notice is skipped', () => {
+  const result = trial('other-forms', '--details')
+
+  expect(result.out).toContain('Photos:      1')
+  expect(result.out).toContain('Problems:    1')
+  expect(result.out).toContain('  - Photo missing from the export: no file in the export (Limon, 2023-03-05 10:01)')
+  expect(result.out).toContain('[Photo missing from the export]')
+  expect(result.out).not.toContain('deleted')
+  expect(result.out).toContain('Fıstık: tamam')
 })

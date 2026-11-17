@@ -60,3 +60,10 @@ function formatterFor(zone: string): Intl.DateTimeFormat {
   }
   return formatter
 }
+
+// "2023-07-14 20:58", for the problems an owner reads.
+export function momentText(moment: number, zone: string): string {
+  const c = clockTimeOf(moment, zone)
+  const two = (n: number) => String(n).padStart(2, '0')
+  return `${c.year}-${two(c.month)}-${two(c.day)} ${two(c.hour)}:${two(c.minute)}`
+}
