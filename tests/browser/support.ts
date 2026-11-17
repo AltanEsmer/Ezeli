@@ -12,7 +12,7 @@ export function fruit(base: string): string {
 }
 
 // Runs the real owner command, as an owner would, with the secret key in the environment.
-export function ownerCommand(args: string[]): { status: number | null; stdout: string; stderr: string } {
+export function ownerCommand(args: string[], env: Record<string, string | undefined> = {}): { status: number | null; stdout: string; stderr: string } {
   const result = spawnSync('node', ['cli/ezeli.ts', ...args], {
     encoding: 'utf8',
     env: {
@@ -20,6 +20,7 @@ export function ownerCommand(args: string[]): { status: number | null; stdout: s
       SUPABASE_URL: stack.apiUrl,
       SUPABASE_SECRET_KEY: stack.secretKey,
       EZELI_APP_URL: stack.appUrl,
+      ...env,
     },
   })
   return { status: result.status, stdout: result.stdout, stderr: result.stderr }

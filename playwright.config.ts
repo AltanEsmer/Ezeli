@@ -11,7 +11,7 @@ export default defineConfig({
   // In order: the tests that need an empty timeline, then the real import on the made-up
   // exports, then the tests that look at what it saved.
   projects: [
-    { name: 'sign-in', testMatch: 'sign-in.spec.ts' },
+    { name: 'sign-in', testMatch: ['sign-in.spec.ts', 'replace-link.spec.ts'] },
     { name: 'import', testMatch: 'import.setup.ts', dependencies: ['sign-in'] },
     { name: 'memories', testMatch: 'timeline.spec.ts', dependencies: ['import'] },
   ],
