@@ -34,6 +34,8 @@ test('the same chat exported from an iPhone and from an Android phone is stored 
     '‎[3.08.2019 09:16:30] Limon L: ‎<attached: 00000005-PHOTO-2019-08-03-09-16-30.jpg>',
     'Göl kenarı',
     '[3.08.2019 09:16:41] Limon L: tamam',
+    '\u200e[3.08.2019 09:17:05] Limon L: \u200eimage omitted',
+    `[3.08.2019 09:18:00] Karpuz K: @\u2068Fıstık F\u2069 odunları getir`,
     '[3.08.2019 09:22:31] Fıstık F: tamam',
     '[3.08.2019 09:22:45] Fıstık F: tamam',
     '',
@@ -56,7 +58,7 @@ test('the same chat exported from an iPhone and from an Android phone is stored 
   expect(save(fromIphone, chat, people).status).toBe(0)
   const before = await counts(chat)
   const keysBefore = await storedKeys(chat)
-  expect(before).toEqual({ memories: 1, messages: 5, photos: 1 })
+  expect(before).toEqual({ memories: 1, messages: 7, photos: 1 })
 
   const second = save(fromAndroid, chat, people)
 
@@ -96,7 +98,7 @@ test('an iPhone export is saved with its HEIC photo converted, and no phone numb
   expect(named.map((p) => p.display_name).join('\n')).not.toMatch(/\d{5}/)
 })
 
-test('an Android export is saved: files found, media without a kind kept as a placeholder, numbers replaced', async () => {
+test('an Android export is saved: files found, media without a kind kept as media, numbers replaced', async () => {
   const chat = fresh('Kamp Ekibi')
   const tag = fresh('t')
 
@@ -108,8 +110,36 @@ test('an Android export is saved: files found, media without a kind kept as a pl
   const messages = await rows<{ text: string; media_kind: string | null }>(
     owner.from('messages').select('text, media_kind').in('memory_id', memories.map((m) => m.id)).order('at'),
   )
-  expect(messages.map((m) => m.media_kind)).toEqual([null, 'photo', 'document', 'video', 'voice', null, null, null, 'document'])
+  expect(messages.map((m) => m.media_kind)).toEqual([null, 'photo', 'media', 'video', 'voice', null, null, null, 'document'])
   const mention = messages.find((m) => m.text.startsWith('@'))!
   expect(mention.text).toBe(`@İncir ${tag} odunları unutma, sen de gel`)
   expect(messages.map((m) => m.text).join('\n')).not.toMatch(/9050000|\+90/)
+})
+
+test('a rotated HEIC photo with a place and a phone make in it is stored upright and without metadata', async () => {
+  const folder = await makeExport(
+    ['[28.07.2019 18:02:11] Karpuz K: selam', '[3.08.2019 09:16:30] Limon L: IMG_0412.HEIC \u200e<attached: 00000017-IMG_0412.HEIC>', ''].join('\r\n'),
+    { copies: { '00000017-IMG_0412.HEIC': `${variants}/rotated.heic` } },
+  )
+  const chat = fresh('Kamp Ekibi')
+
+  const result = save(folder, chat, variantPeopleFile(fresh('t')))
+
+  expect(result.status, result.err).toBe(0)
+  const stored = (await storedChat(chat))!
+  const memories = await rows<{ id: string }>(owner.from('memories').select('id').eq('chat_id', stored.id as string))
+  const [photo] = await rows<{ view_path: string; thumb_path: string; width: number; height: number }>(
+    owner.from('photos').select('*').in('memory_id', memories.map((m) => m.id)),
+  )
+  // Stored sideways as 64 x 48 with a "turn me" mark; upright it is 48 x 64.
+  expect([photo!.width, photo!.height]).toEqual([48, 64])
+  for (const path of [photo!.view_path, photo!.thumb_path]) {
+    const file = await owner.storage.from('photos').download(path)
+    if (file.error) throw file.error
+    const bytes = Buffer.from(await file.data.arrayBuffer())
+    const meta = await sharp(bytes).metadata()
+    expect([meta.format, meta.width, meta.height]).toEqual(['webp', 48, 64])
+    expect([meta.exif, meta.xmp, meta.icc, meta.orientation]).toEqual([undefined, undefined, undefined, undefined])
+    expect(bytes.includes(Buffer.from('MadeUpPhone'))).toBe(false)
+  }
 })

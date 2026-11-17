@@ -38,6 +38,7 @@ export function readWhatsApp(folder: string, zone: string, chosenOrder?: DateOrd
     .filter((name) => join(folder, name) !== chatFile && !name.startsWith('.') && statSync(join(folder, name)).isFile())
     .map((name) => name.normalize('NFC'))
   const present = new Set(folderFiles)
+  const isFile = (name: string) => present.has(name.normalize('NFC')) || whatsAppFileName.test(name)
 
   // 1. Find the header lines. A file is in one style (brackets or dash) from top to bottom.
   const found = { bracket: 0, dash: 0 }
@@ -54,43 +55,55 @@ export function readWhatsApp(folder: string, zone: string, chosenOrder?: DateOrd
     )
   }
 
-  // 2. Day first or month first is decided once, from the dates themselves.
-  const order = dateOrder(parsed, chosenOrder)
+  // 2. Which lines are headers, and day first or month first. A line is a header when it has the
+  // header shape and its time is not earlier than the header before it (a little disorder is
+  // allowed). A line a friend typed, such as a plan with dates, stays in its message. The order is
+  // decided once, by the order under which the real headers fit best.
+  const scanned = chosenOrder ? scan(parsed, chosenOrder, zone) : decide(parsed, zone)
+  const order = scanned.order
+  const problems: string[] = []
+  if (scanned.bad.length > 0) {
+    // Between brackets a date that cannot exist is a mistake, not typed text. Otherwise the line stays in its message.
+    const first = scanned.bad[0]!
+    if (header === headers.bracket) {
+      throw new Stop(`Line ${first + 1}: ${parsed[first]!.stamp!.replace(/[\u202f\u00a0]/g, ' ')} is not a ${order} date and time.`)
+    }
+    const count = scanned.bad.length === 1 ? '1 line looks' : `${scanned.bad.length} lines look`
+    problems.push(`${count} like a date and time that cannot exist (${order}) and stayed in the message above.`)
+  }
 
   // 3. Cut the file into entries. A line that is not a header continues the entry before it.
   const entries: { at: number; minute: string; rest: string[] }[] = []
   lines.forEach((line, index) => {
-    const groups = parsed[index]
-    if (!groups) {
+    const found = scanned.accepted.get(index)
+    if (!found) {
       entries.at(-1)?.rest.push(line)
       return
     }
-    const clock = clockOf(groups, order)
-    if (!clock || !isRealClockTime(clock)) {
-      throw new Stop(
-        `Line ${index + 1}: ${groups.stamp!.replace(/[  ]/g, ' ')} is not a ${order} date and time.`,
-      )
-    }
-    const two = (n: number) => String(n).padStart(2, '0')
-    const minuteText = `${clock.year}-${two(clock.month)}-${two(clock.day)} ${two(clock.hour)}:${two(clock.minute)}`
-    entries.push({ at: momentOf(clock, zone), minute: minuteText, rest: [groups.rest!] })
+    entries.push({ at: found.at, minute: found.minute, rest: [parsed[index]!.rest!] })
   })
 
   // 4. Read each entry.
   const messages: ChatMessage[] = []
   const referenced = new Set<string>()
   let photoMessages = 0
+  let unknownNotices = 0
   for (const { at, minute, rest } of entries) {
     const entry = rest.join('\n').replace(/\s+$/, '')
     // A notice with no sender starts with the invisible mark on an iPhone.
     if (entry.startsWith(lrm)) continue
     const split = entry.indexOf(': ')
-    if (split < 0) continue // a notice without a sender
-    if (noticeHead.test(entry.slice(0, split))) continue // a notice that has ": " inside, such as a new group name
+    if (split < 0) {
+      // A notice has no sender. A line of typed text that looks like a header has none either.
+      if (entry !== '' && !knownNotice.test(entry)) unknownNotices++
+      continue
+    }
+    // A notice that has ": " inside, such as a new group name, reads like a message.
+    if (noticeHead.test(entry.slice(0, split)) || colonNotice.some((notice) => notice.test(entry.split('\n')[0]!))) continue
     const sender = cleanSender(entry.slice(0, split))
     const body = entry.slice(split + 2).replace(edited, '')
 
-    const attachment = readAttachment(body)
+    const attachment = readAttachment(body, isFile)
     if (attachment) {
       if (attachment.name) referenced.add(attachment.name.normalize('NFC'))
       if (attachment.kind === 'sticker') continue
@@ -111,7 +124,10 @@ export function readWhatsApp(folder: string, zone: string, chosenOrder?: DateOrd
   messages.sort((a, b) => a.at - b.at)
 
   // 5. Guard against a layout this reader does not know: files nobody refers to.
-  const problems: string[] = []
+  if (unknownNotices > 0) {
+    const count = unknownNotices === 1 ? '1 line with a date and time but no sender was' : `${unknownNotices} lines with a date and time but no sender were`
+    problems.push(`${count} skipped as notices (no known notice wording). They may be typed text.`)
+  }
   const unmentioned = folderFiles.filter((name) => !referenced.has(name))
   if (unmentioned.length > 0) {
     const shown = unmentioned.slice(0, 5).join(', ') + (unmentioned.length > 5 ? ', ...' : '')
@@ -144,34 +160,58 @@ function findChatFile(folder: string): string {
 
 type Groups = Record<string, string | undefined>
 
-// "3.08.2019" is 3 August in a day-first export and 8 March in a month-first one. Any date whose
-// first number is above 12 shows day first, any whose second is above 12 shows month first.
-// A year first date (2019/08/03) needs no deciding.
-function dateOrder(parsed: (Groups | undefined)[], chosen?: DateOrder): DateOrder {
-  if (chosen) return chosen
-  let dayFirst: string | undefined
-  let monthFirst: string | undefined
+type Scan = { order: DateOrder; accepted: Map<number, { at: number; minute: string }>; bad: number[]; late: number }
+
+// Reads the header-shaped lines in one order. `bad` are lines whose date or time cannot exist,
+// `late` those that are earlier than the header before them. Both stay in the message above.
+function scan(parsed: (Groups | undefined)[], order: DateOrder, zone: string): Scan {
+  const slack = 60 * 60_000
+  const accepted = new Map<number, { at: number; minute: string }>()
+  const bad: number[] = []
+  let late = 0
+  let latest = -Infinity
+  parsed.forEach((groups, index) => {
+    if (!groups) return
+    const clock = clockOf(groups, order)
+    if (!clock || !isRealClockTime(clock)) {
+      bad.push(index)
+      return
+    }
+    const at = momentOf(clock, zone)
+    if (at < latest - slack) {
+      late++
+      return
+    }
+    latest = Math.max(latest, at)
+    const two = (n: number) => String(n).padStart(2, '0')
+    accepted.set(index, { at, minute: `${clock.year}-${two(clock.month)}-${two(clock.day)} ${two(clock.hour)}:${two(clock.minute)}` })
+  })
+  return { order, accepted, bad, late }
+}
+
+// "3.08.2019" is 3 August in a day-first export and 8 March in a month-first one. Both are tried;
+// the order under which fewer lines are impossible or out of time order is the export's. A tie
+// means the dates cannot say, and the owner is asked. A year first date needs no deciding.
+function decide(parsed: (Groups | undefined)[], zone: string): Scan {
+  const day = scan(parsed, 'day-first', zone)
+  const month = scan(parsed, 'month-first', zone)
+  const score = (result: Scan) => result.bad.length + result.late
+  if (!parsed.some((groups) => groups && groups.a!.length !== 4)) return day
+  if (score(day) !== score(month)) return score(day) < score(month) ? day : month
+  const evidence = { day: false, month: false }
   for (const groups of parsed) {
     if (!groups || groups.a!.length === 4) continue
-    const shown = groups.stamp!.replace(/[  ]/g, ' ')
-    if (+groups.a! > 12) dayFirst ??= shown
-    if (+groups.b! > 12) monthFirst ??= shown
+    if (+groups.a! > 12) evidence.day = true
+    if (+groups.b! > 12) evidence.month = true
   }
-  if (dayFirst && monthFirst) {
-    throw new Stop(
-      `The dates of this export are both day first and month first: ${dayFirst} and ${monthFirst}. ` +
-        'One export has one order. Check that the file was not edited or joined from two exports.',
-    )
-  }
-  if (dayFirst) return 'day-first'
-  if (monthFirst) return 'month-first'
-  if (parsed.some((groups) => groups && groups.a!.length !== 4)) {
-    throw new Stop(
-      'No date in this export shows whether it is day first or month first (none has a number above 12). ' +
-        'Run again with --date-order day-first or --date-order month-first.',
-    )
-  }
-  return 'day-first'
+  throw new Stop(
+    (evidence.day && evidence.month
+      ? 'The dates of this export are both day first and month first, so one export has one order. '
+      : score(day) > 0
+        ? 'The dates of this export do not fit one order. '
+        : 'No date in this export shows whether it is day first or month first (none has a number above 12). ') +
+      'Run again with --date-order day-first or --date-order month-first.',
+  )
 }
 
 type Clock = { year: number; month: number; day: number; hour: number; minute: number; second: number }
@@ -202,24 +242,32 @@ function isRealClockTime(c: Clock) {
 // An attachment is a tag "<attached: file>" anywhere in the message (the word differs by language,
 // so only its shape is matched), or Android's "file (file attached)". Caption text is what is left.
 // Without media in the export, WhatsApp writes "image omitted" and the like instead.
-function readAttachment(body: string): { kind: MediaKind | 'sticker'; name?: string; caption: string } | undefined {
+function readAttachment(body: string, isFile: (name: string) => boolean): { kind: MediaKind | 'sticker'; name?: string; caption: string } | undefined {
   const text = body.replaceAll(lrm, '')
   const tag = /<[^<>:\n]+: ([^<>\n]+)>/.exec(text)
-  if (tag) {
+  // Only a file name that WhatsApp writes, or a file that is in the folder, makes it media.
+  // Typed words such as "<Not: yarın gelmiyorum>" or "bunu gördün mü (file attached)" stay text.
+  if (tag && isFile(tag[1]!.trim())) {
     const name = tag[1]!.trim()
     return { kind: kindOf(name), name, caption: withoutFileName(text.replace(tag[0], '').trim(), name) }
   }
 
   const android = /^(.+?) \((?:file attached|dosya ekli)\)\s*([\s\S]*)$/.exec(text.trim())
-  if (android) return { kind: kindOf(android[1]!), name: android[1]!, caption: android[2]! }
+  if (android && isFile(android[1]!)) return { kind: kindOf(android[1]!), name: android[1]!, caption: android[2]! }
 
   // Android does not say what kind of media is missing. The iPhone says so, after the invisible
   // mark, so a friend who types the same words is not mistaken for WhatsApp.
-  if (androidOmitted.test(text.trim())) return { kind: 'document', caption: '' }
+  if (androidOmitted.test(text.trim())) return { kind: 'media', caption: '' }
   const omitted = omittedLine.exec(body)
   if (omitted) return { kind: omittedKinds[omitted[1]!.toLowerCase()]!, caption: '' }
   return undefined
 }
+
+// File names as WhatsApp writes them (see docs/import.md): iPhone `00000042-PHOTO-2020-06-07-15-13-20.jpg`,
+// a document `00000051-Rapor.pdf`, the older `2015-08-04-PHOTO-00004762.jpg`; Android
+// `IMG-20210428-WA0001.jpg`, or a hex name.
+const whatsAppFileName =
+  /^(?:\d{8}-(?:(?:PHOTO|VIDEO|AUDIO|STICKER|GIF)-\d{4}(?:-\d\d){5}\.\w+|.+\.\w{2,5})|\d{4}-\d\d-\d\d-[A-Z]+-\d{8}\.\w+|(?:IMG|VID|PTT|AUD|STK|DOC)-\d{8}-WA\d{4}\.\w+|[0-9a-f]{32}\.\w+)$/
 
 const androidOmitted = /^<(?:media omitted|medya dahil edilmedi|medya atlanmış)>$/i
 const omittedKinds: Record<string, MediaKind | 'sticker'> = {
@@ -275,6 +323,19 @@ function isNotice(body: string): boolean {
 // reads like a message. What comes before the colon then holds the words of a notice.
 const noticeHead =
   /\b(?:changed the subject|changed this group's|changed the group|changed their phone number|created group|joined using|added you|removed you)\b|konuyu .+ değiştirdi|grubunu oluşturdu|davet bağlantısını|sizi ekledi/i
+
+// Whole lines of notices that have a colon inside, in English and Turkish: a group renamed or made.
+const colonNotice = [
+  /^.+ changed the subject from ".*" to ".*"$/,
+  /^.+ created group ".*"$/,
+  /^.+,? ".*" grubunu oluşturdu$/,
+  /^.+,? konuyu ".*" iken ".*" olarak değiştirdi$/,
+]
+
+// Notices without a sender that the reader knows. Anything else with a date and no sender is
+// reported, as it may be text a friend typed.
+const knownNotice =
+  /end-to-end encrypt|uçtan uca şifrel|security code|güvenlik kodu|\bchanged\b|değiştirdi|created group|oluşturdu|\badded\b|ekledi|\bremoved\b|çıkardı|\bleft\b|ayrıldı|\bjoined\b|katıldı|disappearing messages|süreli mesaj|\bcall\b|arama|waiting for this message|bekleniyor|\badmin\b|yönetici|pinned|sabitledi|turned (?:on|off)|açtı|kapattı|invite link|davet bağlantı|\bdeleted\b|silindi|community|topluluk|requested to join|katılma isteği|live location|canlı konum/i
 
 // A shared location is not kept: the same on both phones, and nothing to show.
 const location = /^(?:location|konum): https?:\/\/\S+$|^live location shared$/i

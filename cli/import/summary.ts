@@ -38,6 +38,7 @@ const placeholders: Record<MediaKind, string> = {
   gif: 'GIF',
   voice: 'Voice message',
   document: 'Document',
+  media: 'Media not in the export',
 }
 
 function conversationLines(message: MemoryMessage, zone: string): string[] {

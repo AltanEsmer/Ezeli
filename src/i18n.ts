@@ -18,6 +18,7 @@ const en = {
   emptyBody: 'They will show up here once the owners load the chats.',
   sentBy: (names: string) => `Sent by ${names}`,
   photoBy: (name: string) => `Photo sent by ${name}`,
+  mediaNotInExport: 'Media (not in the export)',
 }
 
 export type Labels = typeof en
@@ -40,6 +41,7 @@ const tr: Labels = {
   emptyBody: 'Sahipler sohbetleri yükleyince burada görünecek.',
   sentBy: (names: string) => `${names} gönderdi`,
   photoBy: (name: string) => `${name} gönderdi`,
+  mediaNotInExport: 'Medya (dışa aktarımda yok)',
 }
 
 // Turkish when the browser is set to Turkish, English otherwise.

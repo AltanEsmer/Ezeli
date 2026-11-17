@@ -7,7 +7,7 @@ import { chatKey, idKey, messageKeys } from './keys.ts'
 import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } from './memories.ts'
 import { isDiscordExport, readDiscord, withMentions } from './discord.ts'
 import { readPeople } from './people.ts'
-import { whyUnreadable } from './photos.ts'
+import { readablePhoto, removeConvertedPhotos } from './photos.ts'
 import { saveChat } from './save.ts'
 import { Stop } from './stop.ts'
 import { importSummary } from './summary.ts'
@@ -29,6 +29,8 @@ export async function runImport(args: string[]): Promise<number> {
     if (!(error instanceof Stop)) throw error
     console.error(error.message)
     return 1
+  } finally {
+    removeConvertedPhotos()
   }
 }
 
@@ -77,10 +79,12 @@ async function importExport(args: string[]): Promise<string> {
     if (person.leftOut) continue
     // A mention shows the person's Ezeli name; a left-out or unknown person is removed.
     // WhatsApp mentions and phone numbers are cleaned in the same way, before anything is keyed.
-    const text = mentions ? withMentions(said.text, mentions, (account) => who.find(chat.app, account)) : id === undefined ? cleanText(said.text, who) : said.text
+    // `plain` is the WhatsApp text without mentions, for the key (see text.ts).
+    const cleaned = id === undefined ? cleanText(said.text, who) : undefined
+    const text = mentions ? withMentions(said.text, mentions, (account) => who.find(chat.app, account)) : (cleaned?.shown ?? said.text)
     if (!media && text.trim() === '') continue
     const message: MemoryMessage = {
-      key: id === undefined ? key({ minute, personId: person.id, text, ...(media && { media }) }) : idKey(chatText, id),
+      key: id === undefined ? key({ minute, personId: person.id, text: cleaned?.plain ?? text, ...(media && { media }) }) : idKey(chatText, id),
       at,
       person: person.name,
       personId: person.id,
@@ -96,11 +100,11 @@ async function importExport(args: string[]): Promise<string> {
     }
     // A photo that cannot be read is a problem to report, not a crash. It stays in the
     // conversation as a photo that is missing.
-    const reason = await whyUnreadable(media.file)
-    if (reason) {
-      problems.push(`Photo could not be read: ${media.name} (${where}): ${reason}`)
+    const readable = await readablePhoto(media.file)
+    if ('reason' in readable) {
+      problems.push(`Photo could not be read: ${media.name} (${where}): ${readable.reason}`)
       delete media.file
-    }
+    } else media.file = readable.file
   }
 
   const memories = buildMemories(messages, grouping)

@@ -1,28 +1,38 @@
 # Import
 
-An owner loads a chat export with one command. It reads a WhatsApp export in the iPhone layout and a Discord export made with DiscordChatExporter. It can try the import first (`--trial`, saves nothing) and then save it.
+An owner loads a chat export with one command. It reads a WhatsApp export in the iPhone layout and in the Android layout, and a Discord export made with DiscordChatExporter. It can try the import first (`--trial`, saves nothing) and then save it.
 
 ```
 pnpm ezeli import <export folder> --people <file> --timezone <zone> --trial
 pnpm ezeli import <export folder> --people <file> --timezone <zone> --chat "<chat name>"
 ```
 
-- `<export folder>`: the unzipped export, with `_chat.txt` and the media files next to it (WhatsApp), or with `messages.json` and a `media` folder (Discord). The kind of export is recognised from the folder's contents; the command is the same.
+- `<export folder>`: the unzipped export, with the chat text (`_chat.txt` on an iPhone, the one `.txt` file on Android; with several, the one with "WhatsApp" in its name) and the media files next to it (WhatsApp), or with `messages.json` and a `media` folder (Discord). The kind of export is recognised from the folder's contents; the command is the same.
 - `--people <file>`: the people file, described below.
 - `--timezone <zone>`: the time zone the memory dates are shown in, such as `Europe/Istanbul`. For WhatsApp it is the zone the phone that made the export was in (exports carry clock times without a zone). A Discord export carries exact times, so for Discord it is only the zone the dates are shown in.
+- `--date-order day-first|month-first`: only for a WhatsApp export whose dates cannot say (see below).
 - `--chat <name>`: the name of the chat, needed when saving. Importing a later export of the same chat under the same name is the same chat (case and spaces around the name are ignored).
 - `--trial`: print the summary and save nothing (no `--chat`, no secret key needed).
 - `--details`: also print the conversation of every memory, to check the grouping.
 
 ## What is read
 
-The iPhone layout: lines such as `[14.07.2023, 20:58:11] Name: text`, day first, with dots or slashes. A date or time that cannot exist (month 14, 31 February, 25:61) stops the run and names the line; this also catches month-first exports. Android layouts and other date formats are issue 12.
+**Layouts.** iPhone: `[3.08.2019 09:15:02] Name: text`. Android: `8/3/19, 9:15 AM - Name: text`. A file is in one of the two from top to bottom.
 
-- A line that does not start like that continues the message before it. Messages are put in time order.
-- A photo is a tag such as `<attached: file>` anywhere in the message (only its shape is matched, as the word may be translated), or the older `file (file attached)`. A photo whose file is not in the folder is listed under problems, by the sender's display name, and the run goes on.
-- Videos, voice messages, GIFs and documents become a placeholder line such as `[Video]`. Stickers are skipped.
-- Joined, left, added, created and encryption notices are skipped: the iPhone starts each of them with an invisible left-to-right mark, which a written message never has. Deleted-message notices are skipped by their words (English and Turkish). The marker for an edited message is removed from the text.
+**Dates and times** are read as phones write them: dots, slashes or dashes; two or four digit years, or year first; with or without a comma; 24-hour or 12-hour (`AM`, `PM`, `a.m.`, `p.m.`, Turkish `ÖÖ`/`ÖS` before the time); a dot in the clock; a narrow no-break space before `PM`. 12 AM is hour 0.
+
+**What starts a message.** A line is a header only if it has the header shape and its time is not earlier than the header before it (up to an hour of disorder is allowed). A line a friend typed, such as a plan with dates, therefore stays in the message it was typed in, with or without a name-like part. A line with a date and time but no sender that is no known notice is counted under problems, as it may be typed text that is later than the message before it (typed dates in the future cannot be told from headers).
+
+**Day first or month first is decided once for the export**, never per line: both orders are tried on the header-shaped lines and the one under which fewer lines are impossible or out of time order is used. If they tie (every number is 12 or less, or the dates contradict each other) the run stops and asks for `--date-order`. Between brackets a date that cannot exist (31 February, 25:61) stops the run and names the line; without brackets such a line stays in its message and is counted under problems.
+
+- A line that is not a header continues the message before it. Messages are put in time order.
+- A photo is a tag such as `<attached: file>` anywhere in the message (only its shape is matched, as the word may be translated), or Android's `file (file attached)` (`dosya ekli`). It counts as media only when the file name looks like one WhatsApp writes (`00000042-PHOTO-...jpg`, `IMG-20210428-WA0001.jpg`, a hex name) or the file is in the folder; typed text such as `<Not: yarın gelmiyorum>` stays text. A photo whose file is not in the folder is listed under problems, by the sender's display name, and the run goes on.
+- Videos, voice messages, GIFs and documents become a placeholder line such as `[Video]`. Stickers and shared locations are skipped.
+- Media that is not in the export: the iPhone says what it was (`image omitted`, Turkish `görüntü dahil edilmedi`), so a missing photo is listed under problems. Android only writes `<Media omitted>` (`<Medya dahil edilmedi>`, `<Medya atlanmış>`): that is kept as its own kind, `media`, shown to a friend as "Media (not in the export)".
+- Joined, left, added, created and encryption notices are skipped: the iPhone starts each of them with an invisible left-to-right mark, which a written message never has; on Android they have no sender, and a notice with a colon inside (a group renamed to "Kamp: Abant", English and Turkish) is recognised by its whole wording. Deleted-message notices are skipped by their words (English and Turkish). The marker for an edited message is removed from the text.
 - Files in the folder that no message mentions are listed under problems. If no photo was read although photo files exist, the summary says so: the export is probably in a layout this reader does not know.
+
+**Believed, not verified**, to be checked against a real export of each layout: Android date shapes other than the English US one, `(dosya ekli)` and the Turkish omitted wordings, the word inside the Turkish iPhone attachment tag (only its shape is matched), the notice wordings, how Android writes a mention of a saved contact (a number or a name), whether the iPhone and Android minutes of the same message agree, whether `~ name` senders appear at all, and the exact spots of the invisible marks.
 
 Not handled: when clocks go back, the repeated hour is read as its second occurrence.
 
@@ -79,7 +89,7 @@ For newer history later, run the same command into the same folder and import it
 - That `attachments[].url` is `media/<name>-<16 hex characters>.<ext>`. The reader tries the path as written and with `%20`-style escapes undone, in case the tool escapes file names.
 - That `author.id` is the account id (used in the people file) and `author.name` / `author.nickname` the username and server name, and that each `mentions[]` entry has the same shape.
 - That `type` is the word (`Default`, `Reply`, ...), and what a forwarded message and a thread starter look like.
-- That a photo uploaded from an iPhone (`.heic`) is present; this build cannot read HEIC yet (issue 12), so it is listed under problems.
+- That a photo uploaded from an iPhone (`.heic`) is present; it is converted during the import like any other photo.
 
 ## Grouping numbers
 
@@ -125,12 +135,12 @@ Without `--trial` the import saves, with the secret key from the environment (`S
 - **Tables:** `chats`, `memories`, `messages`, `photos`. Only messages that belong to a memory are stored. A message that carried a video, voice message, GIF or document is stored with that kind and no text, and shows as a placeholder line. Left-out senders are never stored.
 - **People:** each person in the people file who appears in a stored message is matched to a row in `people` by `id`. With no row for that id, a row with the same display name and no id yet (made earlier by `person add`) is adopted. Otherwise a row is created, without an account (`person add --name <display name>` gives it a link later). A changed display name updates the same row; if the new name belongs to someone else the import stops and says so. There is never a second row for one id.
 - **A memory's date** is when its first photo was sent, read in `--timezone`. The time zone is kept with the chat and the app shows the date in it. It is **fixed at the chat's first import**: importing the same chat again with another `--timezone` stops with a message and changes nothing.
-- **Photos:** each is stored twice in the private bucket `photos`, as WebP: a viewing size (longest side at most 1600 px) and a small one for the timeline (720 px). Photos that are already smaller are not enlarged. The photo's own metadata (such as where it was taken) is dropped. Originals are never uploaded. A photo this build cannot read, such as an iPhone HEIC photo (issue 12), is listed under problems and is stored as a photo message without a photo; the rest is imported.
+- **Photos:** each is stored twice in the private bucket `photos`, as WebP: a viewing size (longest side at most 1600 px) and a small one for the timeline (720 px). Photos that are already smaller are not enlarged. The photo's own metadata (such as where it was taken) is dropped. Originals are never uploaded. iPhone HEIC photos are converted first, in a trial run too: the image library's own build cannot read HEIC, so the `heic-decode` package (libheif as WebAssembly, a development dependency used by this command only, not in the app) decodes them once; a file is HEIC by its content, not its name. A photo this build cannot read is listed under problems and is stored as a photo message without a photo; the rest is imported. The colour profile of a HEIC (Display P3) is not carried over.
 - **Lasting keys.** A WhatsApp export has no message ids, so each row carries a key made from the chat's content, for the later import of a newer export (issue 13) and for hiding (issue 20). The time zone, the UTC instant, the display name, the photo's file name and a photo's caption are never part of a key.
   - Discord: the export has Discord's own lasting ids, so no recipe is needed. A message's key is made from the chat's key and its message id, a photo's (also the key of its message) from the chat's key and its attachment id. Edited text, a changed name or a newer export never change a key. A memory's key is that of its first photo, as for WhatsApp.
   - chat: the app and the name, without case and surrounding spaces (`whatsapp:kaş tatili`, `discord:kış sunucusu`);
-  - message: hash of chat key, the clock time as written in the export cut to the minute (`2023-07-14 20:58`), the person's `id`, the kind of media (empty for text), the text, and its position among identical ones in the chat (two "tamam" in the same minute are two messages);
-  - photo (also the key of its message): the same, but without the text: chat, clock minute, person `id`, and its position among that person's photos in that minute, so an edited caption stays the same photo;
+  - message: hash of chat key, the clock time as written in the export cut to the minute (`2023-07-14 20:58`; an iPhone has seconds and an Android phone has not), the person's `id`, the text, and its position among identical ones in the chat (two "tamam" in the same minute are two messages). The text has its mentions left out, so a mention written as a name (iPhone) or a number (Android) does not make the same message two;
+  - media (a photo, and also the key of its message, or any other media): chat, clock minute, person `id`, and its position among that person's media in that minute. Neither the text nor the kind is part of it: an edited caption stays the same photo, and the iPhone's `image omitted` and Android's `<Media omitted>` are the same message. The same chat exported from an iPhone and from an Android phone therefore stores every message once;
   - memory: the key of its first photo **message**, whether or not that photo's file is in the export or can be read. A photo message without a readable file still counts for grouping and for the key; only its files and its `photos` row are missing, and a later import that has the file adds them to the same memory.
 - A memory with no stored photo is not shown on the timeline. A `photos` row exists only when both of its files are in the bucket.
 - If saving fails (the bucket or the database), the command prints one plain line and exits with an error. Files go first and rows are written by key, so running the same import again finishes the job.
@@ -140,8 +150,17 @@ Without `--trial` the import saves, with the secret key from the environment (`S
 
 The number of memories, photos and people, the date range, the problems found (such as photos missing from the export), and one line per memory.
 
+## Phone numbers (WhatsApp)
+
+No phone number is stored or printed, with one exception: the list of senders who are not in the people file.
+
+- A sender who appears as a number (someone the exporting phone has not saved) is matched through the people file. Write the number in `whatsapp` as in the chat; it is matched in full once spaces, dashes and brackets are removed, so list each form the chat uses (`+90 500 000 00 01` and `0500 000 00 01`). Other senders are matched exactly as written, `~ Name` only if the file lists `~ Name`.
+- The unknown-sender list is printed exactly as written in the export, a number or a name, because the file cannot be filled in without it. A line above it says it can hold phone numbers and must not be pasted anywhere. No message text is printed there.
+- A mention shows `@display name` for a person in the people file. A left-out person, and a number or name that is not in the file, is removed from the text, name and all. An iPhone mention is `@` and a name between invisible marks; an Android one is `@` and digits.
+- A number typed in a message is removed when it has 10 to 13 digits once spaces, dashes, dots, brackets and a line break are taken out, with or without a leading `+` or `0`. It stays when it has 9 digits or fewer (dates, times, years), more than 13 digits or letters stuck to it (order and tracking numbers, IBANs), a currency sign or word next to it (amounts), or is a row of years or a date with its year. When in doubt privacy wins: an order number of 10 to 13 digits written plain is removed, and two numbers written with only a space between them stay.
+- The problem lists are cleaned in the same way.
+
 ## Not handled yet
 
 - Discord: a symbolic link inside the export folder is followed (the exporter never writes one), and forwarded messages and exported threads are not read.
-- Phone numbers inside message text are stored as written (issue 12). Do not import real chats into a shared stack before that.
 - A newer export that changes grouping can leave an older memory behind (issue 13).

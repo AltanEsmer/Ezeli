@@ -62,7 +62,7 @@ test('an Android export: the text file is found, media without a kind and phone 
       '                      Liste:',
       "                      8/3/19 sabahı yola çıkıyoruz, İstanbul'dan",
       '       09:16  Limon: [Photo: IMG-20190803-WA0004.jpg] Göl kenarı, ışığa bakın',
-      '       09:17  Fıstık: [Document]',
+      '       09:17  Fıstık: [Media not in the export]',
       '       09:20  Fıstık: [Video]',
       '       09:21  Çilek: [Voice message]',
       '       09:22  İncir: @İncir odunları unutma, sen de gel',
@@ -162,14 +162,24 @@ test('dates that disagree about the order stop the run', async () => {
   expect(result.err).toContain('day first and month first')
 })
 
-test('a date that cannot exist in the decided order still stops the run and names the line', async () => {
+test('between brackets a date that cannot exist stops the run and names the line', async () => {
+  const chat = ['[28.07.2019 18:02:11] Karpuz K: selam', '[31.02.2019 18:03:00] Limon L: selam', ''].join('\n')
+  const folder = await makeExport(chat)
+
+  const result = trial(folder)
+
+  expect(result.status).toBe(1)
+  expect(result.err).toContain('Line 2: 31.02.2019 18:03:00 is not a day-first date and time.')
+})
+
+test('without brackets a line with a date that cannot exist stays in its message and is counted', async () => {
   const chat = ['28/07/2019, 6:02 PM - Karpuz K: selam', '31/02/2019, 6:03 PM - Limon L: selam', ''].join('\n')
   const folder = await makeExport(chat, { android: true })
 
   const result = trial(folder)
 
-  expect(result.status).toBe(1)
-  expect(result.err).toContain('Line 2: 31/02/2019, 6:03 PM is not a day-first date and time.')
+  expect(result.status, result.err).toBe(0)
+  expect(result.out).toContain('1 line looks like a date and time that cannot exist (day-first) and stayed in the message above.')
 })
 
 test('an export folder with no chat text, or with two, says what to give', async () => {
@@ -186,7 +196,7 @@ test('an export folder with no chat text, or with two, says what to give', async
   expect(picked.status).toBe(0)
 })
 
-test('a sender that is a phone number is named by display name, and no phone number is printed', async () => {
+test('a sender that is a phone number is matched through the people file, an unknown one stops the run', async () => {
   const chat = [
     '7/28/19, 6:02 PM - Karpuz K: selam',
     '8/3/19, 9:16 PM - \u202a+90 500 000 00 01\u202c: IMG_1.jpg (file attached)',
@@ -197,10 +207,11 @@ test('a sender that is a phone number is named by display name, and no phone num
 
   const result = trial(folder)
 
+  // The one place a sender is printed as written (see whatsapp-review.test.ts).
   expect(result.status).toBe(1)
   expect(result.out).toBe('')
-  expect(result.err).toContain('Not in the people file: a phone number (first message 2019-08-03 21:17)')
-  expect(result.err).not.toMatch(/500|\b77\b/)
+  expect(result.err).toContain('Not in the people file: +90 500 000 00 77')
+  expect(result.err).not.toContain('bir de ben')
 })
 
 test('phone numbers in message text are removed, dates, times, prices and years are not', async () => {
@@ -223,10 +234,10 @@ test('phone numbers in message text are removed, dates, times, prices and years 
   expect(result.out).toContain('14.07.2023 saat 20:58, 1.250,50 TL, 2023-07-14, 1 500 000 TL, 2019 2020 2021')
 })
 
-test('a phone number is matched however the people file writes it', async () => {
+test('a phone number is matched in whichever form the people file lists it', async () => {
   const chat = [
     '7/28/19, 6:02 PM - Karpuz K: hazır',
-    '8/3/19, 9:15 PM - \u202a0500 000 00 01\u202c: selam',
+    '8/3/19, 9:15 PM - \u202a0500-000-00-01\u202c: selam',
     '8/3/19, 9:16 PM - Limon L: IMG_1.jpg (file attached)',
     '',
   ].join('\n')
@@ -234,17 +245,17 @@ test('a phone number is matched however the people file writes it', async () => 
 
   const result = trial(folder, '--details')
 
-  // The people file has +90 500 000 00 01, which is the same number without the 0 and with the country code.
+  // The people file lists 0500 000 00 01: the same digits once spaces and dashes are taken out.
   expect(result.out).toContain('Çilek: selam')
 })
 
-test('a Turkish Android export: its own words for attached and omitted media, and a ~ sender', async () => {
+test('a Turkish Android export: its own words for attached and omitted media', async () => {
   const chat = [
     '28.07.2019 18:02 - Karpuz K: selam',
     '3.08.2019 09:15 - Karpuz K: hazırlanın',
     '3.08.2019 09:16 - Limon L: IMG-20190803-WA0004.jpg (dosya ekli)',
     'Göl kenarı',
-    '3.08.2019 09:17 - ~\u202fFıstık F: <Medya dahil edilmedi>',
+    '3.08.2019 09:17 - Fıstık F: <Medya dahil edilmedi>',
     '3.08.2019 09:18 - Karpuz K: <Medya atlanmış>',
     '3.08.2019 09:19 - Karpuz K: Bu mesaj silindi',
     '3.08.2019 09:20 - Limon L: media omitted',
@@ -256,8 +267,8 @@ test('a Turkish Android export: its own words for attached and omitted media, an
 
   expect(result.err).toBe('')
   expect(result.out).toContain('1 photo, 4 messages  Fıstık, Karpuz, Limon')
-  expect(result.out).toContain('Fıstık: [Document]')
-  expect(result.out).toContain('Karpuz: [Document]')
+  expect(result.out).toContain('Fıstık: [Media not in the export]')
+  expect(result.out).toContain('Karpuz: [Media not in the export]')
   expect(result.out).toContain('Limon: media omitted')
   expect(result.out).not.toContain('silindi')
 })

@@ -99,11 +99,12 @@ export function cleanSender(sender: string): string {
     .trim()
 }
 
-// A number is the same number with or without the plus, country code, spaces and zero in front:
-// the last ten digits are compared. A newer iPhone writes "~ name" for a person who is not saved.
+// A sender is matched exactly as written (marks and odd spaces aside): "~ Name" only when the file
+// lists "~ Name". A number is matched in full once spaces, dashes and brackets are removed, so
+// the file can list one number in several forms (+90 500 000 00 01, 0500 000 00 01).
 function senderKey(app: ChatApp, sender: string): string {
-  if (isPhoneNumber(sender)) return `${app}:tel:${sender.replace(/\D/g, '').slice(-10)}`
-  return `${app}:${cleanSender(sender).replace(/^~ ?/, '')}`
+  if (isPhoneNumber(sender)) return `${app}:tel:${sender.replace(/\D/g, '')}`
+  return `${app}:${cleanSender(sender)}`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
