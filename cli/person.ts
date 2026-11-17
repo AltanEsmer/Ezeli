@@ -106,6 +106,8 @@ async function relinkPerson(args: string[]): Promise<number> {
     email: loginEmail(loginId),
     password: secret,
     email_confirm: true,
+    // Auth keeps the old last sign-in. This lets the list tell it was with a link that is gone.
+    app_metadata: { link_replaced_at: new Date().toISOString() },
   })
   if (updated.error) throw updated.error
 
@@ -129,10 +131,10 @@ async function listPeople(args: string[]): Promise<number> {
     const { data, error } = await client.auth.admin.listUsers({ page, perPage: 1000 })
     if (error) throw error
     for (const user of data.users) {
-      // Replacing a link changes the account (updated_at) but keeps the old last sign-in:
-      // a sign-in from before the account's last change was with a link that is gone.
+      // A sign-in from before the link was replaced was with a link that is gone.
       const signedIn = user.last_sign_in_at
-      const current = signedIn && Date.parse(signedIn) >= Date.parse(user.updated_at ?? signedIn)
+      const replaced = user.app_metadata?.link_replaced_at as string | undefined
+      const current = signedIn && (!replaced || Date.parse(signedIn) > Date.parse(replaced))
       accounts.set(user.id, { opened: current ? signedIn! : null })
     }
     if (data.users.length < 1000) break
