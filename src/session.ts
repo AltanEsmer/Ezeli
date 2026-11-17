@@ -12,23 +12,41 @@ export type Session =
 // The link is  https://<app>/#k=<login id>.<secret>. Everything after # stays in the browser.
 const LINK = /^#k=([0-9a-f]{16})\.([0-9a-f]{64})$/
 
+// The secret of a link that left the address bar but has not been answered by Auth yet.
+// Kept in memory only, so "try again" works after a network error or a rate limit.
+let pending: { email: string; password: string } | null = null
+
+type LinkResult = 'none' | 'signed-in' | 'refused' | 'error'
+
 // Takes a personal link out of the address bar and signs in with it.
-// Returns true when the link was refused (or was not a complete link).
-async function signInWithLinkInAddress(): Promise<boolean> {
-  if (!location.hash.startsWith('#k=')) return false
-  const found = location.hash.match(LINK)
-  // Before anything else, and with replaceState, so Back does not bring the secret back.
-  history.replaceState(null, '', location.pathname + location.search)
-  if (!found) return true
-  const { error } = await supabase.auth.signInWithPassword({
-    email: `${found[1]}@ezeli.invalid`,
-    password: found[2]!,
-  })
-  return error !== null
+async function signInWithLinkInAddress(): Promise<LinkResult> {
+  if (location.hash.startsWith('#k=')) {
+    const found = location.hash.match(LINK)
+    // Before anything else, and with replaceState, so Back does not bring the secret back.
+    history.replaceState(null, '', location.pathname + location.search)
+    if (!found) return 'refused'
+    pending = { email: `${found[1]}@ezeli.invalid`, password: found[2]! }
+  }
+  if (!pending) return 'none'
+  // Another person's link on this device: end the old session here first.
+  await supabase.auth.signOut({ scope: 'local' })
+  const { error } = await supabase.auth.signInWithPassword(pending)
+  if (!error) {
+    pending = null
+    return 'signed-in'
+  }
+  // Only Auth saying the secret is wrong means the link is dead. Anything else may pass.
+  if (error.code === 'invalid_credentials') {
+    pending = null
+    return 'refused'
+  }
+  return 'error'
 }
 
 async function readSession(): Promise<Session> {
-  const refused = await signInWithLinkInAddress()
+  const link = await signInWithLinkInAddress()
+  if (link === 'error') return { status: 'failed' }
+  const refused = link === 'refused'
   const { data } = await supabase.auth.getSession()
   if (!data.session) return { status: 'private', badLink: refused }
 

@@ -39,10 +39,11 @@ async function addPerson(args: string[]): Promise<number> {
 
   const { client, appUrl } = adminClient()
 
-  const existing = await client.from('people').select('id').eq('display_name', name).maybeSingle()
+  // The import creates people before anyone gets a link: such a person has no account yet.
+  const existing = await client.from('people').select('id, user_id').eq('display_name', name).maybeSingle()
   if (existing.error) throw existing.error
-  if (existing.data) {
-    console.error(`A person called "${name}" already exists. Display names are unique.`)
+  if (existing.data?.user_id) {
+    console.error(`"${name}" already has a personal link. Replacing a link is a separate command.`)
     return 1
   }
 
@@ -57,12 +58,13 @@ async function addPerson(args: string[]): Promise<number> {
   })
   if (created.error) throw created.error
 
-  const inserted = await client
-    .from('people')
-    .insert({ display_name: name, is_owner: values.owner, user_id: created.data.user.id })
-  if (inserted.error) {
-    await client.auth.admin.deleteUser(created.data.user.id)
-    throw inserted.error
+  const userId = created.data.user.id
+  const saved = existing.data
+    ? await client.from('people').update({ user_id: userId, ...(values.owner && { is_owner: true }) }).eq('id', existing.data.id)
+    : await client.from('people').insert({ display_name: name, is_owner: values.owner, user_id: userId })
+  if (saved.error) {
+    await client.auth.admin.deleteUser(userId)
+    throw saved.error
   }
 
   console.log(`Personal link for ${name}${values.owner ? ' (owner)' : ''}. Send it to them privately, never in the group chat:`)

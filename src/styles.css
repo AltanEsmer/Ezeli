@@ -259,7 +259,8 @@ button {
   font-size: 40px;
   line-height: 1;
   color: var(--pen);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 .card .btn {
   margin-top: 8px;

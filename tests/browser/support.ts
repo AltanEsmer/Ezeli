@@ -34,6 +34,16 @@ export function addPerson(name: string, options: { owner?: boolean } = {}): stri
   return link
 }
 
+// Stands in for the import (issue 11): a person who exists but has no account and no link yet.
+export async function addPersonWithoutAccount(name: string): Promise<void> {
+  const response = await fetch(`${stack.apiUrl}/rest/v1/people`, {
+    method: 'POST',
+    headers: { apikey: stack.secretKey, 'content-type': 'application/json' },
+    body: JSON.stringify({ display_name: name }),
+  })
+  if (!response.ok) throw new Error(`could not add ${name}: ${await response.text()}`)
+}
+
 export const apiUrl = stack.apiUrl
 export const publishableKey = stack.publishableKey
 export const appUrl = stack.appUrl

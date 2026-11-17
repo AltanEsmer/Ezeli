@@ -1,5 +1,5 @@
-import { type Browser, type Page, expect, test } from '@playwright/test'
-import { addPerson, apiUrl, fruit, ownerCommand, publishableKey } from './support.ts'
+import { type Browser, type Page, type Route, expect, test } from '@playwright/test'
+import { addPerson, addPersonWithoutAccount, apiUrl, fruit, ownerCommand, publishableKey } from './support.ts'
 
 const hash = (page: Page) => page.evaluate(() => location.hash)
 
@@ -145,7 +145,7 @@ test.describe('a friend with a personal link', () => {
     await page.goto(addPerson(fruit('Limon')))
     await expect(page.getByText('No memories yet')).toBeVisible()
 
-    await page.goto(`/#k=${'1'.repeat(16)}.${'1'.repeat(64)}`)
+    await page.goto('/#k=half-a-link')
 
     await expect(page.getByText('No memories yet')).toBeVisible()
     expect(await hash(page)).toBe('')
@@ -161,6 +161,75 @@ test.describe('a friend with a personal link', () => {
     await expect(friend.page.getByText('No memories yet')).toBeVisible()
     await expect((await openMenu(friend.page)).getByText('Owner', { exact: true })).toHaveCount(0)
     await friend.context.close()
+  })
+})
+
+test.describe('when sign-in cannot be answered', () => {
+  for (const [what, failure] of [
+    ['the network is down', (route: Route) => route.abort('connectionfailed')],
+    ['Auth rate limits the address', (route: Route) => route.fulfill({ status: 429, json: { code: 429, error_code: 'over_request_rate_limit', msg: 'slow down' } })],
+  ] as const) {
+    test(`does not call the link dead when ${what}, and trying again works with the same link`, async ({ page }) => {
+      const name = fruit('Karpuz')
+      const link = addPerson(name)
+      await page.route('**/auth/v1/token*', failure)
+
+      await page.goto(link)
+
+      await expect(page.getByRole('heading', { name: 'Could not load' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'This link does not work' })).toHaveCount(0)
+      expect(await hash(page)).toBe('')
+      await page.unroute('**/auth/v1/token*')
+      await page.getByRole('button', { name: 'Try again' }).click()
+      await expect(page.getByText('No memories yet')).toBeVisible()
+      await expect((await openMenu(page)).getByText(name)).toBeVisible()
+    })
+  }
+
+  test('says so in Turkish too', async ({ browser }) => {
+    const context = await browser.newContext({ locale: 'tr-TR', viewport: { width: 390, height: 844 } })
+    const page = await context.newPage()
+    await page.route('**/auth/v1/token*', (route) => route.abort('connectionfailed'))
+
+    await page.goto(addPerson(fruit('Çilek')))
+
+    await expect(page.getByRole('heading', { name: 'Yüklenemedi' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Tekrar dene' })).toBeVisible()
+    await context.close()
+  })
+})
+
+test('another person’s link on a signed-in device signs in as the new person', async ({ page }) => {
+  const first = fruit('Limon')
+  const second = fruit('Çilek')
+  const firstLink = addPerson(first)
+  const secondLink = addPerson(second)
+  await page.goto(firstLink)
+  await expect(page.getByText('No memories yet')).toBeVisible()
+
+  await page.goto(secondLink)
+
+  await expect(page.getByText('No memories yet')).toBeVisible()
+  const menu = await openMenu(page)
+  await expect(menu.getByText(second)).toBeVisible()
+  await expect(menu.getByText(first)).toHaveCount(0)
+})
+
+test.describe('the menu', () => {
+  test('keeps keyboard focus inside while it is open, and gives it back when closed', async ({ page }) => {
+    await page.goto(addPerson(fruit('Karpuz')))
+    await expect(page.getByText('No memories yet')).toBeVisible()
+    const menu = await openMenu(page)
+
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('Tab')
+      expect(await menu.evaluate((card) => card.contains(document.activeElement))).toBe(true)
+    }
+    await page.keyboard.press('Shift+Tab')
+    expect(await menu.evaluate((card) => card.contains(document.activeElement))).toBe(true)
+
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('button', { name: /^Menu/ })).toBeFocused()
   })
 })
 
@@ -196,7 +265,7 @@ test.describe('the owner command', () => {
     const again = ownerCommand(['person', 'add', '--name', name])
 
     expect(again.status).toBe(1)
-    expect(again.stderr).toContain('already exists')
+    expect(again.stderr).toContain('already has a personal link')
     expect(again.stdout).not.toContain('#k=')
   })
 
@@ -213,5 +282,30 @@ test.describe('the owner command', () => {
 
     expect(first).not.toBe(second)
     expect(first).toMatch(/\/#k=[0-9a-f]{16}\.[0-9a-f]{64}$/)
+  })
+})
+
+test.describe('a person the import made, who has no link yet', () => {
+  test('gets an account and a link from person add, which signs them in', async ({ page }) => {
+    const name = fruit('Fıstık')
+    await addPersonWithoutAccount(name)
+
+    const result = ownerCommand(['person', 'add', '--name', name])
+
+    expect(result.status).toBe(0)
+    await page.goto(result.stdout.match(/https?:\/\/\S+/)![0])
+    await expect(page.getByText('No memories yet')).toBeVisible()
+    await expect((await openMenu(page)).getByText(name)).toBeVisible()
+  })
+
+  test('is not given a second account once they have one', async () => {
+    const name = fruit('Fıstık')
+    await addPersonWithoutAccount(name)
+    ownerCommand(['person', 'add', '--name', name])
+
+    const again = ownerCommand(['person', 'add', '--name', name])
+
+    expect(again.status).toBe(1)
+    expect(again.stderr).toContain('Replacing a link')
   })
 })

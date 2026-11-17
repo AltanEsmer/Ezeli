@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { t } from './i18n.ts'
 import { type Person, useSession } from './session.ts'
 
@@ -43,6 +43,7 @@ function Note(props: { title: string; body: string; tone?: 'red'; children?: Rea
 
 function Timeline({ person, onSignOut }: { person: Person; onSignOut: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const closeMenu = useCallback(() => setMenuOpen(false), [])
   return (
     <main className="page">
       <header className="top">
@@ -69,26 +70,48 @@ function Timeline({ person, onSignOut }: { person: Person; onSignOut: () => void
         <p>{t.emptyBody}</p>
       </section>
 
-      {menuOpen && <Menu person={person} onClose={() => setMenuOpen(false)} onSignOut={onSignOut} />}
+      {menuOpen && <Menu person={person} onClose={closeMenu} onSignOut={onSignOut} />}
     </main>
   )
 }
 
 function Menu(props: { person: Person; onClose: () => void; onSignOut: () => void }) {
+  const card = useRef<HTMLDivElement>(null)
   const closeButton = useRef<HTMLButtonElement>(null)
   const { onClose } = props
 
   useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null
     closeButton.current?.focus()
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose()
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') return onClose()
+      if (event.key !== 'Tab' || !card.current) return
+      // Keep Tab inside the card while it is open.
+      const inside = [...card.current.querySelectorAll<HTMLElement>('button')]
+      const first = inside[0]!
+      const last = inside[inside.length - 1]!
+      if (!card.current.contains(document.activeElement)) {
+        event.preventDefault()
+        first.focus()
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      opener?.focus()
+    }
   }, [onClose])
 
   return (
     <>
       <div className="scrim" onClick={onClose} />
-      <div className="card" role="dialog" aria-modal="true" aria-label={t.menu}>
+      <div ref={card} className="card" role="dialog" aria-modal="true" aria-label={t.menu}>
         <i className="tape" aria-hidden="true" />
         <button ref={closeButton} className="x" aria-label={t.close} onClick={onClose}>
           ×
