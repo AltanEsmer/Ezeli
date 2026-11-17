@@ -126,23 +126,51 @@ function Menu(props: { person: Person; onClose: () => void; onSignOut: () => voi
   )
 }
 
+// Saves go one after another, so the last tap is what ends up stored. While one is on its way a
+// new tap only changes what is wanted; the loop then sends it. If a save fails the screen goes back
+// to the last language that was stored, and the caller is told.
+let saving: { stored: Language; wanted: Language } | null = null
+async function chooseLanguage(next: Language, failed: () => void) {
+  const before = getLanguage()
+  setLanguage(next)
+  if (saving) {
+    saving.wanted = next
+    return
+  }
+  const state = (saving = { stored: before, wanted: next })
+  while (state.stored !== state.wanted) {
+    const sending = state.wanted
+    const { error } = await supabase.rpc('set_my_language', { chosen: sending })
+    if (error) {
+      setLanguage(state.stored)
+      saving = null
+      return failed()
+    }
+    state.stored = sending
+  }
+  saving = null
+}
+
 // The two names are always written in their own language. The chosen one is circled in pen.
 function LanguageSwitch() {
   const current = useSyncExternalStore(subscribeLanguage, getLanguage)
-  const choose = async (next: Language) => {
+  const [failed, setFailed] = useState(false)
+  const choose = (next: Language) => {
     if (next === current) return
-    setLanguage(next)
-    // Remembered on the person. If it cannot be saved, go back rather than pretend.
-    const { error } = await supabase.rpc('set_my_language', { chosen: next })
-    if (error) setLanguage(current)
+    setFailed(false)
+    void chooseLanguage(next, () => setFailed(true))
   }
   return (
-    <div className="lang" role="group" aria-label={t.language}>
-      {(['tr', 'en'] as const).map((code) => (
-        <button key={code} lang={code} className={`hand${code === current ? ' on' : ''}`} aria-pressed={code === current} onClick={() => void choose(code)}>
-          {code === 'tr' ? 'Türkçe' : 'English'}
-        </button>
-      ))}
+    <div className="lang" role="group" aria-labelledby="lang-title">
+      <small id="lang-title">{t.language}</small>
+      <div>
+        {(['tr', 'en'] as const).map((code) => (
+          <button key={code} lang={code} className={`hand${code === current ? ' on' : ''}`} aria-pressed={code === current} onClick={() => choose(code)}>
+            {code === 'tr' ? 'Türkçe' : 'English'}
+          </button>
+        ))}
+      </div>
+      {failed && <p role="alert" className="failed">{t.saveFailed}</p>}
     </div>
   )
 }

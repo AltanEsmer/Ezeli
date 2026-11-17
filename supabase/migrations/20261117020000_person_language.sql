@@ -17,10 +17,23 @@ grant execute on function public.current_person() to authenticated;
 
 -- The only thing the app writes about a person: the caller's own language, and nothing else.
 -- `people` itself stays read-only for everyone (no update right, no update policy).
+-- It fails loudly instead of changing nothing: with no valid session (signed out, or the link was
+-- replaced) the app must not believe it saved. A wrong value gets a plain message of its own, never
+-- the database's own error, which would repeat the person's row. Null is not offered.
 create function public.set_my_language(chosen text) returns void
-language sql volatile security definer set search_path = ''
+language plpgsql volatile security definer set search_path = ''
 as $$
-  update public.people set language = chosen where id = (select private.current_person_id());
+declare
+  me uuid := (select private.current_person_id());
+begin
+  if me is null then
+    raise exception 'not signed in' using errcode = '28000';
+  end if;
+  if chosen is null or chosen not in ('tr', 'en') then
+    raise exception 'unknown language' using errcode = '22023';
+  end if;
+  update public.people set language = chosen where id = me;
+end;
 $$;
 revoke all on function public.set_my_language(text) from public, anon;
 grant execute on function public.set_my_language(text) to authenticated;

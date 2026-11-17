@@ -1,7 +1,7 @@
 // The language switch, as a friend uses it, on the memories the real import saved (import.setup.ts).
 import { type Browser, type Page, expect, test } from '@playwright/test'
 import { type Language, labels } from '../../src/i18n.ts'
-import { addPerson, apiUrl, fruit, publishableKey } from './support.ts'
+import { addPerson, apiUrl, fruit, ownerCommand, publishableKey } from './support.ts'
 
 const memories = (page: Page) => page.getByRole('article')
 const names = { tr: 'Türkçe', en: 'English' }
@@ -60,8 +60,8 @@ for (const language of ['en', 'tr'] as const) {
 
     test('shows no label of the other language', async ({ browser: browserType }) => {
       const { context, page } = await device(browserType, locale)
-      const link = addPerson(fruit('Karpuz'))
-      await page.goto(link)
+      // An owner, so the owner stamp is on the menu that is walked.
+      await page.goto(addPerson(fruit('Karpuz'), { owner: true }))
       await expect(memories(page).first()).toBeVisible()
       await choose(page, browser, language)
       await page.keyboard.press('Escape')
@@ -72,6 +72,8 @@ for (const language of ['en', 'tr'] as const) {
       // The menu.
       const menu = await openMenu(page, language)
       await expect(menu.getByRole('button', { name: names[language] })).toHaveAttribute('aria-pressed', 'true')
+      await expect(menu.getByText(labels[language].owner, { exact: true })).toBeVisible()
+      await expect(menu.getByText(labels[language].language, { exact: true })).toBeVisible()
       await expectOnly(page, language)
       await page.keyboard.press('Escape')
       // The timeline when it cannot load, and when it is empty.
@@ -180,16 +182,67 @@ test.describe('switching', () => {
   })
 })
 
+test.describe('saving the choice', () => {
+  test('two quick taps end with the last tapped language, on the screen and on the next load', async ({ browser }) => {
+    const { context, page } = await device(browser, 'en-US')
+    const link = addPerson(fruit('Limon'))
+    await page.goto(link)
+    await expect(memories(page).first()).toBeVisible()
+    // The first save is slow: it would reach the server last.
+    let calls = 0
+    await page.route(/\/rpc\/set_my_language/, async (route) => {
+      if (++calls === 1) await new Promise((done) => setTimeout(done, 1500))
+      await route.continue()
+    })
+    const menu = await openMenu(page, 'en')
+
+    await menu.getByRole('button', { name: 'Türkçe' }).click()
+    await page.getByRole('dialog', { name: 'Menü' }).getByRole('button', { name: 'English' }).click()
+
+    await expect(page.getByRole('dialog', { name: 'Menu' })).toBeVisible()
+    await expect.poll(() => calls).toBe(2)
+    await page.waitForTimeout(2000)
+    await expectOnly(page, 'en')
+    await page.unroute(/\/rpc\/set_my_language/)
+    await page.reload()
+    await expect(page.getByRole('button', { name: /^Menu/ })).toBeVisible()
+    await expectOnly(page, 'en')
+    const other = await device(browser, 'tr-TR')
+    await other.page.goto(link)
+    // A Turkish browser, but the stored choice is the last tap: English.
+    await expect(other.page.getByRole('button', { name: /^Menu/ })).toBeVisible()
+    await expectOnly(other.page, 'en')
+    await context.close()
+    await other.context.close()
+  })
+
+  test('tells the friend in one line, in the current language, when it cannot be saved', async ({ browser }) => {
+    const { context, page } = await device(browser, 'en-US')
+    await page.goto(addPerson(fruit('Limon')))
+    await expect(memories(page).first()).toBeVisible()
+    await page.route(/\/rpc\/set_my_language/, (route) => route.fulfill({ status: 400, json: { message: 'no' } }))
+
+    await (await openMenu(page, 'en')).getByRole('button', { name: 'Türkçe' }).click()
+
+    const dialog = page.getByRole('dialog', { name: 'Menu' })
+    await expect(dialog.getByRole('alert')).toHaveText(labels.en.saveFailed)
+    await expect(dialog.getByRole('button', { name: 'English' })).toHaveAttribute('aria-pressed', 'true')
+    await expectOnly(page, 'en')
+    await context.close()
+  })
+})
+
 test.describe('what the app may write about a person', () => {
   async function signedIn(browser: Browser) {
     const { context, page } = await device(browser, 'en-US')
-    await page.goto(addPerson(fruit('Karpuz')))
+    const name = fruit('Karpuz')
+    await page.goto(addPerson(name))
     await expect(memories(page).first()).toBeVisible()
     const token = await page.evaluate(() => {
       const key = Object.keys(localStorage).find((k) => k.endsWith('-auth-token'))!
       return JSON.parse(localStorage.getItem(key)!).access_token as string
     })
-    return { context, headers: { apikey: publishableKey, authorization: `Bearer ${token}`, 'content-type': 'application/json' } }
+    return { context, name, headers: { apikey: publishableKey, authorization: `Bearer ${token}`, 'content-type': 'application/json' } }
   }
 
   test('is the language of the caller, and nothing else', async ({ browser, request }) => {
@@ -214,6 +267,27 @@ test.describe('what the app may write about a person', () => {
     expect((await me(bystander.headers)).language).toBeNull()
     await context.close()
     await bystander.context.close()
+  })
+
+  test('reports failure with no valid session, refuses wrong values plainly, and does not offer clearing', async ({ browser, request }) => {
+    const { context, name, headers } = await signedIn(browser)
+    const call = (chosen: unknown) => request.post(`${apiUrl}/rest/v1/rpc/set_my_language`, { headers, data: { chosen } })
+
+    for (const wrong of ['de', null]) {
+      const answer = await call(wrong)
+      expect(answer.ok(), String(wrong)).toBe(false)
+      const text = await answer.text()
+      expect(text).toContain('unknown language')
+      expect(text).not.toContain(name)
+      expect(text).not.toContain('user_id')
+    }
+    // The link is replaced: the old token is still inside its lifetime but the session is gone.
+    const replaced = ownerCommand(['person', 'relink', '--name', name])
+    expect(replaced.status).toBe(0)
+    const refused = await call('en')
+    expect(refused.ok()).toBe(false)
+    expect(await refused.text()).toContain('not signed in')
+    await context.close()
   })
 
   test('is refused to a visitor', async ({ request }) => {
