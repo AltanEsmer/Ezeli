@@ -117,7 +117,7 @@ test.describe('switching', () => {
   test('changes every label and every date at once, with no reload', async ({ page }) => {
     await page.goto(addPerson(fruit('Çilek')))
     await expect(memories(page).first()).toBeVisible()
-    await expect(memories(page).getByRole('heading')).toHaveText(['Saturday, July 15, 2023', 'Friday, July 14, 2023', 'Sunday, March 5, 2023'])
+    await expect(memories(page).getByRole('heading')).toHaveText(['Saturday, July 15, 2023', 'Friday, July 14, 2023', 'Sunday, March 5, 2023', 'Sunday, January 22, 2023'])
     await page.evaluate(() => ((window as unknown as { stillHere: boolean }).stillHere = true))
     const menu = await openMenu(page, 'en')
     // Until the person chooses, the circled one is the browser's.
@@ -128,13 +128,13 @@ test.describe('switching', () => {
 
     await expect(page.getByRole('dialog', { name: 'Menü' }).getByRole('button', { name: 'Bu cihazdan çık' })).toBeVisible()
     await expectOnly(page, 'tr')
-    await expect(memories(page).getByRole('heading')).toHaveText(['15 Temmuz 2023 Cumartesi', '14 Temmuz 2023 Cuma', '5 Mart 2023 Pazar'])
+    await expect(memories(page).getByRole('heading')).toHaveText(['15 Temmuz 2023 Cumartesi', '14 Temmuz 2023 Cuma', '5 Mart 2023 Pazar', '22 Ocak 2023 Pazar'])
     await expect(memories(page).locator('.by').first()).toHaveText('Fıstık gönderdi')
     expect(await page.evaluate(() => (window as unknown as { stillHere?: boolean }).stillHere)).toBe(true)
 
     await page.getByRole('dialog', { name: 'Menü' }).getByRole('button', { name: 'English' }).click()
 
-    await expect(memories(page).getByRole('heading')).toHaveText(['Saturday, July 15, 2023', 'Friday, July 14, 2023', 'Sunday, March 5, 2023'])
+    await expect(memories(page).getByRole('heading')).toHaveText(['Saturday, July 15, 2023', 'Friday, July 14, 2023', 'Sunday, March 5, 2023', 'Sunday, January 22, 2023'])
     await expectOnly(page, 'en')
   })
 

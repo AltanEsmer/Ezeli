@@ -301,7 +301,7 @@ test.describe('a friend on a memory', () => {
 
   test('reaches both of two memories from the same moment with earlier and later', async ({ page }) => {
     await signIn(page)
-    // Newest first: 2 Sep, 15 Jul, 14 Jul, 5 Mar, then two memories of 1 Feb 10:00, then 10 Jan.
+    // Newest first: 2 Sep, 15 Jul, 14 Jul, 5 Mar, then two memories of 1 Feb 10:00, 22 Jan (Discord), then 10 Jan.
     await articles(page).nth(3).getByRole('link').click()
     await expect(heading(page)).toHaveText('Sunday, March 5, 2023')
     const earlier = page.getByRole('link', { name: 'Earlier memory' })
@@ -315,9 +315,12 @@ test.describe('a friend on a memory', () => {
     const second = page.url()
     expect(second).not.toBe(first)
     await earlier.click()
+    await expect(heading(page)).toHaveText('Sunday, January 22, 2023')
+    await earlier.click()
     await expect(heading(page)).toHaveText('Tuesday, January 10, 2023')
     await expect(earlier).toHaveCount(0)
 
+    await later.click()
     await later.click()
     await expect(page).toHaveURL(second)
     await later.click()

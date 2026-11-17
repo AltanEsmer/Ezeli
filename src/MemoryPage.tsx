@@ -82,7 +82,7 @@ function Memory({ memory, links, relink }: { memory: MemoryDetail; links: Map<st
         {memory.photos.map((photo, index) => (
           <figure key={photo.view} className="mprint big" style={{ '--tilt': `${tilts[index % tilts.length]}deg`, '--tape': tapes[index % tapes.length] } as CSSProperties}>
             <i className="tape" aria-hidden="true" />
-            <button aria-label={t.openPhoto(index + 1, memory.photos.length)} onClick={() => show(index)}>
+            <button aria-label={t.openPhoto(String(index + 1))} onClick={() => show(index)}>
               <Pic src={links.get(photo.view)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={relink} loading={index === 0 ? 'eager' : 'lazy'} />
             </button>
             <figcaption className="cap hand">{photo.by}</figcaption>
@@ -105,7 +105,7 @@ function Memory({ memory, links, relink }: { memory: MemoryDetail; links: Map<st
                 <div className="msg" key={message.id}>
                   <div className="body">
                     {photo && (
-                      <button className="small" aria-label={t.openPhoto(index! + 1, memory.photos.length)} onClick={() => show(index!)}>
+                      <button className="small" aria-label={t.openPhoto(String(index! + 1))} onClick={() => show(index!)}>
                         <Pic src={links.get(photo.thumb)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={relink} loading="lazy" />
                       </button>
                     )}
