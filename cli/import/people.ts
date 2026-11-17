@@ -8,6 +8,14 @@ export type ChatApp = 'whatsapp' | 'discord'
 export type Person = { id: string; name: string; leftOut: boolean }
 export type People = { find: (app: ChatApp, sender: string) => Person | undefined }
 
+// A sender who is not saved in the exporting phone's contacts shows as a phone number.
+// Phone numbers are matched here and never stored or printed.
+export function isPhoneNumber(sender: string): boolean {
+  const text = cleanSender(sender)
+  const digits = text.replace(/\D/g, '').length
+  return /^\+?[\d ()\-.]+$/.test(text) && digits >= 8 && digits <= 15
+}
+
 const appNames: Record<ChatApp, string> = { whatsapp: 'WhatsApp', discord: 'Discord' }
 
 export function readPeople(file: string): People {
@@ -67,7 +75,8 @@ export function readPeople(file: string): People {
       for (const sender of senders as string[]) {
         const key = senderKey(app, sender)
         if (bySender.has(key)) {
-          throw new Stop(`The people file lists the ${appNames[app]} sender "${sender}" twice.`)
+          const shown = isPhoneNumber(sender) ? 'a phone number' : `"${sender}"`
+          throw new Stop(`The people file lists the ${appNames[app]} sender ${shown} twice.`)
         }
         bySender.set(key, person)
       }
@@ -85,12 +94,16 @@ const seeDocs = 'See docs/import.md.'
 export function cleanSender(sender: string): string {
   return sender
     .normalize('NFC')
-    .replace(/[‎‏‪-‮⁦-⁩]/g, '')
+    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
 
+// A sender is matched exactly as written (marks and odd spaces aside): "~ Name" only when the file
+// lists "~ Name". A number is matched in full once spaces, dashes and brackets are removed, so
+// the file can list one number in several forms (+90 500 000 00 01, 0500 000 00 01).
 function senderKey(app: ChatApp, sender: string): string {
+  if (isPhoneNumber(sender)) return `${app}:tel:${sender.replace(/\D/g, '')}`
   return `${app}:${cleanSender(sender)}`
 }
 

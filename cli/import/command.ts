@@ -1,23 +1,24 @@
 // pnpm ezeli import <export folder> --people <file> --timezone <zone> --chat <name> [--trial]
 import { parseArgs } from 'node:util'
 import { adminClient } from '../supabase.ts'
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { chatKey, idKey, messageKeys } from './keys.ts'
 import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } from './memories.ts'
 import { isDiscordExport, readDiscord, withMentions } from './discord.ts'
 import { readPeople } from './people.ts'
+import { readablePhoto, removeConvertedPhotos } from './photos.ts'
 import { spanOf } from './regroup.ts'
-import { whyUnreadable } from './photos.ts'
 import { saveChat, type SaveReport } from './save.ts'
 import { Stop } from './stop.ts'
 import { importSummary } from './summary.ts'
+import { cleanText, removePhoneNumbers } from './text.ts'
 import { isTimeZone, momentText } from './time.ts'
-import { readWhatsApp } from './whatsapp.ts'
+import { readWhatsApp, type DateOrder } from './whatsapp.ts'
 
 const usage =
   'Usage: pnpm ezeli import <export folder> --people <file> --timezone <zone> --chat <name> [--trial]\n' +
-  '  [--details] [--photo-gap <minutes>] [--before <minutes>] [--after <minutes>] [--max-messages <number>]\n' +
+  '  [--date-order day-first|month-first] [--details] [--photo-gap <minutes>] [--before <minutes>] [--after <minutes>] [--max-messages <number>]\n' +
   '  --chat names the chat; importing a later export of the same chat under the same name keeps it one chat.\n' +
   '  --trial saves nothing (then --chat is not needed). Saving needs SUPABASE_URL and SUPABASE_SECRET_KEY in the environment.'
 
@@ -29,11 +30,13 @@ export async function runImport(args: string[]): Promise<number> {
     if (!(error instanceof Stop)) throw error
     console.error(error.message)
     return 1
+  } finally {
+    removeConvertedPhotos()
   }
 }
 
 async function importExport(args: string[]): Promise<string> {
-  const { folder, people, timezone, chat: chatName, trial, details, grouping } = readArgs(args)
+  const { folder, people, timezone, chat: chatName, trial, details, grouping, dateOrder } = readArgs(args)
   if (!isTimeZone(timezone)) {
     throw new Stop(`Unknown time zone: ${timezone}. Use a name such as Europe/Istanbul.`)
   }
@@ -43,12 +46,14 @@ async function importExport(args: string[]): Promise<string> {
 
   const who = readPeople(people)
   // The kind of export is recognised from the folder's contents.
-  if (!existsSync(join(folder, '_chat.txt')) && !existsSync(join(folder, 'messages.json'))) {
-    throw new Stop(`No _chat.txt in ${folder} (WhatsApp iPhone export), and no messages.json (Discord export).`)
+  const hasText = existsSync(folder) && readdirSync(folder).some((name) => /\.txt$/i.test(name))
+  if (!hasText && !existsSync(join(folder, 'messages.json'))) {
+    throw new Stop(`No _chat.txt in ${folder} (WhatsApp iPhone export), no .txt chat file (Android), and no messages.json (Discord export).`)
   }
-  const chat = isDiscordExport(folder) ? readDiscord(folder, timezone) : readWhatsApp(folder, timezone)
+  const chat = isDiscordExport(folder) ? readDiscord(folder, timezone) : readWhatsApp(folder, timezone, dateOrder)
 
-  // A Discord sender is its account id; the name is only shown to help the owner add it.
+  // The one place a sender is printed as written: the owner cannot fill in the people file
+  // without it. A Discord sender is its account id; the name only helps to add it.
   const unknown = [
     ...new Set(
       chat.messages
@@ -57,7 +62,11 @@ async function importExport(args: string[]): Promise<string> {
     ),
   ]
   if (unknown.length > 0) {
-    throw new Stop(`Not in the people file: ${unknown.sort((a, b) => a.localeCompare(b, 'tr')).join(', ')}\nAdd them, or mark them "leftOut". See docs/import.md.`)
+    const list = [...new Set(unknown)].sort((a, b) => a.localeCompare(b, 'tr')).join(', ')
+    throw new Stop(
+      'This list is exactly as written in the export. It can hold phone numbers: do not paste it anywhere.\n' +
+        `Not in the people file: ${list}\nAdd them, or mark them "leftOut". See docs/import.md.`,
+    )
   }
 
   // Left-out senders are dropped here, before grouping and before problems are worked out, so
@@ -70,10 +79,13 @@ async function importExport(args: string[]): Promise<string> {
     const person = who.find(chat.app, sender)!
     if (person.leftOut) continue
     // A mention shows the person's Ezeli name; a left-out or unknown person is removed.
-    const text = mentions ? withMentions(said.text, mentions, (account) => who.find(chat.app, account)) : said.text
-    if (id !== undefined && !media && text.trim() === '') continue
+    // WhatsApp mentions and phone numbers are cleaned in the same way, before anything is keyed.
+    // `plain` is the WhatsApp text without mentions, for the key (see text.ts).
+    const cleaned = id === undefined ? cleanText(said.text, who) : undefined
+    const text = mentions ? withMentions(said.text, mentions, (account) => who.find(chat.app, account)) : (cleaned?.shown ?? said.text)
+    if (!media && text.trim() === '') continue
     const message: MemoryMessage = {
-      key: id === undefined ? key({ minute, personId: person.id, text, ...(media && { media }) }) : idKey(chatText, id),
+      key: id === undefined ? key({ minute, personId: person.id, text: cleaned?.plain ?? text, ...(media && { media }) }) : idKey(chatText, id),
       at,
       person: person.name,
       personId: person.id,
@@ -89,11 +101,11 @@ async function importExport(args: string[]): Promise<string> {
     }
     // A photo that cannot be read is a problem to report, not a crash. It stays in the
     // conversation as a photo that is missing.
-    const reason = await whyUnreadable(media.file)
-    if (reason) {
-      problems.push(`Photo could not be read: ${media.name} (${where}): ${reason}`)
+    const readable = await readablePhoto(media.file)
+    if ('reason' in readable) {
+      problems.push(`Photo could not be read: ${media.name} (${where}): ${readable.reason}`)
       delete media.file
-    }
+    } else media.file = readable.file
   }
 
   const memories = buildMemories(messages, grouping)
@@ -111,7 +123,7 @@ async function importExport(args: string[]): Promise<string> {
       throw new Stop(`Saving stopped before it finished: ${reason}. Fix that and run the same import again; it finishes the job.`)
     }
   }
-  return importSummary(memories, problems, timezone, details, report && chatName!.trim(), report)
+  return importSummary(memories, problems.map(removePhoneNumbers), timezone, details, report && chatName!.trim(), report)
 }
 
 function databaseOrStop() {
@@ -137,6 +149,7 @@ function readArgs(args: string[]) {
         before: { type: 'string' },
         after: { type: 'string' },
         'max-messages': { type: 'string' },
+        'date-order': { type: 'string' },
       },
     })
     const [folder, ...rest] = positionals
@@ -147,7 +160,12 @@ function readArgs(args: string[]) {
         afterMinutes: number(values, 'after', startingGrouping.afterMinutes),
         maxMessages: number(values, 'max-messages', startingGrouping.maxMessages),
       }
+      const dateOrder = values['date-order']
+      if (dateOrder !== undefined && dateOrder !== 'day-first' && dateOrder !== 'month-first') {
+        throw new Stop('--date-order must be day-first or month-first.')
+      }
       return {
+        dateOrder: dateOrder as DateOrder | undefined,
         folder,
         people: values.people,
         timezone: values.timezone,
