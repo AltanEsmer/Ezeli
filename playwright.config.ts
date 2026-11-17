@@ -13,10 +13,16 @@ export default defineConfig({
   projects: [
     { name: 'sign-in', testMatch: ['sign-in.spec.ts', 'replace-link.spec.ts'] },
     { name: 'import', testMatch: 'import.setup.ts', dependencies: ['sign-in'] },
-    { name: 'memories', testMatch: 'timeline.spec.ts', dependencies: ['import'] },
-    // Last: a few thousand made-up memories, made at test time, which the tests above must not see.
-    { name: 'large-import', testMatch: 'large.setup.ts', dependencies: ['memories'] },
+    { name: 'memories', testMatch: ['timeline.spec.ts', 'language.spec.ts'], dependencies: ['import'] },
+    // Imports more chats of its own, so it runs after the timeline tests have counted.
+    { name: 'memory', testMatch: 'memory.spec.ts', dependencies: ['memories'] },
+    // The full timeline: imports chats of its own, so it runs after the tests above have counted.
+    { name: 'full-timeline', testMatch: 'full-timeline.spec.ts', dependencies: ['memory'] },
+    // Last: a few thousand made-up memories, made at test time. They are removed once every test
+    // that uses them has finished (the teardown), so one failure cannot take the data from the next.
+    { name: 'large-import', testMatch: 'large.setup.ts', dependencies: ['full-timeline'], teardown: 'large-clean' },
     { name: 'large', testMatch: 'large.spec.ts', dependencies: ['large-import'], fullyParallel: false },
+    { name: 'large-clean', testMatch: 'large.teardown.ts' },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',

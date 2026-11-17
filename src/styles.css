@@ -38,6 +38,7 @@
   .print,
   .mprint,
   .card,
+  .chat,
   .me {
     --ink: #2b1e12;
     --muted: #574229;
@@ -47,6 +48,11 @@
   }
   .btn {
     --on-accent: #fffcf4;
+  }
+  /* Handwriting straight on the dark page is a lighter blue. */
+  .mdate,
+  .back {
+    --pen: #a9bdf0;
   }
 }
 
@@ -240,6 +246,14 @@ button {
   display: grid;
   gap: 54px;
   padding: 44px 8px 0;
+  /* The screen keeps the place itself when memories are added above. */
+  overflow-anchor: none;
+}
+/* A page of memories. Far from the screen it is an empty box of the same height. */
+.chunk {
+  display: grid;
+  gap: 54px;
+  align-content: start;
 }
 .month {
   display: grid;
@@ -368,7 +382,56 @@ button {
 .more {
   display: grid;
   justify-items: center;
+  gap: 10px;
   min-height: 80px;
+  text-align: center;
+}
+/* The top end takes no room of its own, so nothing moves when it is done; what it says floats. */
+.memories {
+  position: relative;
+}
+.more.top {
+  position: absolute;
+  inset: 0 0 auto;
+  min-height: 0;
+  height: 1px;
+}
+.more.top > * {
+  position: absolute;
+  top: 8px;
+  z-index: 1;
+  padding: 8px 16px;
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 700;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+}
+.more > [role='alert'] {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+/* Said while a far jump loads, and when it failed. */
+.toast {
+  position: fixed;
+  z-index: 1;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: calc(100vw - 32px);
+  padding: 10px 18px;
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 700;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  transform: translateX(-50%) rotate(-1deg);
+}
+.toast .btn {
+  min-height: 44px;
 }
 
 /* Year tabs on the right edge, like index tabs. The open year shows its months. */
@@ -381,7 +444,14 @@ button {
   justify-items: end;
   max-height: calc(100dvh - 120px);
   overflow-y: auto;
-  scrollbar-width: none;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  /* Fades at the ends where there is more: the strip scrolls. */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 var(--fu, 0px), #000 calc(100% - var(--fd, 0px)), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 var(--fu, 0px), #000 calc(100% - var(--fd, 0px)), transparent);
+}
+.tab button[aria-disabled='true'] {
+  opacity: 0.6;
 }
 .tab {
   display: grid;
@@ -468,6 +538,39 @@ button {
   font-size: 30px;
   line-height: 1;
 }
+.lang {
+  display: grid;
+  gap: 2px;
+  margin-top: 4px;
+}
+.lang > div {
+  display: flex;
+  gap: 14px;
+}
+.lang small {
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--muted);
+}
+.lang .failed {
+  margin: 0;
+  font-size: 15px;
+  color: var(--stamp);
+}
+.lang button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 2px 16px;
+  font-size: 22px;
+  color: var(--pen);
+  border: 2px solid transparent;
+  border-radius: 55% 45% 60% 40% / 50% 60% 40% 55%;
+}
+.lang button.on {
+  color: var(--pen);
+  border-color: var(--pen);
+  transform: rotate(-2deg);
+}
 .stamp {
   border: 2px solid var(--stamp);
   color: var(--stamp);
@@ -488,4 +591,239 @@ button {
       transform: translateY(10px) rotate(-1.2deg);
     }
   }
+}
+
+/* A memory in the timeline opens it. */
+.open {
+  display: grid;
+  gap: 12px;
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* One memory. */
+.back {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 12px 2px;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--pen);
+}
+.mdate {
+  margin-top: 18px;
+  font-size: 38px;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--pen);
+  text-wrap: balance;
+}
+.chat {
+  display: inline-block;
+  margin-top: 12px;
+  transform: rotate(-1.5deg);
+  background: var(--paper);
+}
+.prints {
+  display: grid;
+  gap: 40px;
+  padding: 34px 6px 0;
+}
+.mprint.big {
+  position: relative;
+  padding: 10px 10px 0;
+  transform: rotate(var(--tilt));
+}
+.mprint.big .tape {
+  background: var(--tape);
+}
+.mprint.big button {
+  display: block;
+  width: 100%;
+}
+.mprint.big img {
+  max-height: 80vh;
+  object-fit: contain;
+}
+.mprint.big .cap {
+  min-height: 0;
+  padding: 10px 4px 8px;
+}
+
+/* The conversation: a taped slip, grouped by sender. */
+.talk {
+  margin-top: 48px;
+  gap: 14px;
+  padding: 34px 18px 22px;
+  transform: rotate(0.6deg);
+}
+.talk .tape {
+  background: var(--tape4);
+}
+.group {
+  display: grid;
+  gap: 6px;
+}
+.who {
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.msg {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+.msg .body {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+}
+.talk p {
+  font-size: 17px;
+  color: var(--ink);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.talk a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.at {
+  flex: none;
+  padding-top: 3px;
+  font-size: 13px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.ph {
+  color: var(--muted);
+  font-size: 16px;
+}
+.small {
+  display: block;
+  padding: 0;
+  background: #efe3cc;
+  box-shadow: 0 1px 2px rgb(43 30 18 / 0.35);
+}
+.small img {
+  display: block;
+  width: 96px;
+  height: auto;
+  max-height: 130px;
+  object-fit: cover;
+}
+.pn {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 40px;
+}
+.pn .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  text-decoration: none;
+}
+.pn .btn:last-child {
+  margin-left: auto;
+}
+
+/* A photo full screen, swiped sideways. */
+.viewer {
+  position: fixed;
+  z-index: 2;
+  inset: 0;
+  background: #14110e;
+  color: #f3eadb;
+}
+.strip {
+  display: flex;
+  height: 100%;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  overscroll-behavior: contain;
+}
+.strip::-webkit-scrollbar {
+  display: none;
+}
+.slide {
+  flex: none;
+  width: 100%;
+  height: 100%;
+  display: grid;
+  /* One definite cell, so the photo is fitted into the screen and never taller than it. */
+  grid-template: 100% / 100%;
+  place-items: center;
+  scroll-snap-align: center;
+  scroll-snap-stop: always;
+}
+.slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.viewer .x,
+.viewer .arrow {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border-radius: 24px;
+  background: rgb(20 17 14 / 0.65);
+  color: #f3eadb;
+  font-size: 30px;
+  line-height: 1;
+  --focus: #a9bdf0;
+}
+.viewer .x {
+  top: max(12px, env(safe-area-inset-top));
+  right: 12px;
+}
+.viewer .arrow {
+  top: 50%;
+  margin-top: -24px;
+}
+.viewer .arrow:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+.viewer .prev {
+  left: 8px;
+}
+.viewer .next {
+  right: 8px;
+}
+.viewer .count {
+  position: absolute;
+  bottom: max(18px, env(safe-area-inset-bottom));
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 22px;
+}
+
+/* A photo that could not load: a blank print in the photo's shape. */
+.gone {
+  width: 100%;
+  background: #efe3cc;
+  border: 2px dashed color-mix(in srgb, #574229 55%, transparent);
+}
+.slide .gone {
+  width: auto;
+  max-width: 100%;
+  max-height: 100%;
+  height: 100%;
+}
+.day {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 2px dashed color-mix(in srgb, var(--muted) 45%, transparent);
+  font-size: 19px;
+  line-height: 1.1;
+  color: var(--pen);
 }

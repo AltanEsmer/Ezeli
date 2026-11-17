@@ -44,8 +44,9 @@ test('each photo is stored in two sizes, and the original is not uploaded', asyn
   // A photo that is already small is not blown up.
   expect(await look(small!.view_path)).toMatchObject({ width: 16, height: 16 })
 
-  // The bucket holds exactly these two files for the photo, and no original.
-  const listed = await owner.storage.from('photos').list('', { limit: 1000, search: big!.key })
+  // The chat's folder in the bucket holds exactly these two files for the photo, and no original.
+  const chatId = big!.view_path.split('/')[0]!
+  const listed = await owner.storage.from('photos').list(chatId, { limit: 1000, search: big!.key })
   expect(listed.data?.map((file) => file.name).sort()).toEqual([`${big!.key}-thumb.webp`, `${big!.key}-view.webp`])
 })
 

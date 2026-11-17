@@ -1,10 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { t } from './i18n.ts'
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { type Language, getLanguage, setLanguage, subscribeLanguage, t } from './i18n.ts'
 import { Memories } from './Memories.tsx'
+import { MemoryPage } from './MemoryPage.tsx'
+import { navigate, useRoute } from './route.ts'
 import { type Person, useSession } from './session.ts'
+import { supabase } from './supabase.ts'
 
 export function App() {
   const { session, signOut, reload } = useSession()
+  const route = useRoute()
+  // Re-renders everything below when the language changes; `t` is read fresh on each render.
+  const language = useSyncExternalStore(subscribeLanguage, getLanguage)
+  useEffect(() => {
+    document.documentElement.lang = language
+  }, [language])
 
   switch (session.status) {
     case 'loading':
@@ -13,7 +22,8 @@ export function App() {
       return session.badLink ? (
         <Note tone="red" title={t.badLinkTitle} body={t.badLinkBody} />
       ) : (
-        <Note title={t.privateTitle} body={t.privateBody} />
+        // A memory's address says what to do first; the rest of the app does not know the person yet.
+        <Note title={t.privateTitle} body={route.name === 'memory' ? t.privateMemoryBody : t.privateBody} />
       )
     case 'failed':
       return (
@@ -24,8 +34,20 @@ export function App() {
         </Note>
       )
     case 'in':
-      return <Timeline person={session.person} onSignOut={signOut} />
+      return <Signed person={session.person} onSignOut={signOut} onSessionLost={() => void reload()} />
   }
+}
+
+// The screens of a signed-in person, by address.
+function Signed(props: { person: Person; onSignOut: () => void; onSessionLost: () => void }) {
+  const route = useRoute()
+  // A path the app does not know is the timeline, and says so in the address bar.
+  const unknown = route.name === 'timeline' && location.pathname !== '/'
+  useEffect(() => {
+    if (unknown) navigate('/', { replace: true })
+  }, [unknown])
+  if (route.name === 'memory') return <MemoryPage key={route.key} memoryKey={route.key} onSessionLost={props.onSessionLost} />
+  return <Timeline person={props.person} onSignOut={props.onSignOut} onSessionLost={props.onSessionLost} />
 }
 
 // One taped slip of paper in the middle of the page: the private page and its variants.
@@ -42,7 +64,7 @@ function Note(props: { title: string; body: string; tone?: 'red'; children?: Rea
   )
 }
 
-function Timeline({ person, onSignOut }: { person: Person; onSignOut: () => void }) {
+function Timeline({ person, onSignOut, onSessionLost }: { person: Person; onSignOut: () => void; onSessionLost: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const closeMenu = useCallback(() => setMenuOpen(false), [])
   return (
@@ -60,7 +82,7 @@ function Timeline({ person, onSignOut }: { person: Person; onSignOut: () => void
         </button>
       </header>
 
-      <Memories />
+      <Memories onSessionLost={onSessionLost} />
 
       {menuOpen && <Menu person={person} onClose={closeMenu} onSignOut={onSignOut} />}
     </main>
@@ -111,10 +133,60 @@ function Menu(props: { person: Person; onClose: () => void; onSignOut: () => voi
         <small>{t.signedInAs}</small>
         <strong className="hand who">{props.person.display_name}</strong>
         {props.person.is_owner && <span className="stamp">{t.owner}</span>}
+        <LanguageSwitch />
         <button className="btn" onClick={props.onSignOut}>
           {t.signOut}
         </button>
       </div>
     </>
+  )
+}
+
+// Saves go one after another, so the last tap is what ends up stored. While one is on its way a
+// new tap only changes what is wanted; the loop then sends it. If a save fails the screen goes back
+// to the last language that was stored, and the caller is told.
+let saving: { stored: Language; wanted: Language } | null = null
+async function chooseLanguage(next: Language, failed: () => void) {
+  const before = getLanguage()
+  setLanguage(next)
+  if (saving) {
+    saving.wanted = next
+    return
+  }
+  const state = (saving = { stored: before, wanted: next })
+  while (state.stored !== state.wanted) {
+    const sending = state.wanted
+    const { error } = await supabase.rpc('set_my_language', { chosen: sending })
+    if (error) {
+      setLanguage(state.stored)
+      saving = null
+      return failed()
+    }
+    state.stored = sending
+  }
+  saving = null
+}
+
+// The two names are always written in their own language. The chosen one is circled in pen.
+function LanguageSwitch() {
+  const current = useSyncExternalStore(subscribeLanguage, getLanguage)
+  const [failed, setFailed] = useState(false)
+  const choose = (next: Language) => {
+    if (next === current) return
+    setFailed(false)
+    void chooseLanguage(next, () => setFailed(true))
+  }
+  return (
+    <div className="lang" role="group" aria-labelledby="lang-title">
+      <small id="lang-title">{t.language}</small>
+      <div>
+        {(['tr', 'en'] as const).map((code) => (
+          <button key={code} lang={code} className={`hand${code === current ? ' on' : ''}`} aria-pressed={code === current} onClick={() => choose(code)}>
+            {code === 'tr' ? 'Türkçe' : 'English'}
+          </button>
+        ))}
+      </div>
+      {failed && <p role="alert" className="failed">{t.saveFailed}</p>}
+    </div>
   )
 }
