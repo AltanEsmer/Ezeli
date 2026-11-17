@@ -44,6 +44,7 @@ const en = {
   deleteAsk: 'Delete this comment?',
   deleteYes: 'Yes, delete',
   deleteNo: 'Keep it',
+  mediaNotInExport: 'Media (not in the export)',
 }
 
 export type Labels = typeof en
@@ -92,6 +93,7 @@ const tr: Labels = {
   deleteAsk: 'Bu yorum silinsin mi?',
   deleteYes: 'Evet, sil',
   deleteNo: 'Vazgeç',
+  mediaNotInExport: 'Medya (dışa aktarımda yok)',
 }
 
 export type Language = 'tr' | 'en'

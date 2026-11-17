@@ -182,6 +182,8 @@ function placeholder(kind: MemoryDetail['messages'][number]['kind']): string {
       return t.document
     case 'gif':
       return t.gif
+    case 'media':
+      return t.mediaNotInExport
     default:
       return t.photo
   }
