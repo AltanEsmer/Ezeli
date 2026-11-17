@@ -13,7 +13,7 @@ export default defineConfig({
   projects: [
     { name: 'sign-in', testMatch: ['sign-in.spec.ts', 'replace-link.spec.ts'] },
     { name: 'import', testMatch: 'import.setup.ts', dependencies: ['sign-in'] },
-    { name: 'memories', testMatch: 'timeline.spec.ts', dependencies: ['import'] },
+    { name: 'memories', testMatch: ['timeline.spec.ts', 'language.spec.ts'], dependencies: ['import'] },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',

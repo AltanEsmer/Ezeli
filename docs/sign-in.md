@@ -11,7 +11,7 @@ A friend opens a personal link and is signed in as themselves. No email, no pass
 - The account's address is made up (`<login id>@ezeli.invalid`) and no mail is ever sent. Public sign-up is off (`supabase/config.toml`), so the only accounts are the ones the owners create.
 - Every access rule asks one question, through `private.current_person_id()`: which person is this request, given that the session still exists? A signed-out device, or one whose link was replaced, reads nothing at once, not when its token runs out.
 - Sign-out uses `signOut({ scope: 'local' })`: it ends this device only.
-- Labels are in `src/i18n.ts`, English and Turkish, picked from the browser's language.
+- Labels are in `src/i18n.ts`, English and Turkish. A person chooses in the menu; the choice is stored on the person (`people.language`, null until chosen) and follows them to another device. Until then the app follows the browser's language. `people` stays read-only for the app: the one write is the function `set_my_language(chosen)`, which sets the caller's own language and nothing else. `current_person()` returns it. In the app, `t` and `language` are live bindings that `setLanguage` changes; `App` re-renders on it, so a screen just imports them and a switch changes everything at once, without a reload.
 
 On the hosted project (not set up yet) the same things are dashboard switches under Authentication: turn off "Allow new users to sign up", leave anonymous sign-ins off, keep the Email provider on, set no custom SMTP and no external providers. GraphQL is on by default on a hosted project: switch it off, or leave it unexposed (locally it is off). Then create one account and check that the hosted admin API accepts the `.invalid` address.
 
