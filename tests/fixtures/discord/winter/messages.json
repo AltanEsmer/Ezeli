@@ -1,0 +1,106 @@
+{
+  "guild": {
+    "id": "900000000000000001",
+    "name": "Kaş Sunucusu",
+    "iconUrl": "media/icon-2c7e4a91d03b685f.png"
+  },
+  "channel": {
+    "id": "1000000000000000001",
+    "type": "GuildTextChat",
+    "categoryId": "1000000000000000000",
+    "category": "Sohbet",
+    "name": "genel",
+    "topic": null
+  },
+  "dateRange": {
+    "after": null,
+    "before": null
+  },
+  "exportedAt": "2023-07-20T12:00:00.000+00:00",
+  "messages": [
+    {
+      "id": "120000000000000001",
+      "type": "Default",
+      "timestamp": "2023-01-21T22:30:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Kar yağıyor",
+      "author": {
+        "id": "200000000000000002",
+        "name": "limon.l",
+        "discriminator": "0000",
+        "nickname": "Limon 🌻",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [
+        {
+          "id": "310000000000000001",
+          "url": "media/IMG_5001-7a1e3c9d0b2f4586.jpg",
+          "fileName": "IMG_5001.jpg",
+          "fileSizeBytes": 775
+        }
+      ],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "120000000000000002",
+      "type": "Default",
+      "timestamp": "2023-01-21T22:30:40.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "",
+      "author": {
+        "id": "200000000000000002",
+        "name": "limon.l",
+        "discriminator": "0000",
+        "nickname": "Limon 🌻",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [
+        {
+          "id": "310000000000000002",
+          "url": "media/IMG_5002-e2b94d7a1c068f35.jpg",
+          "fileName": "IMG_5002.jpg",
+          "fileSizeBytes": 775
+        }
+      ],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "120000000000000003",
+      "type": "Default",
+      "timestamp": "2023-01-21T22:32:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Bu sene ilk kez!",
+      "author": {
+        "id": "200000000000000003",
+        "name": "fistik.f",
+        "discriminator": "0000",
+        "nickname": "Fıstık",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    }
+  ],
+  "messageCount": 3
+}

@@ -1,0 +1,435 @@
+{
+  "guild": {
+    "id": "900000000000000001",
+    "name": "Kaş Sunucusu",
+    "iconUrl": "media/icon-2c7e4a91d03b685f.png"
+  },
+  "channel": {
+    "id": "1000000000000000001",
+    "type": "GuildTextChat",
+    "categoryId": "1000000000000000000",
+    "category": "Sohbet",
+    "name": "genel",
+    "topic": null
+  },
+  "dateRange": {
+    "after": null,
+    "before": null
+  },
+  "exportedAt": "2023-07-20T12:00:00.000+00:00",
+  "messages": [
+    {
+      "id": "110000000000000001",
+      "type": "Default",
+      "timestamp": "2023-07-14T17:50:02.311+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "İskeleye gelin\ngün batımı çok güzel",
+      "author": {
+        "id": "200000000000000001",
+        "name": "karpuz.k",
+        "discriminator": "0000",
+        "nickname": "Karpuz",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "110000000000000002",
+      "type": "GuildMemberJoin",
+      "timestamp": "2023-07-14T17:51:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Joined the server.",
+      "author": {
+        "id": "200000000000000004",
+        "name": "cilek.c",
+        "discriminator": "0000",
+        "nickname": "Çilek",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "110000000000000003",
+      "type": "Default",
+      "timestamp": "2023-07-14T17:58:11.120+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Bakın",
+      "author": {
+        "id": "200000000000000002",
+        "name": "limon.l",
+        "discriminator": "0000",
+        "nickname": "Limon 🌻",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [
+        {
+          "id": "300000000000000001",
+          "url": "media/IMG_2041-3f9a1c0b7e2d4a61.jpg",
+          "fileName": "IMG_2041.jpg",
+          "fileSizeBytes": 775
+        }
+      ],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "110000000000000004",
+      "type": "Reply",
+      "timestamp": "2023-07-14T17:59:40.004+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Çok güzel çıkmış! Işık şahane",
+      "author": {
+        "id": "200000000000000003",
+        "name": "fistik.f",
+        "discriminator": "0000",
+        "nickname": "Fıstık",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": [],
+      "reference": {
+        "messageId": "110000000000000003",
+        "channelId": "1000000000000000001",
+        "guildId": "900000000000000001"
+      }
+    },
+    {
+      "id": "110000000000000005",
+      "type": "Default",
+      "timestamp": "2023-07-14T18:10:05.500+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "hepsi bende",
+      "author": {
+        "id": "200000000000000001",
+        "name": "karpuz.k",
+        "discriminator": "0000",
+        "nickname": "Karpuz",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [
+        {
+          "id": "300000000000000002",
+          "url": "media/kayik-91c2d7e04b6a35f8.png",
+          "fileName": "kayık.png",
+          "fileSizeBytes": 775
+        },
+        {
+          "id": "300000000000000003",
+          "url": "media/IMG_2043-0a7be1c95d3f2864.jpg",
+          "fileName": "IMG_2043.jpg",
+          "fileSizeBytes": 775
+        },
+        {
+          "id": "300000000000000004",
+          "url": "media/klip-6b2e9f40d8a1c357.mp4",
+          "fileName": "klip.mp4",
+          "fileSizeBytes": 775
+        }
+      ],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "110000000000000006",
+      "type": "Default",
+      "timestamp": "2023-07-14T18:11:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Hatırlatma: yarın tekne",
+      "author": {
+        "id": "200000000000000099",
+        "name": "hatirlatici",
+        "discriminator": "0000",
+        "nickname": "Hatırlatıcı",
+        "color": null,
+        "isBot": true,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "110000000000000007",
+      "type": "Default",
+      "timestamp": "2023-07-14T18:12:30.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Ben de çektim bir tane",
+      "author": {
+        "id": "200000000000000004",
+        "name": "cilek.c",
+        "discriminator": "0000",
+        "nickname": "Çilek",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [
+        {
+          "id": "300000000000000005",
+          "url": "media/IMG_0007-c4f81a39e06d2b75.jpg",
+          "fileName": "IMG_0007.jpg",
+          "fileSizeBytes": 775
+        }
+      ],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "110000000000000008",
+      "type": "ChannelPinnedMessage",
+      "timestamp": "2023-07-14T18:14:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Pinned a message.",
+      "author": {
+        "id": "200000000000000002",
+        "name": "limon.l",
+        "discriminator": "0000",
+        "nickname": "Limon 🌻",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "110000000000000009",
+      "type": "Default",
+      "timestamp": "2023-07-14T18:20:10.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "",
+      "author": {
+        "id": "200000000000000002",
+        "name": "limon.l",
+        "discriminator": "0000",
+        "nickname": "Limon 🌻",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [
+        {
+          "id": "300000000000000006",
+          "url": "media/voice-message-17d4a0e5b3c82f96.ogg",
+          "fileName": "voice-message.ogg",
+          "fileSizeBytes": 775
+        }
+      ],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "110000000000000010",
+      "type": "Default",
+      "timestamp": "2023-07-14T18:25:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Yarın tekneye gidiyoruz, unutmayın",
+      "author": {
+        "id": "200000000000000003",
+        "name": "fistik.f",
+        "discriminator": "0000",
+        "nickname": "Fıstık",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "110000000000000011",
+      "type": "Default",
+      "timestamp": "2023-07-14T19:30:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "İyi geceler",
+      "author": {
+        "id": "200000000000000001",
+        "name": "karpuz.k",
+        "discriminator": "0000",
+        "nickname": "Karpuz",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "110000000000000012",
+      "type": "Default",
+      "timestamp": "2023-07-15T08:05:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "",
+      "author": {
+        "id": "200000000000000003",
+        "name": "fistik.f",
+        "discriminator": "0000",
+        "nickname": "Fıstık",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [
+        {
+          "id": "300000000000000007",
+          "url": "media/IMG_3310-5e8d0c2b7a914f36.jpg",
+          "fileName": "IMG_3310.jpg",
+          "fileSizeBytes": 775
+        }
+      ],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "110000000000000013",
+      "type": "Default",
+      "timestamp": "2023-07-15T08:06:10.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "Şu suyun rengine bak",
+      "author": {
+        "id": "200000000000000001",
+        "name": "karpuz.k",
+        "discriminator": "0000",
+        "nickname": "Karpuz",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "110000000000000014",
+      "type": "Default",
+      "timestamp": "2023-07-15T08:06:40.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "",
+      "author": {
+        "id": "200000000000000001",
+        "name": "karpuz.k",
+        "discriminator": "0000",
+        "nickname": "Karpuz",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [],
+      "embeds": [
+        {
+          "title": "Kaş",
+          "url": "https://example.com/kas",
+          "description": null,
+          "images": []
+        }
+      ],
+      "stickers": [],
+      "reactions": [],
+      "mentions": []
+    },
+    {
+      "id": "110000000000000015",
+      "type": "Default",
+      "timestamp": "2023-07-15T08:07:00.000+00:00",
+      "timestampEdited": null,
+      "callEndedTimestamp": null,
+      "isPinned": false,
+      "content": "",
+      "author": {
+        "id": "200000000000000002",
+        "name": "limon.l",
+        "discriminator": "0000",
+        "nickname": "Limon 🌻",
+        "color": null,
+        "isBot": false,
+        "avatarUrl": "media/avatar-8d1f3a6c2b9e7045.png"
+      },
+      "attachments": [],
+      "embeds": [],
+      "stickers": [],
+      "reactions": [],
+      "mentions": [],
+      "forwardedMessage": {
+        "timestamp": "2023-07-01T10:00:00.000+00:00",
+        "timestampEdited": null,
+        "content": "eski bir mesaj",
+        "attachments": [],
+        "embeds": [],
+        "stickers": []
+      }
+    }
+  ],
+  "messageCount": 15
+}
