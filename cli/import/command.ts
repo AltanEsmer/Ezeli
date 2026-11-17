@@ -1,8 +1,11 @@
 // pnpm ezeli import <export folder> --people <file> --timezone <zone> --chat <name> [--trial]
 import { parseArgs } from 'node:util'
 import { adminClient } from '../supabase.ts'
-import { chatKey, messageKeys } from './keys.ts'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+import { chatKey, idKey, messageKeys } from './keys.ts'
 import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } from './memories.ts'
+import { isDiscordExport, readDiscord, withMentions } from './discord.ts'
 import { readPeople } from './people.ts'
 import { whyUnreadable } from './photos.ts'
 import { saveChat } from './save.ts'
@@ -38,23 +41,38 @@ async function importExport(args: string[]): Promise<string> {
   const db = trial ? undefined : databaseOrStop()
 
   const who = readPeople(people)
-  const chat = readWhatsApp(folder, timezone)
+  // The kind of export is recognised from the folder's contents.
+  if (!existsSync(join(folder, '_chat.txt')) && !existsSync(join(folder, 'messages.json'))) {
+    throw new Stop(`No _chat.txt in ${folder} (WhatsApp iPhone export), and no messages.json (Discord export).`)
+  }
+  const chat = isDiscordExport(folder) ? readDiscord(folder, timezone) : readWhatsApp(folder, timezone)
 
-  const unknown = [...new Set(chat.messages.map((m) => m.sender).filter((sender) => !who.find(chat.app, sender)))]
+  // A Discord sender is its account id; the name is only shown to help the owner add it.
+  const unknown = [
+    ...new Set(
+      chat.messages
+        .filter((m) => !who.find(chat.app, m.sender))
+        .map((m) => (m.names?.length ? `${m.names.join(' / ')} (${m.sender})` : m.sender)),
+    ),
+  ]
   if (unknown.length > 0) {
     throw new Stop(`Not in the people file: ${unknown.sort((a, b) => a.localeCompare(b, 'tr')).join(', ')}\nAdd them, or mark them "leftOut". See docs/import.md.`)
   }
 
   // Left-out senders are dropped here, before grouping and before problems are worked out, so
   // nothing about them reaches the result. Problems name the person by display name only.
-  const key = messageKeys(chatKey(chat.app, chatName ?? ''))
+  const chatText = chatKey(chat.app, chatName ?? '')
+  const key = messageKeys(chatText)
   const messages: MemoryMessage[] = []
   const problems = [...chat.problems]
-  for (const { sender, at, minute, text, media } of chat.messages) {
+  for (const { sender, id, at, minute, media, mentions, ...said } of chat.messages) {
     const person = who.find(chat.app, sender)!
     if (person.leftOut) continue
+    // A mention shows the person's Ezeli name; a left-out or unknown person is removed.
+    const text = mentions ? withMentions(said.text, mentions, (account) => who.find(chat.app, account)) : said.text
+    if (id !== undefined && !media && text.trim() === '') continue
     const message: MemoryMessage = {
-      key: key({ minute, personId: person.id, text, ...(media && { media }) }),
+      key: id === undefined ? key({ minute, personId: person.id, text, ...(media && { media }) }) : idKey(chatText, id),
       at,
       person: person.name,
       personId: person.id,
