@@ -6,6 +6,11 @@ import { localStack } from '../stack.ts'
 
 export default async function wipe() {
   const stack = localStack()
+  // Deletes everything of the chats: refuse unless this is a stack on this computer.
+  const host = new URL(stack.apiUrl).hostname
+  if (host !== '127.0.0.1' && host !== 'localhost') {
+    throw new Error(`Refusing to empty ${host}: the browser tests only run against a local Supabase.`)
+  }
   const db = createClient(stack.apiUrl, stack.secretKey, { auth: { persistSession: false } })
 
   // Memories, messages and photos go with their chat.

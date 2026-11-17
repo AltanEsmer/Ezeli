@@ -50,10 +50,16 @@ async function importExport(args: string[]): Promise<string> {
   const key = messageKeys(chatKey(chat.app, chatName ?? ''))
   const messages: MemoryMessage[] = []
   const problems = [...chat.problems]
-  for (const { sender, at, text, media } of chat.messages) {
+  for (const { sender, at, minute, text, media } of chat.messages) {
     const person = who.find(chat.app, sender)!
     if (person.leftOut) continue
-    const message: MemoryMessage = { key: key({ at, person: person.name, text, ...(media && { media }) }), at, person: person.name, text }
+    const message: MemoryMessage = {
+      key: key({ minute, personId: person.id, text, ...(media && { media }) }),
+      at,
+      person: person.name,
+      personId: person.id,
+      text,
+    }
     if (media) message.media = media
     messages.push(message)
     if (media?.kind !== 'photo') continue
@@ -73,7 +79,14 @@ async function importExport(args: string[]): Promise<string> {
 
   const memories = buildMemories(messages, grouping)
   if (db) {
-    await saveChat(db, { key: chatKey(chat.app, chatName!), name: chatName!.trim(), app: chat.app, timezone }, memories)
+    try {
+      await saveChat(db, { key: chatKey(chat.app, chatName!), name: chatName!.trim(), app: chat.app, timezone }, memories)
+    } catch (error) {
+      if (error instanceof Stop) throw error
+      // Plain words, no stack. Everything is saved by key, so the same import finishes the job.
+      const reason = ((error as { message?: string }).message ?? String(error)).replace(/\s+/g, ' ')
+      throw new Stop(`Saving stopped before it finished: ${reason}. Fix that and run the same import again; it finishes the job.`)
+    }
   }
   return importSummary(memories, problems, timezone, details, trial ? undefined : chatName!.trim())
 }

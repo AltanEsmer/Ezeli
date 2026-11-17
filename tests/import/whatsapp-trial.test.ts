@@ -199,7 +199,21 @@ test('a people file with a value of the wrong type or an unknown key stops the r
 
   const typo = run('people-typo.json')
   expect(typo.status).toBe(1)
-  expect(typo.err).toContain('Limon in the people file has an unknown key "whatsap". Allowed: name, whatsapp, discord, leftOut.')
+  expect(typo.err).toContain('Limon in the people file has an unknown key "whatsap". Allowed: id, name, whatsapp, discord, leftOut.')
+})
+
+test('every person in the people file needs a fixed id: a lowercase word, used once', () => {
+  const run = (file: string) =>
+    ezeliImport(`${fixtures}/weekend`, '--people', `${fixtures}/${file}`, '--timezone', 'Europe/Istanbul', '--trial')
+
+  for (const file of ['people-no-id.json', 'people-id-bad.json']) {
+    const result = run(file)
+    expect(result.status).toBe(1)
+    expect(result.err).toContain('Karpuz in the people file needs an "id"')
+  }
+  const twice = run('people-id-twice.json')
+  expect(twice.status).toBe(1)
+  expect(twice.err).toContain('The people file has the id "kisi" twice.')
 })
 
 test('media files that no message mentions are reported, so an unread layout does not pass quietly', () => {

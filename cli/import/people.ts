@@ -3,7 +3,9 @@ import { readFileSync } from 'node:fs'
 import { Stop } from './stop.ts'
 
 export type ChatApp = 'whatsapp' | 'discord'
-export type Person = { name: string; leftOut: boolean }
+// `id` is the fixed id from the people file (a lowercase slug the owners choose once and never
+// change): lasting keys and the saved person are made from it, not from the display name.
+export type Person = { id: string; name: string; leftOut: boolean }
 export type People = { find: (app: ChatApp, sender: string) => Person | undefined }
 
 const appNames: Record<ChatApp, string> = { whatsapp: 'WhatsApp', discord: 'Discord' }
@@ -32,11 +34,20 @@ export function readPeople(file: string): People {
 
   const bySender = new Map<string, Person>()
   const names = new Set<string>()
+  const ids = new Set<string>()
   for (const entry of entries) {
     if (!isRecord(entry) || typeof entry.name !== 'string' || entry.name.trim() === '') {
       throw new Stop(`Every person in the people file needs a "name". ${seeDocs}`)
     }
-    const person: Person = { name: entry.name.trim(), leftOut: entry.leftOut === true }
+    const id = entry.id
+    if (typeof id !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(id)) {
+      throw new Stop(
+        `${entry.name.trim()} in the people file needs an "id": a short lowercase word, such as "karpuz", chosen once and never changed. ${seeDocs}`,
+      )
+    }
+    if (ids.has(id)) throw new Stop(`The people file has the id "${id}" twice.`)
+    ids.add(id)
+    const person: Person = { id, name: entry.name.trim(), leftOut: entry.leftOut === true }
     for (const key of Object.keys(entry)) {
       if (!allowedKeys.includes(key)) {
         throw new Stop(`${person.name} in the people file has an unknown key "${key}". Allowed: ${allowedKeys.join(', ')}.`)
@@ -66,7 +77,7 @@ export function readPeople(file: string): People {
   return { find: (app, sender) => bySender.get(senderKey(app, sender)) }
 }
 
-const allowedKeys = ['name', 'whatsapp', 'discord', 'leftOut']
+const allowedKeys = ['id', 'name', 'whatsapp', 'discord', 'leftOut']
 const seeDocs = 'See docs/import.md.'
 
 // Chat apps wrap some names in invisible direction marks and use odd spaces. A sender is the

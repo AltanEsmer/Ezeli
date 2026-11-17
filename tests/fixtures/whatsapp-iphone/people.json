@@ -1,8 +1,8 @@
 {
   "people": [
-    { "name": "Karpuz", "whatsapp": ["Karpuz K"] },
-    { "name": "Limon", "whatsapp": ["Limon L", "Limon 🌻"], "discord": ["limon.l"] },
-    { "name": "Fıstık", "whatsapp": ["Fıstık F"] },
-    { "name": "Çilek", "whatsapp": ["Çilek Ç"], "leftOut": true }
+    { "id": "karpuz", "name": "Karpuz", "whatsapp": ["Karpuz K"] },
+    { "id": "limon", "name": "Limon", "whatsapp": ["Limon L", "Limon 🌻"], "discord": ["limon.l"] },
+    { "id": "fistik", "name": "Fıstık", "whatsapp": ["Fıstık F"] },
+    { "id": "cilek", "name": "Çilek", "whatsapp": ["Çilek Ç"], "leftOut": true }
   ]
 }

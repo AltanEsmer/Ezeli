@@ -1,6 +1,6 @@
 // What an import prints: the numbers an owner checks, before saving (trial run) or after.
 import type { Media, MediaKind } from './chat.ts'
-import { isPhoto, type Memory, type MemoryMessage } from './memories.ts'
+import { hasPhotoFile, type Memory, type MemoryMessage } from './memories.ts'
 import { clockTimeOf } from './time.ts'
 
 // `savedAs` is the chat name when the import saved; without it this is a trial run.
@@ -10,7 +10,7 @@ export function importSummary(memories: Memory[], problems: string[], zone: stri
     savedAs === undefined ? 'Trial run. Nothing was saved.' : `Saved to the chat "${savedAs}".`,
     '',
     `Memories:    ${memories.length}`,
-    `Photos:      ${all.filter(isPhoto).length}`,
+    `Photos:      ${all.filter(hasPhotoFile).length}`,
     `People:      ${countAndNames(all)}`,
     `Date range:  ${dateRange(memories, zone)}`,
     `Problems:    ${problems.length === 0 ? 'none' : problems.length}`,
@@ -18,7 +18,7 @@ export function importSummary(memories: Memory[], problems: string[], zone: stri
   ]
 
   memories.forEach((memory, index) => {
-    const photos = memory.messages.filter(isPhoto).length
+    const photos = memory.messages.filter(hasPhotoFile).length
     const others = memory.messages.length - photos
     if (index === 0 || details) lines.push('')
     lines.push(

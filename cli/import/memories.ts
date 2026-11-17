@@ -16,10 +16,18 @@ export const startingGrouping: Grouping = {
 }
 
 // `key` is the message's lasting key (see keys.ts).
-export type MemoryMessage = { key: string; at: number; person: string; text: string; media?: Media }
+// `person` is the display name, `personId` the fixed id from the people file.
+export type MemoryMessage = { key: string; at: number; person: string; personId: string; text: string; media?: Media }
 export type Memory = { at: number; messages: MemoryMessage[] } // `at` is when the first photo was sent
 
+// A photo message starts and holds a memory whether or not its file is in the export or can be
+// read: the memory's key is its first photo message.
 export function isPhoto(message: MemoryMessage): boolean {
+  return message.media?.kind === 'photo'
+}
+
+// A photo message whose file is there to be stored.
+export function hasPhotoFile(message: MemoryMessage): boolean {
   return message.media?.kind === 'photo' && message.media.file !== undefined
 }
 

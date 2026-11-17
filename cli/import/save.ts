@@ -1,7 +1,8 @@
-// Saving: the chat, its people, the two sizes of each photo, then the memories, messages and
-// photos. Everything is written by key, so the same export saved twice leaves one copy.
+// Saving: the two sizes of each photo, then the chat, its people, the memories, messages and
+// photos. Everything is written by key, so the same export saved twice leaves one copy, and an
+// import that stopped halfway is finished by running it again.
 import type { Db } from '../supabase.ts'
-import { isPhoto, type Memory } from './memories.ts'
+import { hasPhotoFile, isPhoto, type Memory, type MemoryMessage } from './memories.ts'
 import type { ChatApp } from './people.ts'
 import { makeSizes } from './photos.ts'
 import { Stop } from './stop.ts'
@@ -14,24 +15,20 @@ const CHUNK = 200
 export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[]): Promise<void> {
   const messages = memories.flatMap((memory) => memory.messages)
 
-  const savedChat = await db.from('chats').upsert(chat, { onConflict: 'key' }).select('id').single()
-  if (savedChat.error) throw savedChat.error
-  const chatId = savedChat.data.id
+  // The time zone is fixed at the chat's first import: the dates of what is stored were made
+  // with it. Checked before anything is written.
+  const existing = await db.from('chats').select('timezone').eq('key', chat.key).maybeSingle()
+  if (existing.error) throw existing.error
+  if (existing.data && existing.data.timezone !== chat.timezone) {
+    throw new Stop(
+      `This chat was first imported with the time zone ${existing.data.timezone}, not ${chat.timezone}. ` +
+        `Import it again with --timezone ${existing.data.timezone}; nothing was changed.`,
+    )
+  }
 
-  // People are matched by display name. Those that do not exist yet are created without an
-  // account: `person add` gives them a link later.
-  const names = [...new Set(messages.map((message) => message.person))]
-  const created = await db.from('people').upsert(names.map((display_name) => ({ display_name })), { onConflict: 'display_name', ignoreDuplicates: true })
-  if (created.error) throw created.error
-  const people = new Map<string, string>()
-  const found = await db.from('people').select('id, display_name').in('display_name', names)
-  if (found.error) throw found.error
-  for (const row of found.data) people.set(row.display_name, row.id)
-
-  // Photos first: if one cannot be made, nothing has been written to the tables yet.
+  // Photos first, so that a photo row exists only when both its files are in the bucket.
   const sizes = new Map<string, { view: string; thumb: string; width: number; height: number }>()
-  const photos = messages.filter(isPhoto)
-  await mapLimit(photos, 4, async (message) => {
+  await mapLimit(messages.filter(hasPhotoFile), 4, async (message) => {
     const file = message.media!.file!
     let made
     try {
@@ -48,7 +45,13 @@ export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[]): Pr
     sizes.set(message.key, { view, thumb, width: made.width, height: made.height })
   })
 
-  // A memory is known by its first photo.
+  const savedChat = await db.from('chats').upsert(chat, { onConflict: 'key' }).select('id').single()
+  if (savedChat.error) throw savedChat.error
+  const chatId = savedChat.data.id
+
+  const people = await savePeople(db, messages)
+
+  // A memory is known by its first photo message, whether or not its file was there.
   const memoryRows = memories.map((memory) => ({
     chat_id: chatId,
     key: memory.messages.find(isPhoto)!.key,
@@ -67,7 +70,7 @@ export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[]): Pr
   const messageRows = placed.map(({ message, seq, memory }) => ({
     memory_id: memory,
     key: message.key,
-    person_id: people.get(message.person)!,
+    person_id: people.get(message.personId)!,
     at: new Date(message.at).toISOString(),
     seq,
     text: message.text,
@@ -86,7 +89,7 @@ export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[]): Pr
       memory_id: memory,
       message_id: messageIds.get(message.key)!,
       key: message.key,
-      person_id: people.get(message.person)!,
+      person_id: people.get(message.personId)!,
       at: new Date(message.at).toISOString(),
       seq,
       view_path: size.view,
@@ -99,6 +102,45 @@ export async function saveChat(db: Db, chat: ChatToSave, memories: Memory[]): Pr
     const saved = await db.from('photos').upsert(part, { onConflict: 'key' })
     if (saved.error) throw saved.error
   }
+}
+
+// People are matched by the fixed id of the people file, saved as `people.slug`. With no row for
+// the id, a row with the same display name and no id yet (made earlier by `person add`) is
+// adopted; otherwise a row is created, without an account. A changed display name updates the
+// row. Returns the row id of each person id.
+async function savePeople(db: Db, messages: MemoryMessage[]): Promise<Map<string, string>> {
+  const wanted = new Map(messages.map((message) => [message.personId, message.person]))
+  const rowIds = new Map<string, string>()
+  for (const [slug, name] of wanted) {
+    const bySlug = await db.from('people').select('id, display_name').eq('slug', slug).maybeSingle()
+    if (bySlug.error) throw bySlug.error
+    if (bySlug.data) {
+      if (bySlug.data.display_name !== name) {
+        const renamed = await db.from('people').update({ display_name: name }).eq('id', bySlug.data.id)
+        if (renamed.error?.code === '23505') {
+          throw new Stop(`Cannot rename "${bySlug.data.display_name}" to "${name}": another person already has that name.`)
+        }
+        if (renamed.error) throw renamed.error
+      }
+      rowIds.set(slug, bySlug.data.id)
+      continue
+    }
+    const byName = await db.from('people').select('id, slug').eq('display_name', name).maybeSingle()
+    if (byName.error) throw byName.error
+    if (byName.data?.slug) {
+      throw new Stop(`The name "${name}" already belongs to a person with the id "${byName.data.slug}", not "${slug}".`)
+    }
+    if (byName.data) {
+      const adopted = await db.from('people').update({ slug }).eq('id', byName.data.id)
+      if (adopted.error) throw adopted.error
+      rowIds.set(slug, byName.data.id)
+      continue
+    }
+    const created = await db.from('people').insert({ display_name: name, slug }).select('id').single()
+    if (created.error) throw created.error
+    rowIds.set(slug, created.data.id)
+  }
+  return rowIds
 }
 
 function chunks<T>(items: T[]): T[][] {
@@ -115,4 +157,3 @@ async function mapLimit<T>(items: T[], limit: number, work: (item: T) => Promise
   })
   await Promise.all(runners)
 }
-

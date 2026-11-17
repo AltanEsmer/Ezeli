@@ -10,6 +10,7 @@ export type Media = { kind: MediaKind; name?: string; file?: string }
 
 export type ChatMessage = {
   at: number // the moment it was sent, in milliseconds since 1970 UTC
+  minute: string // the clock time as written in the export, cut to the minute: "2023-07-14 20:58"
   sender: string // the name or id exactly as the export has it
   text: string
   media?: Media

@@ -55,12 +55,9 @@ export type Language = 'tr' | 'en'
 // Every date and every list of names the app writes goes through here, so the language switch
 // (issue 9) has one place to reach. `zone` is the time zone of the chat the date comes from: a
 // memory is on the day it was sent there, wherever the reader is.
-export function formatDate(lang: Language, moment: string | number | Date, zone: string, style: 'long' | 'short' = 'long'): string {
-  const options: Intl.DateTimeFormatOptions =
-    style === 'long'
-      ? { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }
-      : { day: 'numeric', month: 'short', year: 'numeric' }
-  return new Intl.DateTimeFormat(lang, { ...options, timeZone: zone }).format(new Date(moment))
+export function formatDate(lang: Language, moment: string | number | Date, zone: string): string {
+  const options: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: zone }
+  return new Intl.DateTimeFormat(lang, options).format(new Date(moment))
 }
 
 // "Karpuz, Limon and Fıstık" / "Karpuz, Limon ve Fıstık".

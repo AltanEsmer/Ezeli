@@ -28,24 +28,37 @@ export function ezeliImport(args: string[], env: Record<string, string> = {}) {
   return { status: result.status, out: result.stdout, err: result.stderr }
 }
 
-// `cilek` is the one the people file leaves out.
-export type Names = { karpuz: string; limon: string; fistik: string; cilek: string }
-
-export function freshPeople(): Names {
-  return { karpuz: fresh('Karpuz'), limon: fresh('Limon'), fistik: fresh('Fıstık'), cilek: fresh('Çilek') }
+// `cilek` is the one the people file leaves out. `ids` are the fixed ids of the people file.
+export type Names = {
+  karpuz: string
+  limon: string
+  fistik: string
+  cilek: string
+  ids: { karpuz: string; limon: string; fistik: string; cilek: string }
 }
 
-// A people file for the made-up weekend chat, with display names no other test uses.
+export function freshPeople(): Names {
+  const tag = fresh('p').replace(/\s/g, '-')
+  return {
+    karpuz: fresh('Karpuz'),
+    limon: fresh('Limon'),
+    fistik: fresh('Fıstık'),
+    cilek: fresh('Çilek'),
+    ids: { karpuz: `karpuz-${tag}`, limon: `limon-${tag}`, fistik: `fistik-${tag}`, cilek: `cilek-${tag}` },
+  }
+}
+
+// A people file for the made-up weekend chat, with names and ids no other test uses.
 export function peopleFile(names: Names): string {
   const file = join(mkdtempSync(join(tmpdir(), 'ezeli-people-')), 'people.json')
   writeFileSync(
     file,
     JSON.stringify({
       people: [
-        { name: names.karpuz, whatsapp: ['Karpuz K'] },
-        { name: names.limon, whatsapp: ['Limon L', 'Limon 🌻'] },
-        { name: names.fistik, whatsapp: ['Fıstık F'] },
-        { name: names.cilek, whatsapp: ['Çilek Ç'], leftOut: true },
+        { id: names.ids.karpuz, name: names.karpuz, whatsapp: ['Karpuz K'] },
+        { id: names.ids.limon, name: names.limon, whatsapp: ['Limon L', 'Limon 🌻'] },
+        { id: names.ids.fistik, name: names.fistik, whatsapp: ['Fıstık F'] },
+        { id: names.ids.cilek, name: names.cilek, whatsapp: ['Çilek Ç'], leftOut: true },
       ],
     }),
   )
@@ -53,14 +66,14 @@ export function peopleFile(names: Names): string {
 }
 
 // Imports an export folder (the weekend chat unless told otherwise) under a chat name.
-export function importChat(chat: string, options: { people?: Names; folder?: string; extra?: string[] } = {}) {
+export function importChat(chat: string, options: { people?: Names; folder?: string; timezone?: string; extra?: string[] } = {}) {
   const people = options.people ?? freshPeople()
   const result = ezeliImport([
     options.folder ?? `${fixtures}/weekend`,
     '--people',
     peopleFile(people),
     '--timezone',
-    'Europe/Istanbul',
+    options.timezone ?? 'Europe/Istanbul',
     '--chat',
     chat,
     ...(options.extra ?? []),
@@ -102,4 +115,15 @@ export function copyOfWeekend(): string {
   const folder = mkdtempSync(join(tmpdir(), 'ezeli-export-'))
   cpSync(`${fixtures}/weekend`, folder, { recursive: true })
   return folder
+}
+
+// What is stored for a chat, counted: for comparing before and after a second import.
+export async function counts(chatName: string) {
+  const chat = await storedChat(chatName)
+  if (!chat) return undefined
+  const memories = await rows<{ id: string }>(owner.from('memories').select('id').eq('chat_id', chat.id as string))
+  const ids = memories.map((m) => m.id)
+  const messages = await rows(owner.from('messages').select('id').in('memory_id', ids))
+  const photos = await rows(owner.from('photos').select('id').in('memory_id', ids))
+  return { memories: memories.length, messages: messages.length, photos: photos.length }
 }

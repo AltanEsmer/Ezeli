@@ -1,0 +1,6 @@
+{
+  "people": [
+    { "id": "kisi", "name": "Karpuz", "whatsapp": ["Karpuz K"] },
+    { "id": "kisi", "name": "Limon", "whatsapp": ["Limon L"] }
+  ]
+}

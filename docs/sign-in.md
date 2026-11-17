@@ -38,6 +38,7 @@ Added with the import (issue 11). The rules follow the sign-in pattern: every ta
 
 - `chats`, `memories`, `messages`, `photos` (and `people`): a person with a live session reads; nobody writes from the app; a visitor reads nothing.
 - `timeline`: a view (`security_invoker`, so the rules above apply to it) of memories newest first with their first three photos, the photo count and the senders, in one request. The timeline reads it and orders by `at`.
+- Signed links are only as short as the app asks for (an hour in `src/memories.ts`). A signed-in person can ask the server for a much longer link to one file; the server does not enforce the short life. A person can download every file anyway, so this is not worse, but it is a choice of the app, not a rule of the server.
 - The bucket `photos` is private. A person with a live session can read objects, which is what lets the app ask for signed links (`createSignedUrls`, valid for an hour). Nobody can upload or remove from the app, and a visitor cannot list, download or sign.
 - A new table or bucket needs the same three things: row level security on, rights revoked then `select` granted, and a policy through `current_person_id()`. The tests in `tests/import/access.test.ts` show what to check.
 

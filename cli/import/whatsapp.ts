@@ -27,7 +27,7 @@ export function readWhatsApp(folder: string, zone: string): ChatExport {
   const present = new Set(folderFiles)
 
   // 1. Cut the file into entries. A line that is not a header continues the entry before it.
-  const entries: { at: number; rest: string[] }[] = []
+  const entries: { at: number; minute: string; rest: string[] }[] = []
   lines.forEach((line, index) => {
     const match = header.exec(line)
     if (!match) {
@@ -43,7 +43,9 @@ export function readWhatsApp(folder: string, zone: string): ChatExport {
           'Only the day-first iPhone layout is read so far (other formats are issue 12).',
       )
     }
-    entries.push({ at: momentOf(clock, zone), rest: [rest!] })
+    const two = (n: number) => String(n).padStart(2, '0')
+    const minuteText = `${clock.year}-${two(clock.month)}-${two(clock.day)} ${two(clock.hour)}:${two(clock.minute)}`
+    entries.push({ at: momentOf(clock, zone), minute: minuteText, rest: [rest!] })
   })
   if (entries.length === 0) {
     throw new Stop(`${chatFile} has no messages in the iPhone layout, such as "[14.07.2023, 20:58:11] Name: text".`)
@@ -53,7 +55,7 @@ export function readWhatsApp(folder: string, zone: string): ChatExport {
   const messages: ChatMessage[] = []
   const referenced = new Set<string>()
   let photoMessages = 0
-  for (const { at, rest } of entries) {
+  for (const { at, minute, rest } of entries) {
     const entry = rest.join('\n').replace(/\s+$/, '')
     const split = entry.indexOf(': ')
     if (split < 0) continue // a notice without a sender
@@ -71,9 +73,9 @@ export function readWhatsApp(folder: string, zone: string): ChatExport {
         if (attachment.name && present.has(attachment.name.normalize('NFC'))) media.file = join(folder, attachment.name)
       }
       // A caption is kept for photos only; for other media the text is a file name or page count.
-      messages.push({ at, sender, text: attachment.kind === 'photo' ? attachment.caption : '', media })
+      messages.push({ at, minute, sender, text: attachment.kind === 'photo' ? attachment.caption : '', media })
     } else if (!isNotice(body)) {
-      messages.push({ at, sender, text: body })
+      messages.push({ at, minute, sender, text: body })
     }
   }
 
