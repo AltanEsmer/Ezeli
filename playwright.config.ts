@@ -14,6 +14,8 @@ export default defineConfig({
     { name: 'sign-in', testMatch: ['sign-in.spec.ts', 'replace-link.spec.ts'] },
     { name: 'import', testMatch: 'import.setup.ts', dependencies: ['sign-in'] },
     { name: 'memories', testMatch: ['timeline.spec.ts', 'language.spec.ts'], dependencies: ['import'] },
+    // Imports more chats of its own, so it runs after the timeline tests have counted.
+    { name: 'memory', testMatch: 'memory.spec.ts', dependencies: ['memories'] },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',
