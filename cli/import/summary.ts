@@ -1,13 +1,17 @@
 // What an import prints: the numbers an owner checks, before saving (trial run) or after.
 import type { Media, MediaKind } from './chat.ts'
 import { hasPhotoFile, type Memory, type MemoryMessage } from './memories.ts'
+import type { Counts } from './regroup.ts'
+import type { SaveReport } from './save.ts'
 import { clockTimeOf } from './time.ts'
 
-// `savedAs` is the chat name when the import saved; without it this is a trial run.
-export function importSummary(memories: Memory[], problems: string[], zone: string, details: boolean, savedAs?: string): string {
+// `savedAs` is the chat name when the import saved; without it this is a trial run. `report` is
+// what saving did.
+export function importSummary(memories: Memory[], problems: string[], zone: string, details: boolean, savedAs?: string, report?: SaveReport): string {
   const all = memories.flatMap((memory) => memory.messages)
   const lines = [
     savedAs === undefined ? 'Trial run. Nothing was saved.' : `Saved to the chat "${savedAs}".`,
+    ...(report ? ['', ...reportLines(report)] : []),
     '',
     `Memories:    ${memories.length}`,
     `Photos:      ${all.filter(hasPhotoFile).length}`,
@@ -29,6 +33,12 @@ export function importSummary(memories: Memory[], problems: string[], zone: stri
   })
 
   return lines.join('\n') + '\n'
+}
+
+function reportLines({ added, already, removed }: SaveReport): string[] {
+  const line = (label: string, c: Counts) =>
+    `${label.padEnd(15)}${(c.memories === 1 ? '1 memory' : `${c.memories} memories`)}, ${count(c.messages, 'message')}, ${count(c.photos, 'photo')}`
+  return [line('Added:', added), line('Already there:', already), line('Removed:', removed)]
 }
 
 const placeholders: Record<MediaKind, string> = {
