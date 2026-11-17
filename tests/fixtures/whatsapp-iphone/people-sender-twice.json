@@ -1,0 +1,6 @@
+{
+  "people": [
+    { "name": "Elif", "whatsapp": ["Elif Kara"] },
+    { "name": "Deniz", "whatsapp": ["Deniz Arslan", "Elif Kara"] }
+  ]
+}

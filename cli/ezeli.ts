@@ -1,7 +1,11 @@
 // The owner commands. Run as: pnpm ezeli <command>
+import { runImport } from './import/command.ts'
+
 type Command = { summary: string; run: (args: string[]) => Promise<number> }
 
-const commands: Record<string, Command> = {}
+const commands: Record<string, Command> = {
+  import: { summary: 'Load a chat export (WhatsApp so far, trial run only)', run: runImport },
+}
 
 const [name, ...args] = process.argv.slice(2)
 const command = name ? commands[name] : undefined

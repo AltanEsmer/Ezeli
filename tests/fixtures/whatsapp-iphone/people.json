@@ -1,0 +1,8 @@
+{
+  "people": [
+    { "name": "Deniz", "whatsapp": ["Deniz Arslan"] },
+    { "name": "Elif", "whatsapp": ["Elif Kara", "Elif 🌻"], "discord": ["elif.kara"] },
+    { "name": "Çağrı", "whatsapp": ["Çağrı Yıldız"] },
+    { "name": "Tolga", "whatsapp": ["Tolga Eski"], "leftOut": true }
+  ]
+}
