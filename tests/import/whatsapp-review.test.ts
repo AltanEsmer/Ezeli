@@ -8,7 +8,7 @@ const limon = { id: 'limon', name: 'Limon', whatsapp: ['Limon L', 'Limon'] }
 const baran = { id: 'baran', name: 'Baran Eski', whatsapp: ['Baran', '+90 500 000 00 02'], leftOut: true }
 const kerem = { id: 'kerem', name: 'Kerem', whatsapp: ['Kerem A'] }
 const people = peopleOf([karpuz, limon, baran, kerem])
-const mention = (name: string) => `@⁨${name}⁩`
+const mention = (name: string) => `@\u2068${name}\u2069`
 const decider = '7/28/19, 6:02 PM - Karpuz: hazır'
 const photo = '8/3/19, 9:16 AM - Limon: IMG_1.jpg (file attached)'
 
@@ -27,7 +27,7 @@ test('1: a left-out person or someone unknown is removed from a mention, name an
       `[3.08.2019 09:15:00] Karpuz K: ${mention('Baran')} odunları unutma`,
       `[3.08.2019 09:15:01] Karpuz K: ${mention('Zeynep Komşu')} sen de gel`,
       `[3.08.2019 09:15:02] Karpuz K: ${mention('Kerem A')} bak`,
-      '‎[3.08.2019 09:16:30] Limon L: ‎<attached: IMG_1.jpg>',
+      '\u200e[3.08.2019 09:16:30] Limon L: \u200e<attached: IMG_1.jpg>',
       '',
     ].join('\r\n'),
     { photos: ['IMG_1.jpg'] },
@@ -85,7 +85,7 @@ test('3: the unknown-sender list prints senders as written, warns, and prints no
       '7/28/19, 6:02 PM - Karpuz: hazır',
       '8/3/19, 9:15 AM - Usta 0532 000 00 09: gizli mesaj 1',
       '8/3/19, 9:15 AM - Komşu (+90 532 000 00 10): gizli mesaj 2',
-      '8/3/19, 9:16 AM - ‪+90 500 000 00 77‬: gizli mesaj 3',
+      '8/3/19, 9:16 AM - \u202a+90 500 000 00 77\u202c: gizli mesaj 3',
       '',
     ].join('\n'),
     { android: true },
@@ -179,11 +179,11 @@ test('6: a sender is matched exactly as written: ~ Name only when the file lists
     { id: 'cilek', name: 'Çilek', whatsapp: ['+90 500 000 00 01', '0500 000 00 01'] },
   ])
 
-  const other = trialWith(people, await chat('~ Karpuz K'))
+  const other = trialWith(people, await chat('~\u202fKarpuz K'))
   expect(other.status).toBe(1)
   expect(other.err).toContain('~ Karpuz K')
 
-  const listed = trialWith(withNumbers, await chat('~ Limon L'), '--details')
+  const listed = trialWith(withNumbers, await chat('~\u202fLimon L'), '--details')
   expect(listed.status, listed.err).toBe(0)
 
   const forms = trialWith(withNumbers, await chat('+90 500 000 00 01', '0500-000-00-01', '(0500) 000 00 01', '905000000001'), '--details')
@@ -234,9 +234,9 @@ test('9: a subject change with a colon in it is a notice, in English and in Turk
   const fromIphone = await makeExport(
     [
       '[28.07.2019 18:02:11] Karpuz K: hazır',
-      '[3.08.2019 09:15:00] ‎Karpuz changed the subject from "Kamp" to "Kamp: Abant"',
-      '[3.08.2019 09:15:01] ‎Karpuz, konuyu "Kamp" iken "Kamp: Abant" olarak değiştirdi',
-      '‎[3.08.2019 09:16:30] Limon L: ‎<attached: IMG_1.jpg>',
+      '[3.08.2019 09:15:00] \u200eKarpuz changed the subject from "Kamp" to "Kamp: Abant"',
+      '[3.08.2019 09:15:01] \u200eKarpuz, konuyu "Kamp" iken "Kamp: Abant" olarak değiştirdi',
+      '\u200e[3.08.2019 09:16:30] Limon L: \u200e<attached: IMG_1.jpg>',
       '',
     ].join('\r\n'),
     { photos: ['IMG_1.jpg'] },

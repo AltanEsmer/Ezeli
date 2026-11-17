@@ -33,7 +33,11 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   const stored = existing.data ? await loadStored(db, existing.data.id) : nothingStored
   const storedPhotos = new Map(stored.photos.map((photo) => [photo.key, photo]))
   const outside = storedOutside(stored, span)
-  const memories = buildMemories([...outside.before, ...exported, ...outside.after], grouping)
+  // A stored message that this export holds again is the export's: the same chat from another phone
+  // has other seconds, so a message stored at 20:58:11 may lie outside an export that has minutes only.
+  const again = new Set(exported.map((message) => message.key))
+  const notAgain = (message: MemoryMessage) => !again.has(message.key)
+  const memories = buildMemories([...outside.before.filter(notAgain), ...exported, ...outside.after.filter(notAgain)], grouping)
   const messages = memories.flatMap((memory) => memory.messages)
 
   const savedChat = await db.from('chats').upsert(chat, { onConflict: 'key' }).select('id').single()

@@ -31,7 +31,7 @@ test('the same chat exported from an iPhone and from an Android phone is stored 
   const iphone = [
     '[28.07.2019 18:02:11] Karpuz K: selam',
     '[3.08.2019 09:15:02] Karpuz K: Günaydın',
-    '‎[3.08.2019 09:16:30] Limon L: ‎<attached: 00000005-PHOTO-2019-08-03-09-16-30.jpg>',
+    '\u200e[3.08.2019 09:16:30] Limon L: \u200e<attached: 00000005-PHOTO-2019-08-03-09-16-30.jpg>',
     'Göl kenarı',
     '[3.08.2019 09:16:41] Limon L: tamam',
     '\u200e[3.08.2019 09:17:05] Limon L: \u200eimage omitted',
@@ -41,13 +41,15 @@ test('the same chat exported from an iPhone and from an Android phone is stored 
     '',
   ].join('\r\n')
   const android = [
-    '7/28/19, 6:02 PM - Karpuz: selam',
-    '8/3/19, 9:15 AM - Karpuz: Günaydın',
-    '8/3/19, 9:16 AM - Limon: IMG-20190803-WA0004.jpg (file attached)',
+    '7/28/19, 6:02\u202fPM - Karpuz: selam',
+    '8/3/19, 9:15\u202fAM - Karpuz: Günaydın',
+    '8/3/19, 9:16\u202fAM - Limon: IMG-20190803-WA0004.jpg (file attached)',
     'Göl kenarı',
-    '8/3/19, 9:16 AM - Limon: tamam',
-    '8/3/19, 9:22 AM - Fıstık: tamam',
-    '8/3/19, 9:22 AM - Fıstık: tamam',
+    '8/3/19, 9:16\u202fAM - Limon: tamam',
+    '8/3/19, 9:17\u202fAM - Limon: <Media omitted>',
+    '8/3/19, 9:18\u202fAM - Karpuz: @905000000042 odunları getir',
+    '8/3/19, 9:22\u202fAM - Fıstık: tamam',
+    '8/3/19, 9:22\u202fAM - Fıstık: tamam',
     '',
   ].join('\n')
   const fromIphone = await makeExport(iphone, { photos: ['00000005-PHOTO-2019-08-03-09-16-30.jpg'] })
@@ -62,7 +64,7 @@ test('the same chat exported from an iPhone and from an Android phone is stored 
 
   const second = save(fromAndroid, chat, people)
 
-  expect(second.status).toBe(0)
+  expect(second.status, second.err).toBe(0)
   expect(await counts(chat)).toEqual(before)
   expect(await storedKeys(chat)).toEqual(keysBefore)
 })
@@ -95,7 +97,7 @@ test('an iPhone export is saved with its HEIC photo converted, and no phone numb
   expect(texts).toContain(`@Fıstık ${tag} odunları`)
   expect(texts).not.toMatch(/\+90|0532|500 000|5000000/)
   const named = await rows<{ display_name: string }>(owner.from('people').select('display_name').like('display_name', `%${tag}`))
-  expect(named.map((p) => p.display_name).join('\n')).not.toMatch(/\d{5}/)
+  expect(named.map((p) => p.display_name.replace(tag, '')).join('\n')).not.toMatch(/\d{5}/)
 })
 
 test('an Android export is saved: files found, media without a kind kept as media, numbers replaced', async () => {

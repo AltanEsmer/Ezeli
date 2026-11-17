@@ -12,7 +12,7 @@ import { momentOf } from './time.ts'
 export type DateOrder = 'day-first' | 'month-first'
 
 // Invisible marks: U+200E (left-to-right) starts what WhatsApp wrote itself on an iPhone.
-const lrm = '‎'
+const lrm = '\u200e'
 const marks = '[\\u200e\\u200f]'
 // The space before AM or PM is often a narrow no-break space (U+202F) or a no-break space.
 const space = '[ \\u202f\\u00a0]'
@@ -33,7 +33,7 @@ const photoFile = /\.(jpe?g|png|heic|heif)$/i
 
 export function readWhatsApp(folder: string, zone: string, chosenOrder?: DateOrder): ChatExport {
   const chatFile = findChatFile(folder)
-  const lines = readFileSync(chatFile, 'utf8').replace(/^﻿/, '').split(/\r?\n/)
+  const lines = readFileSync(chatFile, 'utf8').replace(/^\ufeff/, '').split(/\r?\n/)
   const folderFiles = readdirSync(folder)
     .filter((name) => join(folder, name) !== chatFile && !name.startsWith('.') && statSync(join(folder, name)).isFile())
     .map((name) => name.normalize('NFC'))
@@ -308,7 +308,7 @@ function kindOf(name: string): MediaKind | 'sticker' {
 }
 
 // The marker WhatsApp adds at the end of an edited message.
-const edited = /\s*‎?<(?:This message was edited|Bu mesaj düzenlendi)>\s*$/i
+const edited = /\s*\u200e?<(?:This message was edited|Bu mesaj düzenlendi)>\s*$/i
 
 // iPhone exports start every notice (joined, left, added, created, encryption, deleted) with an
 // invisible left-to-right mark. A message someone wrote never does. Android has no such mark:
