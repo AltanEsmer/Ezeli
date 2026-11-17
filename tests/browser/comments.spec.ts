@@ -156,7 +156,80 @@ test.describe('comments', () => {
 
     const row = ownerCommand(['person', 'list']).stdout.split('\n').find((line) => line.includes(name))
     expect(row).toMatch(/yes +no +1 +\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/)
+
+    // A comment that is deleted no longer counts.
+    await note(friend.page, 'sadece arkadaşlar görür').getByRole('button', { name: 'Delete' }).click()
+    await note(friend.page, 'sadece arkadaşlar görür').getByRole('button', { name: 'Yes, delete' }).click()
+    await expect(note(friend.page, 'sadece arkadaşlar görür')).toHaveCount(0)
+    expect(ownerCommand(['person', 'list']).stdout.split('\n').find((line) => line.includes(name))).toMatch(/yes +no +0 +\d{4}-\d{2}-\d{2}/)
     await friend.context.close()
     await visitor.context.close()
   })
+
+  test('the date of a comment is in the language the app is set to, not the phone\'s', async ({ browser }) => {
+    for (const [locale, chosen] of [['en-US', 'tr'], ['tr-TR', 'en']] as const) {
+      const { context, page } = await device(browser, locale)
+      await open(page, addPerson(fruit('Limon')))
+      const text = `tarih ${chosen} ${Date.now()}`
+      const token = await accessToken(page)
+      await fetch(`${apiUrl}/rest/v1/rpc/set_my_language`, {
+        method: 'POST',
+        headers: { apikey: publishableKey, authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ chosen }),
+      })
+      await page.reload()
+      await page.getByRole('textbox').fill(text)
+      await page.getByRole('button', { name: chosen === 'tr' ? 'Yorum ekle' : 'Add comment' }).click()
+
+      const time = note(page, text).locator('time')
+      const moment = (await time.getAttribute('datetime'))!
+      // The same moment written in the app's language, and not in the other one.
+      const written = (lang: string) => new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(moment))
+      await expect(time).toHaveText(written(chosen))
+      expect(written(chosen)).not.toBe(written(chosen === 'tr' ? 'en' : 'tr'))
+      await context.close()
+    }
+  })
+
+  test('a delete the server did not perform is not shown as done, and a dead session leads to the private page', async ({ browser }) => {
+    const { context, page } = await device(browser, 'en-US')
+    const name = fruit('Fıstık')
+    await open(page, addPerson(name))
+    await write(page, 'silinemeyen not')
+    const mine = note(page, 'silinemeyen not')
+    await expect(mine).toBeVisible()
+
+    // The database answers a refused delete with no rows and no error.
+    await page.route('**/rest/v1/comments?*', async (route) => (route.request().method() === 'DELETE' ? route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }) : route.continue()))
+    await mine.getByRole('button', { name: 'Delete' }).click()
+    await mine.getByRole('button', { name: 'Yes, delete' }).click()
+    await expect(mine.getByRole('alert')).toHaveText('Could not delete. Try again.')
+    await expect(mine).toBeVisible()
+    await page.unroute('**/rest/v1/comments?*')
+
+    // The link is replaced while the page is open: deleting and adding both lead to the private page.
+    expect(ownerCommand(['person', 'relink', '--name', name]).status).toBe(0)
+    await mine.getByRole('button', { name: 'Delete' }).click()
+    await mine.getByRole('button', { name: 'Yes, delete' }).click()
+    await expect(page.getByText('Ezeli is private')).toBeVisible()
+    await context.close()
+
+    const other = await device(browser, 'en-US')
+    await open(other.page, addPerson(fruit('Çilek')))
+    await expect(note(other.page, 'silinemeyen not')).toBeVisible()
+    const late = await device(browser, 'en-US')
+    const lateName = fruit('İncir')
+    await open(late.page, addPerson(lateName))
+    expect(ownerCommand(['person', 'relink', '--name', lateName]).status).toBe(0)
+    await write(late.page, 'geç kalmış')
+    await expect(late.page.getByText('Ezeli is private')).toBeVisible()
+    await other.context.close()
+    await late.context.close()
+  })
 })
+
+const accessToken = (page: Page) =>
+  page.evaluate(() => {
+    const key = Object.keys(localStorage).find((name) => name.endsWith('-auth-token'))!
+    return JSON.parse(localStorage.getItem(key)!).access_token as string
+  })

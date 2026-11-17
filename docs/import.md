@@ -158,7 +158,7 @@ Import a newer export of the chat, or the same one with other grouping numbers, 
 - In a WhatsApp export an edited message text is a new message (the text is part of the key): the old one is removed and the edited one added. In Discord the key does not change, so the row is updated. An edited photo caption is not (see the photo key). A sender marked `leftOut` later loses their stored messages and photos, files included.
 - **Removing photos:** the photo's row goes first, its files after. If the files cannot be removed, the command says so in one line; the next saving run removes the files in the chat's folder of the bucket (`<chat id>/...`) that no row points at. Run one import at a time.
 - **Photo files missing from a later export** (such as an export without media) do not remove stored photos: a stored photo keeps its row and moves with its message to the memory the regroup gives it.
-- **The summary** of a saving run starts with three lines, each counting memories, messages and photos: `Added:` (new), `Already there:` (stored before, even if moved to another memory or outside this export's time) and `Removed:`. The lines below describe the export itself.
+- **The summary** of a saving run starts with three lines, each counting memories, messages and photos: `Added:` (new), `Already there:` (stored before, even if moved to another memory or outside this export's time) and `Removed:`. When comments went with a memory that has no photo left, `Removed:` also ends with their number (`, 1 comment`). The lines below describe the export itself.
 
 ### What follows a memory that disappears
 

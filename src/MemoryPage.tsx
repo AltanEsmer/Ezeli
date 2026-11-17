@@ -42,7 +42,7 @@ export function MemoryPage({ memoryKey, person, onSessionLost }: { memoryKey: st
       </main>
     )
   }
-  return <Memory memory={state.memory} memoryKey={memoryKey} person={person} links={state.links} relink={relink} />
+  return <Memory memory={state.memory} memoryKey={memoryKey} person={person} onSessionLost={onSessionLost} links={state.links} relink={relink} />
 }
 
 const tilts = [-1.6, 1.3, -0.8, 1.8]
@@ -51,7 +51,7 @@ const tapes = ['var(--tape2)', 'var(--tape1)', 'var(--tape3)', 'var(--tape4)']
 const pens = ['#1d3c8a', '#8e2414', '#1e6e68', '#6b3fa0', '#8a5a00']
 const pen = (name: string) => pens[[...name].reduce((sum, ch) => sum + ch.codePointAt(0)!, 0) % pens.length]
 
-function Memory({ memory, memoryKey, person, links, relink }: { memory: MemoryDetail; memoryKey: string; person: Person; links: Map<string, string>; relink: () => Promise<boolean> }) {
+function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { memory: MemoryDetail; memoryKey: string; person: Person; onSessionLost: () => void; links: Map<string, string>; relink: () => Promise<boolean> }) {
   const [open, setOpen] = useState<number | null>(null)
   // The full-screen view is a step in the history, so the phone's Back closes it and stays here.
   const show = (index: number) => {
@@ -122,7 +122,7 @@ function Memory({ memory, memoryKey, person, links, relink }: { memory: MemoryDe
         ))}
       </section>
 
-      <Comments memoryKey={memoryKey} person={person} />
+      <Comments memoryKey={memoryKey} person={person} onSessionLost={onSessionLost} />
 
       <nav className="pn">
         {memory.before ? (

@@ -19,7 +19,12 @@ create table public.comments (
   person_id uuid not null default private.current_person_id() references public.people (id),
   -- Plain text exactly as written: not empty, no space or line break at either end, at most 2000
   -- characters. Line breaks inside are kept. The app shows it as text, never as markup.
-  body text not null check (body ~ '^\S([\s\S]*\S)?$' and char_length(body) <= 2000),
+  -- A text of only invisible characters (zero-width space and the like) counts as empty.
+  body text not null check (
+    body ~ '^\S([\s\S]*\S)?$'
+    and char_length(body) <= 2000
+    and body !~ '^[\s­͏᠎​-‏ - ⁠-⁯﻿]*$'
+  ),
   created_at timestamptz not null default now()
 );
 create index comments_memory on public.comments (memory_id, created_at, id);
@@ -35,11 +40,19 @@ grant insert (memory_id, body) on public.comments to authenticated;
 
 create policy "people with a live session read comments" on public.comments
   for select to authenticated
-  using ((select private.current_person_id()) is not null);
+  -- Only while the memory itself is readable by the caller (memories' own rules apply inside),
+  -- so a memory that becomes unreadable (hiding, issue 20) takes its comments out of reach too.
+  using (
+    (select private.current_person_id()) is not null
+    and exists (select 1 from public.memories m where m.id = comments.memory_id)
+  );
 
 create policy "a person adds a comment as themselves" on public.comments
   for insert to authenticated
-  with check (person_id = (select private.current_person_id()));
+  with check (
+    person_id = (select private.current_person_id())
+    and exists (select 1 from public.memories m where m.id = comments.memory_id)
+  );
 
 create policy "a person deletes their own comment, an owner any" on public.comments
   for delete to authenticated

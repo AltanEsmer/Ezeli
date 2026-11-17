@@ -52,6 +52,8 @@ Added with issue 18: the table `comments` (memory, person, text, time). Same pat
 - **Edit:** nobody. There is no update right and no update policy.
 - **The text:** plain, shown exactly as written (never as HTML), with its line breaks. The database refuses empty text, text with a space or line break at either end, and text over 2000 characters; the app trims before sending.
 - **The import:** `comments.memory_id` is `on delete restrict` and listed in `followsMemory`, so comments follow a memory that disappears (see import.md, "What follows a memory that disappears").
+- **Only on a readable memory:** read and add rules also ask that the caller can read the memory, so a memory that becomes unreadable (hiding, issue 20) takes its comments out of reach and nobody can add to it. A text of only invisible characters counts as empty.
+- **For owners:** a friend deletes only their own comments; an owner deletes any, one by one, in the app (Delete on the note). To remove a flood (a leaked link, say), first replace the link (`person relink`), then in the Supabase dashboard's SQL editor run `delete from public.comments where person_id = (select id from public.people where display_name = '<name>');`. `person list` counts the comments a person has now: someone who deleted their own comment counts one less. A memory that loses all its photos in an import takes its comments with it; the import prints how many in its `Removed:` line.
 - Tests: `tests/import/comments.test.ts` asks the database directly (a friend's token, another friend's, an owner's, a replaced link, no token) and the second import; `tests/browser/comments.spec.ts` is the phone seam.
 
 ## Tests

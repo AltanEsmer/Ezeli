@@ -3,8 +3,11 @@
 // asks private.current_person_id(), so a person whose session is gone can do nothing at once.
 import { createClient } from '@supabase/supabase-js'
 import { spawnSync } from 'node:child_process'
+import { appendFileSync, copyFileSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { beforeAll, expect, test } from 'vitest'
-import { fresh, freshPeople, importChat, owner, rows, signedInAs, stack, storedChat, visitor } from './support.ts'
+import { copyOfWeekend, ezeliImport, fixtures, fresh, freshPeople, importChat, owner, rows, signedInAs, stack, storedChat, visitor } from './support.ts'
 
 let memory: string
 
@@ -59,13 +62,21 @@ test('a person cannot write a comment as someone else, or choose its time', asyn
 test('only plain trimmed text of a sensible length is stored', async () => {
   const friend = await signedInAs(fresh('Limon'))
 
-  for (const bad of ['', '   ', '\n\n', ' kenarda boşluk', 'sonda satır\n', 'x'.repeat(2001)]) {
+  for (const bad of ['', '   ', '\n\n', ' kenarda boşluk', 'sonda satır\n', 'x'.repeat(2001), '​', '​‍⁠', '﻿​']) {
     expect((await add(friend, bad)).error, JSON.stringify(bad.slice(0, 20))).not.toBeNull()
   }
   const long = await add(friend, 'x'.repeat(2000))
   expect(long.error).toBeNull()
   const lines = await add(friend, 'ilk satır\n\nüçüncü <b>satır</b>')
   expect((await stored(lines.data!.id))[0]!.body).toBe('ilk satır\n\nüçüncü <b>satır</b>')
+})
+
+test('a comment on a memory that does not exist is refused', async () => {
+  const friend = await signedInAs(fresh('Limon'))
+
+  const added = await friend.from('comments').insert({ memory_id: '00000000-0000-4000-8000-000000000000', body: 'yok' })
+
+  expect(added.error).not.toBeNull()
 })
 
 test('nobody edits a comment, not even its writer or an owner', async () => {
@@ -172,4 +183,65 @@ test('a comment stays where it is when the same export is imported again', async
   expect(importChat(chat, { people }).status).toBe(0)
 
   expect(await rows(owner.from('comments').select('memory_id').eq('id', written.data!.id))).toEqual([{ memory_id: memory }])
+})
+
+test('a memory that loses all its photos takes its comments with it, says how many, and the chat can be imported again', async () => {
+  const chat = fresh('Kaş Tatili')
+  const people = freshPeople()
+  importChat(chat, { people })
+  const chatId = (await storedChat(chat))!.id as string
+  const memories = await rows<{ id: string; at: string }>(owner.from('memories').select('id, at').eq('chat_id', chatId).order('at'))
+  const last = memories[memories.length - 1]!
+  const friend = await signedInAs(fresh('Limon'))
+  const kept = await friend.from('comments').insert({ memory_id: memories[0]!.id, body: 'Bu kalır' }).select('id').single()
+  const lost = await friend.from('comments').insert({ memory_id: last.id, body: 'Bu gider' }).select('id').single()
+  expect(lost.error).toBeNull()
+
+  // The 15 July memory has only Fıstık's photo, and Fıstık is left out from now on.
+  const file = join(mkdtempSync(join(tmpdir(), 'ezeli-people-')), 'people.json')
+  writeFileSync(
+    file,
+    JSON.stringify({
+      people: [
+        { id: people.ids.karpuz, name: people.karpuz, whatsapp: ['Karpuz K'] },
+        { id: people.ids.limon, name: people.limon, whatsapp: ['Limon L', 'Limon 🌻'] },
+        { id: people.ids.fistik, name: people.fistik, whatsapp: ['Fıstık F'], leftOut: true },
+        { id: people.ids.cilek, name: people.cilek, whatsapp: ['Çilek Ç'], leftOut: true },
+      ],
+    }),
+  )
+  const args = [`${fixtures}/weekend`, '--people', file, '--timezone', 'Europe/Istanbul', '--chat', chat]
+  const result = ezeliImport(args)
+
+  expect(result.err).not.toMatch(/followsMemory/)
+  expect(result.status).toBe(0)
+  expect(result.out).toMatch(/Removed:\s+1 memory, \d+ messages?, 1 photo, 1 comment\n/)
+  expect(await rows(owner.from('memories').select('id').eq('id', last.id))).toEqual([])
+  expect(await rows(owner.from('comments').select('id').eq('id', lost.data!.id))).toEqual([])
+  expect(await rows(owner.from('comments').select('id').eq('id', kept.data!.id))).toHaveLength(1)
+  // Nothing is left behind that blocks the next import.
+  expect(ezeliImport(args).status).toBe(0)
+})
+
+test('a newer export keeps the comments of the memories it already had', async () => {
+  const chat = fresh('Kaş Tatili')
+  const people = freshPeople()
+  importChat(chat, { people })
+  const chatId = (await storedChat(chat))!.id as string
+  const ids = (await rows<{ id: string }>(owner.from('memories').select('id').eq('chat_id', chatId))).map((m) => m.id)
+  const friend = await signedInAs(fresh('Limon'))
+  for (const id of ids) expect((await friend.from('comments').insert({ memory_id: id, body: 'kalıcı' })).error).toBeNull()
+  const folder = copyOfWeekend()
+  copyFileSync(join(folder, '00000007-PHOTO-2023-07-14-20-58-11.jpg'), join(folder, '00000030-PHOTO-2023-07-16-09-00-00.jpg'))
+  appendFileSync(
+    join(folder, '_chat.txt'),
+    '[16.07.2023, 08:55:00] Karpuz K: Günaydın\n‎[16.07.2023, 09:00:00] Limon L: ‎<attached: 00000030-PHOTO-2023-07-16-09-00-00.jpg>\n',
+  )
+
+  const later = importChat(chat, { people, folder })
+
+  expect(later.status).toBe(0)
+  expect(later.out).toMatch(/Added:\s+1 memory/)
+  const left = await rows<{ memory_id: string }>(owner.from('comments').select('memory_id').in('memory_id', ids))
+  expect(left.map((c) => c.memory_id).sort()).toEqual([...ids].sort())
 })

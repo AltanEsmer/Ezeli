@@ -44,6 +44,7 @@ const en = {
   deleteAsk: 'Delete this comment?',
   deleteYes: 'Yes, delete',
   deleteNo: 'Keep it',
+  deleteFailed: 'Could not delete. Try again.',
   mediaNotInExport: 'Media (not in the export)',
 }
 
@@ -93,6 +94,7 @@ const tr: Labels = {
   deleteAsk: 'Bu yorum silinsin mi?',
   deleteYes: 'Evet, sil',
   deleteNo: 'Vazgeç',
+  deleteFailed: 'Silinemedi. Tekrar dene.',
   mediaNotInExport: 'Medya (dışa aktarımda yok)',
 }
 
@@ -129,6 +131,11 @@ export const getLanguage = () => language
 export function formatDate(lang: Language, moment: string | number | Date, zone: string): string {
   const options: Intl.DateTimeFormatOptions = { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: zone }
   return new Intl.DateTimeFormat(lang, options).format(new Date(moment))
+}
+
+// A date with its time of day, as the reader's own clock says (no chat time zone), in the app's language.
+export function formatDateTime(lang: Language, moment: string | number | Date): string {
+  return new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(moment))
 }
 
 // "Karpuz, Limon and Fıstık" / "Karpuz, Limon ve Fıstık".
