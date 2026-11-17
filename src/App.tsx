@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { type Language, getLanguage, setLanguage, subscribeLanguage, t } from './i18n.ts'
 import { Memories } from './Memories.tsx'
+import { MemoryPage } from './MemoryPage.tsx'
+import { navigate, useRoute } from './route.ts'
 import { type Person, useSession } from './session.ts'
 import { supabase } from './supabase.ts'
 
 export function App() {
   const { session, signOut, reload } = useSession()
+  const route = useRoute()
   // Re-renders everything below when the language changes; `t` is read fresh on each render.
   const language = useSyncExternalStore(subscribeLanguage, getLanguage)
   useEffect(() => {
@@ -19,7 +22,8 @@ export function App() {
       return session.badLink ? (
         <Note tone="red" title={t.badLinkTitle} body={t.badLinkBody} />
       ) : (
-        <Note title={t.privateTitle} body={t.privateBody} />
+        // A memory's address says what to do first; the rest of the app does not know the person yet.
+        <Note title={t.privateTitle} body={route.name === 'memory' ? t.privateMemoryBody : t.privateBody} />
       )
     case 'failed':
       return (
@@ -30,8 +34,20 @@ export function App() {
         </Note>
       )
     case 'in':
-      return <Timeline person={session.person} onSignOut={signOut} />
+      return <Signed person={session.person} onSignOut={signOut} onSessionLost={() => void reload()} />
   }
+}
+
+// The screens of a signed-in person, by address.
+function Signed(props: { person: Person; onSignOut: () => void; onSessionLost: () => void }) {
+  const route = useRoute()
+  // A path the app does not know is the timeline, and says so in the address bar.
+  const unknown = route.name === 'timeline' && location.pathname !== '/'
+  useEffect(() => {
+    if (unknown) navigate('/', { replace: true })
+  }, [unknown])
+  if (route.name === 'memory') return <MemoryPage key={route.key} memoryKey={route.key} onSessionLost={props.onSessionLost} />
+  return <Timeline person={props.person} onSignOut={props.onSignOut} />
 }
 
 // One taped slip of paper in the middle of the page: the private page and its variants.

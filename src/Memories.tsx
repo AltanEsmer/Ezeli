@@ -1,10 +1,20 @@
-import type { CSSProperties } from 'react'
+import { type CSSProperties, type MouseEvent, useEffect } from 'react'
 import { formatDate, formatNames, language, t } from './i18n.ts'
 import { type MemoryCard, useTimeline } from './memories.ts'
+import { memoryPath, navigate, takeLastViewed } from './route.ts'
 
 // The memories of the timeline, newest first: each a small stack of prints held by tape.
 export function Memories() {
   const { timeline, reload } = useTimeline()
+  const ready = timeline.status === 'ready'
+
+  // Coming back from a memory: scroll to the one that was open, wherever it is in the list.
+  useEffect(() => {
+    if (!ready) return
+    const key = takeLastViewed()
+    const cards = [...document.querySelectorAll<HTMLElement>('[data-key]')]
+    cards.find((card) => card.dataset.key === key)?.scrollIntoView({ block: 'center' })
+  }, [ready])
 
   if (timeline.status === 'loading') return <div className="memories" aria-busy="true" aria-label={t.loading} />
   if (timeline.status === 'failed') {
@@ -38,7 +48,8 @@ function Memory({ memory, index, links }: { memory: MemoryCard; index: number; l
   const style = { '--tilt': `${tilts[index % tilts.length]}deg`, '--tape': tapes[index % tapes.length] } as CSSProperties
 
   return (
-    <article className="mem" style={style}>
+    <article className="mem" style={style} data-key={memory.key}>
+      <a className="open" href={memoryPath(memory.key)} onClick={open(memory.key)}>
       <div className="stack">
         {behind
           .slice()
@@ -64,8 +75,15 @@ function Memory({ memory, index, links }: { memory: MemoryCard; index: number; l
         <i className="tape" aria-hidden="true" />
       </div>
       <p className="by">{t.sentBy(formatNames(language, memory.senders))}</p>
+      </a>
     </article>
   )
+}
+
+const open = (key: string) => (event: MouseEvent) => {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  event.preventDefault()
+  navigate(memoryPath(key))
 }
 
 function EmptyTimeline() {
