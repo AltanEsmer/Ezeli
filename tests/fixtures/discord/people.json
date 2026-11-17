@@ -1,0 +1,46 @@
+{
+  "people": [
+    {
+      "id": "karpuz",
+      "name": "Karpuz",
+      "whatsapp": [
+        "Karpuz K"
+      ],
+      "discord": [
+        "200000000000000001"
+      ]
+    },
+    {
+      "id": "limon",
+      "name": "Limon",
+      "whatsapp": [
+        "Limon L",
+        "Limon 🌻"
+      ],
+      "discord": [
+        "200000000000000002"
+      ]
+    },
+    {
+      "id": "fistik",
+      "name": "Fıstık",
+      "whatsapp": [
+        "Fıstık F"
+      ],
+      "discord": [
+        "200000000000000003"
+      ]
+    },
+    {
+      "id": "cilek",
+      "name": "Çilek",
+      "whatsapp": [
+        "Çilek Ç"
+      ],
+      "discord": [
+        "200000000000000004"
+      ],
+      "leftOut": true
+    }
+  ]
+}
