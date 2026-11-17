@@ -10,20 +10,20 @@ const USAGE = [
 ].join('\n')
 
 // The secret key comes from the environment, never from a file in the repo.
-function adminClient() {
+function adminClient({ needsAppUrl = true } = {}) {
   const url = process.env.SUPABASE_URL
   const key = process.env.SUPABASE_SECRET_KEY
   const appUrl = process.env.EZELI_APP_URL
   const missing = [
     ['SUPABASE_URL', url],
     ['SUPABASE_SECRET_KEY', key],
-    ['EZELI_APP_URL', appUrl],
+    ...(needsAppUrl ? [['EZELI_APP_URL', appUrl]] : []),
   ].filter(([, value]) => !value)
-  if (missing.length > 0 || !url || !key || !appUrl) {
+  if (missing.length > 0 || !url || !key || (needsAppUrl && !appUrl)) {
     throw new Error(`Set ${missing.map(([name]) => name).join(', ')} in the environment first.`)
   }
   const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
-  return { client, appUrl: appUrl.replace(/\/+$/, '') }
+  return { client, appUrl: (appUrl ?? '').replace(/\/+$/, '') }
 }
 
 // A reserved top-level domain: no mailbox can exist there, so no mail can ever arrive.
@@ -33,13 +33,20 @@ function newCredentials() {
   return { loginId: randomBytes(8).toString('hex'), secret: randomBytes(32).toString('hex') }
 }
 
+// parseArgs lets the last of a repeated option win silently. For a command that cuts
+// someone off, that is too easy to get wrong.
+function onlyOnce(values: string[] | undefined, option: string): string | undefined {
+  if (values && values.length > 1) throw new Error(`Give --${option} only once.`)
+  return values?.[0]
+}
+
 async function addPerson(args: string[]): Promise<number> {
   const { values } = parseArgs({
     args,
-    options: { name: { type: 'string' }, owner: { type: 'boolean', default: false } },
+    options: { name: { type: 'string', multiple: true }, owner: { type: 'boolean', default: false } },
     strict: true,
   })
-  const name = values.name?.trim()
+  const name = onlyOnce(values.name, 'name')?.trim()
   if (!name) {
     console.error(USAGE)
     return 1
@@ -82,8 +89,8 @@ async function addPerson(args: string[]): Promise<number> {
 // A new login id and a new secret in one admin call. Supabase ends every session of the
 // account when its password is set, so the old link and every device that used it are out.
 async function relinkPerson(args: string[]): Promise<number> {
-  const { values } = parseArgs({ args, options: { name: { type: 'string' } }, strict: true })
-  const name = values.name?.trim()
+  const { values } = parseArgs({ args, options: { name: { type: 'string', multiple: true } }, strict: true })
+  const name = onlyOnce(values.name, 'name')?.trim()
   if (!name) {
     console.error(USAGE)
     return 1
@@ -106,10 +113,15 @@ async function relinkPerson(args: string[]): Promise<number> {
     email: loginEmail(loginId),
     password: secret,
     email_confirm: true,
-    // Auth keeps the old last sign-in. This lets the list tell it was with a link that is gone.
-    app_metadata: { link_replaced_at: new Date().toISOString() },
   })
   if (updated.error) throw updated.error
+  // Auth keeps the old last sign-in. Stamp the moment of replacement so the list can tell it
+  // was with a link that is gone. The time is Auth's own (not this computer's), so it can be
+  // compared with last_sign_in_at.
+  const stamped = await client.auth.admin.updateUserById(found.data.user_id, {
+    app_metadata: { link_replaced_at: updated.data.user.updated_at },
+  })
+  if (stamped.error) throw stamped.error
 
   console.log(`New personal link for ${name}. The old link and every device signed in with it are out. Send this one privately:`)
   console.log(`${appUrl}/#k=${loginId}.${secret}`)
@@ -121,7 +133,7 @@ async function relinkPerson(args: string[]): Promise<number> {
 // Auth keeps only the latest sign-in, so this is the last opening, not the first.
 async function listPeople(args: string[]): Promise<number> {
   parseArgs({ args, options: {}, strict: true })
-  const { client } = adminClient()
+  const { client } = adminClient({ needsAppUrl: false })
 
   const people = await client.from('people').select('display_name, is_owner, user_id').order('display_name')
   if (people.error) throw people.error
@@ -165,7 +177,8 @@ export async function runPerson(args: string[]): Promise<number> {
     if (subcommand === 'relink') return await relinkPerson(rest)
     if (subcommand === 'list') return await listPeople(rest)
   } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error))
+    const message = (error as { message?: unknown } | null)?.message
+    console.error(typeof message === 'string' && message ? message : String(error))
     return 1
   }
   console.error(USAGE)
