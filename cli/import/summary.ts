@@ -37,8 +37,9 @@ export function importSummary(memories: Memory[], problems: string[], zone: stri
 }
 
 function reportLines({ added, already, removed }: SaveReport): string[] {
-  const line = (label: string, c: Counts) =>
-    `${label.padEnd(15)}${(c.memories === 1 ? '1 memory' : `${c.memories} memories`)}, ${count(c.messages, 'message')}, ${count(c.photos, 'photo')}`
+  const line = (label: string, c: Counts & { comments?: number }) =>
+    `${label.padEnd(15)}${(c.memories === 1 ? '1 memory' : `${c.memories} memories`)}, ${count(c.messages, 'message')}, ${count(c.photos, 'photo')}` +
+    (c.comments ? `, ${count(c.comments, 'comment')}` : '')
   return [line('Added:', added), line('Already there:', already), line('Removed:', removed)]
 }
 

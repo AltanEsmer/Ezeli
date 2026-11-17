@@ -134,10 +134,10 @@ test.describe('listing people', () => {
     const result = ownerCommand(['person', 'list'])
 
     expect(result.status).toBe(0)
-    expect(rowOf(result.stdout, opened)).toMatch(/yes +no +\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/)
-    expect(rowOf(result.stdout, waiting)).toMatch(/yes +no +not yet$/)
-    expect(rowOf(result.stdout, boss)).toMatch(/yes +yes +not yet$/)
-    expect(rowOf(result.stdout, noLink)).toMatch(/no +no +-$/)
+    expect(rowOf(result.stdout, opened)).toMatch(/yes +no +0 +\d{4}-\d{2}-\d{2} \d{2}:\d{2} UTC$/)
+    expect(rowOf(result.stdout, waiting)).toMatch(/yes +no +0 +not yet$/)
+    expect(rowOf(result.stdout, boss)).toMatch(/yes +yes +0 +not yet$/)
+    expect(rowOf(result.stdout, noLink)).toMatch(/no +no +0 +-$/)
     expect(result.stdout).not.toMatch(/[0-9a-f]{32}/)
   })
 

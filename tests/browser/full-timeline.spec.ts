@@ -58,9 +58,31 @@ test.describe('the full timeline', () => {
     // The line is set by its own letters, so a right-to-left line reads right.
     await expect(december.locator('.line')).toHaveAttribute('dir', 'auto')
 
-    await expect(fifteenth.locator('.counts span')).toHaveText(['1 photo', 'No comments'])
-    await expect(fourteenth.locator('.counts span')).toHaveText(['2 photos', 'No comments'])
+    // (The July memories may carry comments from the comment tests, so only March says "No comments".)
+    await expect(fifteenth.locator('.counts span').first()).toHaveText('1 photo')
+    await expect(fourteenth.locator('.counts span').first()).toHaveText('2 photos')
     await expect(march.locator('.counts span')).toHaveText(['3 photos', 'No comments'])
+  })
+
+  test('counts the comments of a memory: one after a friend adds one, none after it is deleted', async ({ page }) => {
+    const dinner = month(page, '2022-12').getByRole('article')
+    await openTimeline(page)
+    await expect(dinner.locator('.counts span').nth(1)).toHaveText('No comments')
+
+    await dinner.getByRole('link').click()
+    await page.getByRole('textbox').fill('bir not')
+    await page.getByRole('button', { name: 'Add comment' }).click()
+    const note = page.getByRole('article').filter({ hasText: 'bir not' })
+    await expect(note).toBeVisible()
+    await page.getByRole('button', { name: 'All memories' }).click()
+    await expect(dinner.locator('.counts span').nth(1)).toHaveText('1 comment')
+
+    await dinner.getByRole('link').click()
+    await note.getByRole('button', { name: 'Delete' }).click()
+    await note.getByRole('button', { name: 'Yes, delete' }).click()
+    await expect(note).toHaveCount(0)
+    await page.getByRole('button', { name: 'All memories' }).click()
+    await expect(dinner.locator('.counts span').nth(1)).toHaveText('No comments')
   })
 
   test('takes a photo\'s caption as the line, by the same rule as any text message', async ({ page }) => {
@@ -134,7 +156,8 @@ test.describe('the full timeline', () => {
       await expect(month(page, '2022-12').getByRole('heading', { level: 2 })).toHaveText('Aralık 2022')
       await expect(page.getByRole('navigation', { name: 'Bir yıla ya da aya git' }).getByRole('button', { name: 'Mart 2023' })).toBeVisible()
       const first = month(page, '2023-07').getByRole('article').first()
-      await expect(first.locator('.counts span')).toHaveText(['1 fotoğraf', 'Yorum yok'])
+      await expect(first.locator('.counts span').first()).toHaveText('1 fotoğraf')
+      await expect(month(page, '2023-03').getByRole('article').locator('.counts span').nth(1)).toHaveText('Yorum yok')
       await expect(first.locator('.line')).toHaveText('“Şu suyun rengine bak”')
     })
   })

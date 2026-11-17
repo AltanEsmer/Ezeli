@@ -66,8 +66,10 @@ select
     ),
     300
   ) as line,
-  -- Comments arrive with issue 18; until then every memory has none.
-  0::integer as comment_count,
+  -- How many comments the memory has. The view runs with the reader's rights, so the comments'
+  -- own rules decide what is counted; `comments_memory` makes it an index lookup, and it is
+  -- worked out only for the memories of the page asked for.
+  (select count(*) from public.comments c where c.memory_id = m.id)::integer as comment_count,
   -- The date as shown: the clock time in the chat's time zone. No zone, so it is the same
   -- wherever the reader is.
   (m.at at time zone c.timezone) as local_at

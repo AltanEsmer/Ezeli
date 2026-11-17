@@ -1,13 +1,14 @@
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react'
 import { type Language, formatDate, language, t } from './i18n.ts'
+import { Comments } from './Comments.tsx'
 import { type MemoryDetail, useMemory } from './memory.ts'
+import type { Person } from './session.ts'
 import { memoryPath, navigate, pushLayer, toTimeline, viewed } from './route.ts'
 import { Pic, Viewer } from './Viewer.tsx'
 
 // One memory: the date as a heading, the chat it came from as a stamp, every photo as a large
-// print, and the conversation as a taped slip. The place under the conversation is left free for
-// comments (issue 18).
-export function MemoryPage({ memoryKey, onSessionLost }: { memoryKey: string; onSessionLost: () => void }) {
+// print, and the conversation as a taped slip, with the comments under it.
+export function MemoryPage({ memoryKey, person, onSessionLost }: { memoryKey: string; person: Person; onSessionLost: () => void }) {
   const { state, reload, relink } = useMemory(memoryKey)
   useEffect(() => {
     viewed(memoryKey)
@@ -41,7 +42,7 @@ export function MemoryPage({ memoryKey, onSessionLost }: { memoryKey: string; on
       </main>
     )
   }
-  return <Memory memory={state.memory} links={state.links} relink={relink} />
+  return <Memory memory={state.memory} memoryKey={memoryKey} person={person} onSessionLost={onSessionLost} links={state.links} relink={relink} />
 }
 
 const tilts = [-1.6, 1.3, -0.8, 1.8]
@@ -50,7 +51,7 @@ const tapes = ['var(--tape2)', 'var(--tape1)', 'var(--tape3)', 'var(--tape4)']
 const pens = ['#1d3c8a', '#8e2414', '#1e6e68', '#6b3fa0', '#8a5a00']
 const pen = (name: string) => pens[[...name].reduce((sum, ch) => sum + ch.codePointAt(0)!, 0) % pens.length]
 
-function Memory({ memory, links, relink }: { memory: MemoryDetail; links: Map<string, string>; relink: () => Promise<boolean> }) {
+function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { memory: MemoryDetail; memoryKey: string; person: Person; onSessionLost: () => void; links: Map<string, string>; relink: () => Promise<boolean> }) {
   const [open, setOpen] = useState<number | null>(null)
   // The full-screen view is a step in the history, so the phone's Back closes it and stays here.
   const show = (index: number) => {
@@ -121,7 +122,7 @@ function Memory({ memory, links, relink }: { memory: MemoryDetail; links: Map<st
         ))}
       </section>
 
-      {/* Comments go here (issue 18). */}
+      <Comments memoryKey={memoryKey} person={person} onSessionLost={onSessionLost} />
 
       <nav className="pn">
         {memory.before ? (
