@@ -1,0 +1,8 @@
+{
+  "people": [
+    { "name": "Karpuz", "whatsapp": ["Karpuz K"] },
+    { "name": "Limon", "whatsapp": ["Limon L", "Limon 🌻"], "discord": ["limon.l"] },
+    { "name": "Fıstık", "whatsapp": ["Fıstık F"] },
+    { "name": "Çilek", "whatsapp": ["Çilek Ç"], "leftOut": true }
+  ]
+}
