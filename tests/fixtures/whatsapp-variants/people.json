@@ -1,0 +1,52 @@
+{
+  "people": [
+    {
+      "id": "karpuz",
+      "name": "Karpuz",
+      "whatsapp": [
+        "Karpuz K",
+        "Karpuz"
+      ]
+    },
+    {
+      "id": "limon",
+      "name": "Limon",
+      "whatsapp": [
+        "Limon L",
+        "Limon"
+      ]
+    },
+    {
+      "id": "fistik",
+      "name": "Fıstık",
+      "whatsapp": [
+        "Fıstık F",
+        "Fıstık"
+      ]
+    },
+    {
+      "id": "incir",
+      "name": "İncir",
+      "whatsapp": [
+        "İncir İ",
+        "İncir",
+        "+90 500 000 00 02"
+      ]
+    },
+    {
+      "id": "cilek",
+      "name": "Çilek",
+      "whatsapp": [
+        "+90 500 000 00 01",
+        "0500 000 00 01"
+      ]
+    },
+    {
+      "id": "nar",
+      "name": "Nar",
+      "whatsapp": [
+        "Nar N"
+      ]
+    }
+  ]
+}

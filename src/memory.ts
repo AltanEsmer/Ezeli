@@ -7,7 +7,7 @@ export type MemoryDetail = {
   chat_name: string
   timezone: string
   photos: { message: string; by_id: string | null; view: string; thumb: string; width: number; height: number; by: string }[]
-  messages: { id: string; by: string; by_id: string | null; at: string; text: string; kind: 'photo' | 'video' | 'gif' | 'voice' | 'document' | null }[]
+  messages: { id: string; by: string; by_id: string | null; at: string; text: string; kind: 'photo' | 'video' | 'gif' | 'voice' | 'document' | 'media' | null }[]
   // The keys of the memory before and after this one in time.
   before: string | null
   after: string | null

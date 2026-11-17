@@ -13,10 +13,14 @@ test.beforeAll(() => {
   // Gezi Notları: 2 September 2023 and 10 January 2023 (passes midnight). İkiz A and B: one photo
   // each at the very same moment, 1 February 2023 10:00.
   for (const [folder, chat] of [['links', CHAT], ['twin', 'İkiz A'], ['twin', 'İkiz B']] as const) {
-    const result = ownerCommand(['import', `${fixtures}/${folder}`, '--people', `${fixtures}/people.json`, '--timezone', 'Europe/Istanbul', '--chat', chat])
+    const result = ownerCommand(['import', `${fixtures}/${folder}`, '--people', `${fixtures}/people.json`, '--timezone', 'Europe/Istanbul', '--chat', chat, '--date-order', 'day-first'])
     expect(result.stderr).toBe('')
     expect(result.status).toBe(0)
   }
+  // An Android export (3 August 2019) with one line of media that is not in the export.
+  const android = ownerCommand(['import', 'tests/fixtures/whatsapp-variants/android-english', '--people', 'tests/fixtures/whatsapp-variants/people.json', '--timezone', 'Europe/Istanbul', '--chat', 'Android Kamp'])
+  expect(android.stderr).toBe('')
+  expect(android.status).toBe(0)
 })
 
 // The access token the app keeps on this device.
@@ -41,6 +45,15 @@ async function openNewest(page: Page) {
 }
 
 test.describe('a friend on a memory', () => {
+  test('reads Android\'s "media omitted" as a line saying the media is not in the export', async ({ page }) => {
+    await signIn(page)
+    await articles(page).filter({ hasText: 'August 3, 2019' }).getByRole('link').click()
+
+    const talk = page.getByRole('region', { name: 'Conversation' })
+    await expect(talk.getByText('Media (not in the export)', { exact: true })).toBeVisible()
+    await expect(talk.getByText('Document', { exact: true })).toBeVisible()
+  })
+
   test('opens it from the timeline to its own address and sees the date, the chat and all photos large', async ({ page }) => {
     await openNewest(page)
 
@@ -289,7 +302,7 @@ test.describe('a friend on a memory', () => {
   test('puts a day line where the conversation passes midnight', async ({ page }) => {
     await signIn(page)
     // 10 January 2023: the photo at 23:50, a message at 00:10 the next day.
-    await articles(page).last().getByRole('link').click()
+    await articles(page).filter({ hasText: 'January 10, 2023' }).getByRole('link').click()
     await expect(heading(page)).toHaveText('Tuesday, January 10, 2023')
     const talk = page.getByRole('region', { name: 'Conversation' })
     await expect(talk.getByText('Wednesday, January 11, 2023')).toBeVisible()
@@ -305,7 +318,7 @@ test.describe('a friend on a memory', () => {
 
   test('reaches both of two memories from the same moment with earlier and later', async ({ page }) => {
     await signIn(page)
-    // Newest first: 2 Sep, 15 Jul, 14 Jul, 5 Mar, then two memories of 1 Feb 10:00, 22 Jan (Discord), then 10 Jan.
+    // Newest first: 2 Sep, 15 Jul, 14 Jul, 5 Mar, then two memories of 1 Feb 10:00, 22 Jan (Discord), 10 Jan, then 3 Aug 2019 (Android).
     await articles(page).nth(3).getByRole('link').click()
     await expect(heading(page)).toHaveText('Sunday, March 5, 2023')
     const earlier = page.getByRole('link', { name: 'Earlier memory' })
@@ -322,7 +335,12 @@ test.describe('a friend on a memory', () => {
     await expect(heading(page)).toHaveText('Sunday, January 22, 2023')
     await earlier.click()
     await expect(heading(page)).toHaveText('Tuesday, January 10, 2023')
+    // The Android chat (3 August 2019) is the oldest.
+    await earlier.click()
+    await expect(heading(page)).toHaveText('Saturday, August 3, 2019')
     await expect(earlier).toHaveCount(0)
+    await later.click()
+    await expect(heading(page)).toHaveText('Tuesday, January 10, 2023')
 
     await later.click()
     await later.click()
@@ -378,6 +396,13 @@ test.describe('a friend on a memory', () => {
 
   test.describe('with the browser set to Turkish', () => {
     test.use({ locale: 'tr-TR' })
+
+    test('reads the media that is not in the export in Turkish', async ({ page }) => {
+      await signIn(page)
+      await articles(page).filter({ hasText: '3 Ağustos 2019' }).getByRole('link').click()
+
+      await expect(page.getByRole('region', { name: 'Konuşma' }).getByText('Medya (dışa aktarımda yok)', { exact: true })).toBeVisible()
+    })
 
     test('reads every label in Turkish and the messages as written', async ({ page }) => {
       await openNewest(page)

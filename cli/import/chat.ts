@@ -2,7 +2,8 @@
 // people and grouping work on it and know nothing about the chat app's file format.
 import type { ChatApp } from './people.ts'
 
-export type MediaKind = 'photo' | 'video' | 'gif' | 'voice' | 'document'
+// `media` is Android's "media omitted": it does not say what was sent.
+export type MediaKind = 'photo' | 'video' | 'gif' | 'voice' | 'document' | 'media'
 
 // `file` is the path of a photo found in the export. A photo without one is missing from the
 // export. Other kinds are never imported, so they carry no file.
