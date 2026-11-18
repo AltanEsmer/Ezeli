@@ -3,7 +3,7 @@ import { type Language, formatDate, language, t } from './i18n.ts'
 import { Comments } from './Comments.tsx'
 import { type MemoryDetail, useMemory } from './memory.ts'
 import type { Person } from './session.ts'
-import { follow, memoryPath, navigate, personPath, pushLayer, toTimeline, viewed } from './route.ts'
+import { cameFrom, follow, goBack, memoryPath, navigate, personPath, pushLayer, viewed } from './route.ts'
 import { Pic, Viewer } from './Viewer.tsx'
 
 // One memory: the date as a heading, the chat it came from as a stamp, every photo as a large
@@ -35,7 +35,7 @@ export function MemoryPage({ memoryKey, person, onSessionLost }: { memoryKey: st
               {t.retry}
             </button>
           )}
-          <button className="btn" onClick={toTimeline}>
+          <button className="btn" onClick={() => goBack('/')}>
             {t.allMemories}
           </button>
         </section>
@@ -65,14 +65,16 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
     window.addEventListener('popstate', closed)
     return () => window.removeEventListener('popstate', closed)
   }, [])
+  // Back goes to the list this memory was opened from, and says so.
+  const from = cameFrom()
   const photoOf = new Map(memory.photos.map((photo, index) => [photo.message, index]))
 
   return (
     <main className="page memory">
       <header className="top">
-        <button className="back hand" onClick={toTimeline}>
+        <button className="back hand" onClick={() => goBack(from?.path ?? '/')}>
           <span aria-hidden="true">← </span>
-          {t.allMemories}
+          {from?.name ?? t.allMemories}
         </button>
       </header>
 

@@ -93,6 +93,11 @@ for (const language of ['en', 'tr'] as const) {
       await expect(page.getByRole('heading', { name: labels[language].failedTitle })).toBeVisible()
       await expectOnly(page, language)
       await page.unroute(/\/rpc\/people_page/)
+      await page.route(/\/rpc\/people_page/, (route) => route.fulfill({ json: [] }))
+      await page.goto('/people')
+      await expect(page.getByRole('heading', { name: labels[language].noPeople })).toBeVisible()
+      await expectOnly(page, language)
+      await page.unroute(/\/rpc\/people_page/)
       await page.goto('/')
       await expect(memories(page).first()).toBeVisible()
       // The timeline when it cannot load, and when it is empty.

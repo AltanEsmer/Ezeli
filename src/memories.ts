@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { takeLastViewed } from './route.ts'
+import { takeReturnKeys } from './route.ts'
 import { supabase } from './supabase.ts'
 
 // One row of the `timeline` view: a memory with its main photos, in one request.
@@ -71,7 +71,7 @@ async function fetchPage(person: string | null, newer: boolean, from: Cursor | n
 export function useTimeline(onSessionLost: () => void, person: string | null = null) {
   const [timeline, setTimeline] = useState<Timeline>({ status: 'loading' })
   // The memory the friend came back from: the timeline opens around it, wherever it is.
-  const [comeBack] = useState(() => takeLastViewed(person !== null))
+  const [comeBack] = useState(() => takeReturnKeys(person !== null))
   const data = useRef({ chunks: [] as Chunk[], months: [] as MonthCount[], hasNewer: false, hasOlder: false })
   const running = useRef(false)
   // A new opening or a reload makes anything still on its way stale.
@@ -100,7 +100,7 @@ export function useTimeline(onSessionLost: () => void, person: string | null = n
 
   // Opens the timeline around `target`, replacing what is held.
   const open = useCallback(
-    async (target: Target, first = false) => {
+    async (target: Target, first = false, fallbacks: string[] = []) => {
       const mine = (generation.current += 1)
       running.current = true
       lastOpened.current = target
@@ -129,6 +129,11 @@ export function useTimeline(onSessionLost: () => void, person: string | null = n
       ])
       if (mine !== generation.current) return
       if (!older || !newer || months?.error) return fail()
+      // A list that does not hold the memory (a person's, after Earlier or Later stepped onto
+      // someone else's) opens at the next one remembered, if there is one.
+      if (person !== null && target && 'key' in target && fallbacks.length > 0 && older[0]?.key !== target.key) {
+        return open({ key: fallbacks[0]! }, first, fallbacks.slice(1))
+      }
       if (older.length < PAGE && (await sessionEnded())) return
       if (mine !== generation.current) return
 
@@ -147,7 +152,7 @@ export function useTimeline(onSessionLost: () => void, person: string | null = n
 
   const reload = useCallback(() => {
     setTimeline({ status: 'loading' })
-    void open(comeBack ? { key: comeBack } : null, true)
+    void open(comeBack[0] ? { key: comeBack[0] } : null, true, comeBack.slice(1))
   }, [open, comeBack])
   useEffect(reload, [reload])
 

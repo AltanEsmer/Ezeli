@@ -45,17 +45,23 @@ window.addEventListener('popstate', () => {
 // so a button can tell "go back" from "this address was opened directly".
 const depth = () => (history.state as { depth?: number } | null)?.depth ?? 0
 
-export function navigate(path: string, options: { replace?: boolean } = {}) {
+// The list a memory was opened from: where Back goes, and what to call it (no name: the timeline).
+// It is kept in the history entry, so it survives Earlier and Later, which replace the entry.
+export type From = { path: string; name?: string }
+export const cameFrom = (): From | null => (history.state as { from?: From } | null)?.from ?? null
+
+export function navigate(path: string, options: { replace?: boolean; from?: From } = {}) {
   lastWasPop = false
-  if (options.replace) history.replaceState({ depth: depth() }, '', path)
-  else history.pushState({ depth: depth() + 1 }, '', path)
+  const from = options.from ?? (options.replace ? cameFrom() : null)
+  if (options.replace) history.replaceState({ depth: depth(), from }, '', path)
+  else history.pushState({ depth: depth() + 1, from }, '', path)
   window.dispatchEvent(new Event(CHANGED))
 }
 
 // A layer on top of a screen (the full-screen photo) is a step of its own in the history, so the
 // phone's Back closes it. The address stays the same.
 export function pushLayer() {
-  history.pushState({ depth: depth() + 1, layer: true }, '')
+  history.pushState({ depth: depth() + 1, layer: true, from: cameFrom() }, '')
 }
 
 // Back to the timeline: the browser's own back when this app has a screen behind, else forward to it.
@@ -87,17 +93,23 @@ export function useRoute(): Route {
   return parse(pathname)
 }
 
-// The memory the reader looked at last. The timeline scrolls to it when it is shown again, so
-// "the same place" is a memory, not a number of pixels or of loaded pages.
+// Where a list should be scrolled to when the reader comes back to it: the memory they looked at
+// last if it is on that list, else the memory they opened from it. So "the same place" is a
+// memory, not a number of pixels or of loaded pages, and Earlier and Later (which step onto other
+// memories) never lose it. Any list a memory is opened from does this: `opened` when it opens one.
 let lastViewed: string | null = null
+let openedKey: string | null = null
 export const viewed = (key: string) => {
   lastViewed = key
 }
-// A person's timeline asks for it only after going back: tapping a name in a memory must not
-// open their page at that memory, and the memory stays remembered for the timeline behind it.
-export function takeLastViewed(onlyAfterBack = false): string | null {
-  if (onlyAfterBack && !lastWasPop) return null
-  const key = lastViewed
-  lastViewed = null
-  return key
+export const opened = (key: string) => {
+  openedKey = key
+}
+// A person's list asks for them only after going back: tapping a name in a memory must not open
+// their page at that memory, and the memory stays remembered for the list behind it.
+export function takeReturnKeys(onlyAfterBack = false): string[] {
+  if (onlyAfterBack && !lastWasPop) return []
+  const keys = [lastViewed, openedKey].filter((key): key is string => key !== null)
+  lastViewed = openedKey = null
+  return keys
 }

@@ -490,7 +490,8 @@ button {
 .tabs[aria-busy='true'] {
   opacity: 0.6;
 }
-.empty > h1 {
+.empty > h1,
+.empty > h2 {
   font-size: 30px;
   color: var(--ink);
 }
@@ -952,6 +953,10 @@ button {
 /* A name in a memory opens that person: it keeps the pen colour of the name. */
 .who a,
 .cap a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
   color: inherit;
   text-decoration: underline;
   text-decoration-thickness: 2px;

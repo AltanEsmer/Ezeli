@@ -1,7 +1,7 @@
-import { type CSSProperties, type MouseEvent, type RefObject, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type MouseEvent, type RefObject, createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { formatDate, formatMonth, formatNames, language, t } from './i18n.ts'
 import { type Chunk, type MemoryCard, type MonthCount, type Timeline, signedLink, useTimeline } from './memories.ts'
-import { memoryPath, navigate } from './route.ts'
+import { memoryPath, navigate, opened } from './route.ts'
 
 type Ready = Extract<Timeline, { status: 'ready' }>
 type Group = { month: string; memories: MemoryCard[]; heading: boolean }
@@ -15,7 +15,9 @@ const GAP = 54
 // the rest of the run keeps its height as an empty box.
 // With `person` (a lasting id) it holds only the memories that person took part in: the same
 // timeline, filtered by the database.
-export function Memories({ onSessionLost, person = null }: { onSessionLost: () => void; person?: string | null }) {
+// `listName` is what the memory screen calls this list in its back link (none: "All memories").
+const ListName = createContext<string | undefined>(undefined)
+export function Memories({ onSessionLost, person = null, listName }: { onSessionLost: () => void; person?: string | null; listName?: string }) {
   const { timeline, reload, grow, retry, jump } = useTimeline(onSessionLost, person)
   const [current, setCurrent] = useState<string | null>(null)
   const list = useRef<HTMLDivElement>(null)
@@ -103,6 +105,7 @@ export function Memories({ onSessionLost, person = null }: { onSessionLost: () =
   if (timeline.chunks.length === 0) return <EmptyTimeline />
 
   return (
+    <ListName.Provider value={listName}>
     <div className="memories" ref={list}>
       <End side="newer" timeline={timeline} grow={grow} retry={retry} />
       {rows.map(({ chunk, groups }) => (
@@ -121,6 +124,7 @@ export function Memories({ onSessionLost, person = null }: { onSessionLost: () =
         </div>
       )}
     </div>
+    </ListName.Provider>
   )
 }
 
@@ -257,6 +261,7 @@ const tapes = ['var(--tape2)', 'var(--tape1)', 'var(--tape3)', 'var(--tape4)']
 const Memory = memo(function Memory({ memory, index }: { memory: MemoryCard; index: number; lang: string }) {
   const card = useRef<HTMLElement>(null)
   const near = useNear(card)
+  const listName = useContext(ListName)
   const urls = useLinks(near ? memory.photos.map((photo) => photo.thumb) : [])
   const [front, ...behind] = memory.photos
   const date = formatDate(language, memory.at, memory.timezone)
@@ -265,7 +270,7 @@ const Memory = memo(function Memory({ memory, index }: { memory: MemoryCard; ind
 
   return (
     <article className="mem" style={style} ref={card} data-key={memory.key}>
-      <a className="open" href={memoryPath(memory.key)} onClick={open(memory.key)}>
+      <a className="open" href={memoryPath(memory.key)} onClick={open(memory.key, listName)}>
         <div className="stack">
           {behind
             .slice()
@@ -302,10 +307,11 @@ const Memory = memo(function Memory({ memory, index }: { memory: MemoryCard; ind
   )
 })
 
-const open = (key: string) => (event: MouseEvent) => {
+const open = (key: string, listName?: string) => (event: MouseEvent) => {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
   event.preventDefault()
-  navigate(memoryPath(key))
+  opened(key)
+  navigate(memoryPath(key), { from: { path: location.pathname, name: listName } })
 }
 
 function Icon({ d }: { d: string }) {

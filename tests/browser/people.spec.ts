@@ -1,7 +1,9 @@
 // The people page and a person's page, on the memories the earlier projects imported (the people
 // file ids: karpuz, limon, fistik, cilek, incir). Limon sent photos under two names ("Limon L",
 // "Limon 🌻") and on Discord, and has one page. Çilek and İncir wrote but sent no photo. People made
-// with `person add` have no lasting id and are not part of the group's pages.
+// with `person add` have no lasting id and are not part of the group's pages. people.setup.ts adds
+// three January 2024 chats (two time zones, and a memory that only names Çilek). The tests look for
+// these people and do not count everyone, so a later fixture with another person changes nothing.
 import { type Page, expect, test } from '@playwright/test'
 import { addPerson, apiUrl, fruit, ownerCommand, publishableKey } from './support.ts'
 
@@ -26,7 +28,10 @@ test.describe('the people page', () => {
 
     await expect(page).toHaveURL(/\/people$/)
     const cards = page.getByRole('list', { name: 'People' }).getByRole('listitem')
-    await expect(cards.getByRole('heading')).toHaveText(['Çilek', 'Fıstık', 'İncir', 'Karpuz', 'Limon'])
+    const shown = await cards.getByRole('heading').allTextContents()
+    expect(shown.filter((name) => ['Çilek', 'Fıstık', 'İncir', 'Karpuz', 'Limon'].includes(name))).toEqual(['Çilek', 'Fıstık', 'İncir', 'Karpuz', 'Limon'])
+    // A card's link is named by the person, not by the descriptions of their photos.
+    await expect(page.getByRole('link', { name: 'Limon', exact: true })).toHaveAttribute('href', '/p/limon')
     // A few photos, the most recent: at most four, none for a person with none.
     await expect(cards.filter({ hasText: 'Limon' }).locator('img')).toHaveCount(4)
     await expect(cards.filter({ hasText: 'Karpuz' }).locator('img')).toHaveCount(4)
@@ -42,7 +47,7 @@ test.describe('the people page', () => {
     await signIn(page)
     await page.getByRole('link', { name: 'People' }).click()
 
-    await page.getByRole('link', { name: /Fıstık/ }).click()
+    await page.getByRole('link', { name: 'Fıstık', exact: true }).click()
 
     await expect(page).toHaveURL(/\/p\/fistik$/)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Fıstık')
@@ -56,8 +61,8 @@ test.describe("a person's page", () => {
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Limon')
     await expect(page.getByText('6 photos sent')).toBeVisible()
-    await expect(page.getByText('Saturday, August 3, 2019').first()).toBeVisible()
-    await expect(page.locator('.facts')).toContainText('Saturday, September 2, 2023')
+    await expect(page.locator('.facts')).toContainText('Saturday, August 3, 2019')
+    await expect(page.locator('.facts')).toContainText('Saturday, January 20, 2024')
   })
 
   test('shows a person who sent no photo, with the memories they wrote in', async ({ page }) => {
@@ -75,6 +80,9 @@ test.describe("a person's page", () => {
     await page.goto('/p/limon')
 
     await expect(articles(page).getByRole('heading')).toHaveText([
+      'Saturday, January 20, 2024',
+      'Thursday, January 18, 2024',
+      'Sunday, January 14, 2024',
       'Saturday, September 2, 2023',
       'Friday, July 14, 2023',
       'Sunday, March 5, 2023',
@@ -107,6 +115,32 @@ test.describe("a person's page", () => {
     await expect(articles(page).first()).not.toBeInViewport()
   })
 
+  test('puts the latest date on the day it was in the chat, whatever the zone of the chat or the reader', async ({ browser }) => {
+    // A reader 14 hours ahead of UTC: a date worked out in their zone, or in UTC, would be wrong.
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: 'Pacific/Kiritimati' })
+    const page = await context.newPage()
+    await signIn(page)
+    await page.goto('/p/karpuz')
+
+    // 04:30 UTC on 21 January in New York is the 20th; 22:30 UTC on the 13th in Istanbul is the 14th.
+    await expect(page.locator('.facts')).toContainText('Saturday, January 20, 2024')
+    await expect(articles(page).getByRole('heading').nth(0)).toHaveText('Saturday, January 20, 2024')
+    await expect(articles(page).getByRole('heading').nth(2)).toHaveText('Sunday, January 14, 2024')
+    await context.close()
+  })
+
+  test('does not hold a memory where the person is only named in what someone wrote', async ({ page }) => {
+    await signIn(page)
+    await page.goto('/p/cilek')
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Çilek')
+    await expect(articles(page)).toHaveCount(1)
+    await expect(articles(page).getByRole('heading')).toHaveText('Saturday, August 3, 2019')
+    // The memory that names them is there for the person who wrote it.
+    await page.goto('/p/limon')
+    await expect(articles(page).filter({ hasText: 'January 18, 2024' })).toHaveCount(1)
+  })
+
   test('says so when the person is not there', async ({ page }) => {
     await signIn(page)
     await page.goto('/p/nobody')
@@ -119,15 +153,18 @@ test.describe('a name in a memory', () => {
   test('opens that person, in the conversation and under a photo', async ({ page }) => {
     await signIn(page)
     await articles(page).first().getByRole('link').click()
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Saturday, September 2, 2023')
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Saturday, January 20, 2024')
 
-    await page.locator('.talk .who').getByRole('link', { name: 'Limon' }).first().click()
+    // A name is a target big enough to tap.
+    const name = page.locator('.talk .who').getByRole('link', { name: 'Limon' }).first()
+    expect((await name.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    await name.click()
     await expect(page).toHaveURL(/\/p\/limon$/)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Limon')
 
     await page.goBack()
-    await page.locator('.prints .cap').getByRole('link', { name: 'Fıstık' }).first().click()
-    await expect(page).toHaveURL(/\/p\/fistik$/)
+    await page.locator('.prints .cap').getByRole('link', { name: 'Karpuz' }).first().click()
+    await expect(page).toHaveURL(/\/p\/karpuz$/)
   })
 })
 
@@ -142,8 +179,8 @@ test.describe('what is readable', () => {
     const call = (h: Record<string, string>, fn: string, data: object = {}) => request.post(`${apiUrl}/rest/v1/rpc/${fn}`, { headers: h, data })
 
     const people = (await (await call(headers, 'people_page')).json()) as { id: string }[]
-    expect(people.map((p) => p.id).sort()).toEqual(['cilek', 'fistik', 'incir', 'karpuz', 'limon'])
-    for (const person of people) expect(Object.keys(person).sort()).toEqual(['id', 'name', 'photo_count', 'photos'])
+    expect(people.map((p) => p.id)).toEqual(expect.arrayContaining(['cilek', 'fistik', 'incir', 'karpuz', 'limon']))
+    for (const person of people) expect(Object.keys(person).sort()).toEqual(['id', 'name', 'photos'])
     const one = await (await call(headers, 'person_page', { p_person: 'limon' })).json()
     expect(Object.keys(one).sort()).toEqual(['first', 'id', 'last', 'name', 'photo_count'])
     // Someone made by `person add` has no lasting id and no page.
@@ -163,5 +200,54 @@ test.describe('what is readable', () => {
     expect(await (await call(headers, 'person_months', { p_person: 'limon' })).json()).toEqual([])
     expect(await (await call(headers, 'timeline_page', listing)).json()).toEqual([])
     await context.close()
+  })
+})
+
+test.describe('an empty group', () => {
+  test('says nothing is here yet, not that it could not load', async ({ page }) => {
+    await signIn(page)
+    await page.route(/\/rpc\/people_page/, (route) => route.fulfill({ json: [] }))
+    await page.goto('/people')
+
+    await expect(page.getByRole('heading', { name: 'Nobody here yet' })).toBeVisible()
+    await expect(page.getByText('Could not load')).toHaveCount(0)
+  })
+})
+
+test.describe('coming back to a person from a memory', () => {
+  test('returns to the memory opened from their page, though Earlier and Later stepped onto others', async ({ page }) => {
+    await signIn(page)
+    await page.goto('/p/limon')
+    const january = articles(page).filter({ hasText: 'January 22, 2023' })
+    await january.scrollIntoViewIfNeeded()
+    await january.getByRole('link').click()
+    // The back link says where it goes: the person's page.
+    await expect(page.getByRole('button', { name: 'Limon' })).toBeVisible()
+    // Later steps onto the memories of 1 February 2023, which Limon is not in.
+    await page.getByRole('link', { name: 'Later memory' }).click()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Wednesday, February 1, 2023')
+    await expect(page.getByRole('button', { name: 'Limon' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Limon' }).click()
+
+    await expect(page).toHaveURL(/\/p\/limon$/)
+    await expect(january).toBeInViewport()
+  })
+
+  test('also by the browser\'s Back, and the main timeline keeps saying All memories', async ({ page }) => {
+    await signIn(page)
+    await page.goto('/p/limon')
+    const january = articles(page).filter({ hasText: 'January 22, 2023' })
+    await january.scrollIntoViewIfNeeded()
+    await january.getByRole('link').click()
+    await page.getByRole('link', { name: 'Later memory' }).click()
+
+    await page.goBack()
+
+    await expect(page).toHaveURL(/\/p\/limon$/)
+    await expect(january).toBeInViewport()
+    await page.goto('/')
+    await articles(page).first().getByRole('link').click()
+    await expect(page.getByRole('button', { name: 'All memories' })).toBeVisible()
   })
 })
