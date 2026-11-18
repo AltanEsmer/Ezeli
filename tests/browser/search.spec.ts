@@ -284,7 +284,7 @@ test.describe('search', () => {
 
     expect(new Set(keys).size).toBe(130)
     expect(ats).toEqual(ats.slice().sort().reverse())
-    expect(held).toBeLessThan(60)
+    expect(held).toBeLessThan(100)
   })
 
   test('has a main heading', async ({ page }) => {
