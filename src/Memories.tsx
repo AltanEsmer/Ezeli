@@ -4,7 +4,7 @@ import { type Chunk, type MemoryCard, type MonthCount, type Timeline, signedLink
 import { memoryPath, navigate, opened } from './route.ts'
 
 type Ready = Extract<Timeline, { status: 'ready' }>
-type Group = { month: string; memories: MemoryCard[]; heading: boolean }
+export type Group = { month: string; memories: MemoryCard[]; heading: boolean }
 
 // The gap between the parts of the timeline (the same as in the stylesheet).
 const GAP = 54
@@ -16,7 +16,7 @@ const GAP = 54
 // With `person` (a lasting id) it holds only the memories that person took part in: the same
 // timeline, filtered by the database.
 // `listName` is what the memory screen calls this list in its back link (none: "All memories").
-const ListName = createContext<string | undefined>(undefined)
+export const ListName = createContext<string | undefined>(undefined)
 export function Memories({ onSessionLost, person = null, listName }: { onSessionLost: () => void; person?: string | null; listName?: string }) {
   const { timeline, reload, grow, retry, jump } = useTimeline(onSessionLost, person)
   const [current, setCurrent] = useState<string | null>(null)
@@ -131,7 +131,7 @@ export function Memories({ onSessionLost, person = null, listName }: { onSession
 // One page of the run. Near the screen it holds its memories; far away it is an empty box of the
 // height it had, so nothing moves and the page stays small however far the friend has gone.
 // `lang` is only here so that a change of language draws the memories again.
-const ChunkView = memo(function ChunkView({ chunk, groups, heights, lang }: { chunk: Chunk; groups: Group[]; heights: Map<number, number>; lang: string }) {
+export const ChunkView = memo(function ChunkView({ chunk, groups, heights, lang }: { chunk: Chunk; groups: Group[]; heights: Map<number, number>; lang: string }) {
   const box = useRef<HTMLDivElement>(null)
   const near = useNear(box, true)
 
@@ -354,7 +354,7 @@ export function useLinks(paths: string[]): (string | null | undefined)[] {
 // True while the element is within a screen or two of the visible part of the page.
 let observer: IntersectionObserver | undefined
 const listeners = new WeakMap<Element, (near: boolean) => void>()
-function useNear(ref: RefObject<Element | null>, initial = false): boolean {
+export function useNear(ref: RefObject<Element | null>, initial = false): boolean {
   const [near, setNear] = useState(initial)
   useEffect(() => {
     const element = ref.current

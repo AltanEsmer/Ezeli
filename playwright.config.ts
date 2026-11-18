@@ -22,9 +22,11 @@ export default defineConfig({
     // The people pages: they read what the earlier projects imported and what people.setup.ts adds.
     { name: 'people-import', testMatch: 'people.setup.ts', dependencies: ['full-timeline'] },
     { name: 'people', testMatch: 'people.spec.ts', dependencies: ['people-import'] },
+    // Search: imports chats of its own, so it runs after the tests above have counted.
+    { name: 'search', testMatch: 'search.spec.ts', dependencies: ['people'] },
     // Last: a few thousand made-up memories, made at test time. They are removed once every test
     // that uses them has finished (the teardown), so one failure cannot take the data from the next.
-    { name: 'large-import', testMatch: 'large.setup.ts', dependencies: ['people'], teardown: 'large-clean' },
+    { name: 'large-import', testMatch: 'large.setup.ts', dependencies: ['search'], teardown: 'large-clean' },
     { name: 'large', testMatch: 'large.spec.ts', dependencies: ['large-import'], fullyParallel: false },
     { name: 'large-clean', testMatch: 'large.teardown.ts' },
   ],

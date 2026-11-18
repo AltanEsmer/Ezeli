@@ -2,16 +2,18 @@ import { type MouseEvent, useSyncExternalStore } from 'react'
 
 // The addresses of the app, kept small on purpose. `/` is the timeline and `/m/<key>` one memory,
 // by the memory's lasting key, so the address survives a later import. The people and search
-// screens (issues 17 and 19) add their paths in `parse`: `/people`, and `/p/<id>` for one person by
+// screens (issues 17 and 19) add their paths in `parse`: `/search` (what is typed there is never
+// part of the address), `/people`, and `/p/<id>` for one person by
 // their lasting id (the slug of the people file). Hosting must answer every path with
 // index.html (vercel.json); the dev server does it already.
-export type Route = { name: 'timeline' } | { name: 'memory'; key: string } | { name: 'people' } | { name: 'person'; id: string }
+export type Route = { name: 'timeline' } | { name: 'memory'; key: string } | { name: 'people' } | { name: 'person'; id: string } | { name: 'search' }
 
 export const memoryPath = (key: string) => `/m/${encodeURIComponent(key)}`
 export const personPath = (id: string) => `/p/${encodeURIComponent(id)}`
 
 export function parse(pathname: string): Route {
   if (/^\/people\/?$/.test(pathname)) return { name: 'people' }
+  if (/^\/search\/?$/.test(pathname)) return { name: 'search' }
   const person = pathname.match(/^\/p\/([^/]+)\/?$/)
   if (person) {
     try {
