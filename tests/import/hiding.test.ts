@@ -362,6 +362,23 @@ test('hiding twice is not an error; a wrong address or number or a missing setti
   expect(unset.err.trim().split('\n')).toEqual(['Set SUPABASE_URL, SUPABASE_SECRET_KEY in the environment first.'])
 })
 
+test('the timeline pages and their conversation line show nothing that is hidden', async () => {
+  const { first, second, friend } = await setup()
+  // The page that starts at a memory (the stack holds other chats too, so ask by cursor).
+  const pageAt = async (memory: Memory) => {
+    const at = (await rows<{ local_at: string; key: string }>(friend.from('timeline').select('local_at, key').eq('id', memory.id)))[0]
+    if (!at) return []
+    return (await friend.rpc('timeline_page', { p_newer: false, p_at: at.local_at, p_key: at.key, p_limit: 1, p_inclusive: true })).data as { id: string; line: string | null }[]
+  }
+  expect((await pageAt(first))[0]!.line).toMatch(/Çok güzel çıkmış/)
+
+  ezeli(['hide', first.key, String(numberOf(first, /Çok güzel çıkmış/))])
+  ezeli(['hide', second.key, String(numberOf(second, /\[Photo\]/))])
+
+  expect((await pageAt(first))[0]!.line ?? '').not.toMatch(/Çok güzel çıkmış/)
+  expect(await pageAt(second)).toEqual([])
+})
+
 test('a friend cannot read what lets a key be worked out or a hidden thing be found, and a chat has its own secret', async () => {
   const { chat, friend } = await setup()
 

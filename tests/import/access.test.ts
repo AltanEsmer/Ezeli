@@ -2,7 +2,7 @@
 import { beforeAll, expect, test } from 'vitest'
 import { fresh, importChat, owner, rows, signedInAs, stack, storedChat, visitor } from './support.ts'
 
-const tables = ['chats', 'memories', 'messages', 'photos', 'timeline'] as const
+const tables = ['chats', 'memories', 'messages', 'photos', 'timeline', 'timeline_months'] as const
 let thumb: string
 
 beforeAll(async () => {
