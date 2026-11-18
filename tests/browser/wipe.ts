@@ -21,6 +21,11 @@ export default async function wipe() {
   const chats = await db.from('chats').delete().not('id', 'is', null)
   if (chats.error) throw chats.error
 
+  // The people the import made (they have a lasting id) go with them: the people page lists
+  // them, so another test suite's leftovers would show there.
+  const people = await db.from('people').delete().not('slug', 'is', null)
+  if (people.error) throw people.error
+
   // Photos are in one folder per chat, so look inside the folders too.
   const bucket = db.storage.from('photos')
   for (;;) {

@@ -9,6 +9,10 @@ export function Viewer(props: { photos: MemoryDetail['photos']; links: Map<strin
   const strip = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDivElement>(null)
   const [index, setIndex] = useState(start)
+  // The photo being shown and the width it was laid out at: a change of width (a phone turned)
+  // is not the friend moving on, and the strip is put back on that photo here, not left to the browser.
+  const held = useRef(start)
+  const width = useRef(0)
 
   const show = (to: number) => {
     const box = strip.current
@@ -19,7 +23,17 @@ export function Viewer(props: { photos: MemoryDetail['photos']; links: Map<strin
   // Start on the photo that was tapped.
   useLayoutEffect(() => {
     const box = strip.current
-    if (box) box.scrollLeft = start * box.clientWidth
+    if (!box) return
+    width.current = box.clientWidth
+    box.scrollLeft = start * box.clientWidth
+    const watch = new ResizeObserver(() => {
+      if (box.clientWidth === width.current) return
+      width.current = box.clientWidth
+      box.scrollTo({ left: held.current * box.clientWidth, behavior: 'instant' })
+      setIndex(held.current)
+    })
+    watch.observe(box)
+    return () => watch.disconnect()
   }, [start])
 
   useEffect(() => {
@@ -64,7 +78,10 @@ export function Viewer(props: { photos: MemoryDetail['photos']; links: Map<strin
         className="strip"
         onScroll={(event) => {
           const box = event.currentTarget
-          setIndex(Math.round(box.scrollLeft / box.clientWidth))
+          // While the width has changed and the strip is not yet put back, this is not a move.
+          if (box.clientWidth !== width.current) return
+          held.current = Math.round(box.scrollLeft / box.clientWidth)
+          setIndex(held.current)
         }}
       >
         {photos.map((photo, i) => (

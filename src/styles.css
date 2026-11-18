@@ -39,6 +39,7 @@
   .mprint,
   .card,
   .chat,
+  .pcard,
   .me {
     --ink: #2b1e12;
     --muted: #574229;
@@ -51,6 +52,7 @@
   }
   /* Handwriting straight on the dark page is a lighter blue. */
   .mdate,
+  .links,
   .back {
     --pen: #a9bdf0;
   }
@@ -488,7 +490,8 @@ button {
 .tabs[aria-busy='true'] {
   opacity: 0.6;
 }
-.empty > h1 {
+.empty > h1,
+.empty > h2 {
   font-size: 30px;
   color: var(--ink);
 }
@@ -924,4 +927,131 @@ button {
 }
 .note.write .btn:disabled {
   opacity: 0.5;
+}
+
+/* The row of handwritten links under the timeline's header: a plain list, one link per item. */
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin: 10px 0 0;
+  padding: 0 8px;
+  list-style: none;
+}
+.links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--pen);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 5px;
+}
+
+/* A name in a memory opens that person: it keeps the pen colour of the name. */
+.who a,
+.cap a {
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+.talk .who a {
+  color: inherit;
+}
+
+/* The people page: a taped slip for everyone, a few of their prints fanned across it. */
+.people {
+  display: grid;
+  gap: 44px;
+  margin: 0;
+  padding: 34px 6px 0;
+  list-style: none;
+}
+.people li {
+  transform: rotate(var(--tilt));
+}
+.pcard {
+  position: relative;
+  display: grid;
+  gap: 14px;
+  padding: 30px 16px 20px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.pcard .tape {
+  background: var(--tape);
+}
+.pcard h2 {
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--pen);
+  overflow-wrap: anywhere;
+}
+.none {
+  color: var(--muted);
+  font-size: 16px;
+}
+.fan {
+  display: flex;
+  justify-content: center;
+  padding: 6px 0 4px;
+}
+.fan > .mprint {
+  flex: none;
+  width: 27%;
+  padding: 5px 5px 14px;
+  margin-left: -4%;
+}
+.fan > .mprint:first-child {
+  margin-left: 0;
+}
+.fan0 {
+  transform: rotate(-5deg);
+}
+.fan1 {
+  transform: rotate(3deg) translateY(6px);
+}
+.fan2 {
+  transform: rotate(-2deg) translateY(-2px);
+}
+.fan3 {
+  transform: rotate(5deg) translateY(5px);
+}
+
+/* A person's page: the dates and the photo count on a taped slip under the name. */
+.facts {
+  position: relative;
+  display: grid;
+  gap: 10px;
+  margin: 28px 70px 0 6px;
+  padding: 30px 18px 18px;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  transform: rotate(0.8deg);
+}
+.facts .tape {
+  background: var(--tape4);
+}
+.facts dt {
+  font-size: 14px;
+  color: var(--muted);
+}
+.facts dd {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--pen);
 }
