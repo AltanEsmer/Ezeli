@@ -1,11 +1,13 @@
 // Saving: the two sizes of each photo, then the chat, its people, the memories, messages and
 // photos. Everything is written by key, so the same export saved twice leaves one copy, and an
 // import that stopped halfway is finished by running it again.
+import { existsSync, writeFileSync } from 'node:fs'
 import type { Db } from '../supabase.ts'
 import { buildMemories, hasPhotoFile, isPhoto, type Grouping, type MemoryMessage } from './memories.ts'
 import type { ChatApp } from './people.ts'
 import { makeSizes } from './photos.ts'
-import { chunks, isHidden, loadHidden, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Removed, type Span, type Stored } from './regroup.ts'
+import { applyMarks } from './marks.ts'
+import { chunks, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Removed, type Span } from './regroup.ts'
 import { Stop } from './stop.ts'
 
 export type ChatToSave = { key: string; name: string; app: ChatApp; timezone: string }
@@ -30,23 +32,11 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
     )
   }
 
-  const everything = existing.data ? await loadStored(db, existing.data.id) : nothingStored
-  // A hidden thing is treated as if it was never sent: left out before grouping, whether it comes
-  // from the export or from what is stored (by its key, and by what it is, so a shifted key does not
-  // bring it back). Rows already flagged hidden stay where they are, so `show` can return them;
-  // they and the memories that hold them are kept, never removed by the regroup.
-  const marks = await loadHidden(db, chat.key)
-  const hiddenRows = everything.messages.filter((message) => message.hidden)
-  const stored: Stored = {
-    memories: everything.memories,
-    messages: everything.messages.filter((message) => !message.hidden),
-    photos: everything.photos.filter((photo) => !photo.hidden),
-  }
-  exported = exported.filter((message) => !isHidden(message, marks))
+  // What an owner hid is removed from what is stored before anything is read from it (marks.ts).
+  await applyMarks(db, chat.key)
+  const stored = existing.data ? await loadStored(db, existing.data.id) : nothingStored
   const storedPhotos = new Map(stored.photos.map((photo) => [photo.key, photo]))
   const outside = storedOutside(stored, span)
-  outside.before = outside.before.filter((message) => !isHidden(message, marks))
-  outside.after = outside.after.filter((message) => !isHidden(message, marks))
   // A stored message that this export holds again is the export's: the same chat from another phone
   // has other seconds, so a message stored at 20:58:11 may lie outside an export that has minutes only.
   const again = new Set(exported.map((message) => message.key))
@@ -86,6 +76,8 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   // People of the export are saved (and renamed) from the export; the others are known by their rows.
   const people = await savePeople(db, exported)
   for (const row of stored.messages) if (!people.has(row.people.slug)) people.set(row.people.slug, row.people.id)
+
+  await testPause()
 
   // A memory is known by its first photo message, whether or not its file was there.
   const memoryRows = memories.map((memory) => ({
@@ -144,14 +136,16 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
 
   // Only now, with every row of this import in place, is anything that no longer fits removed.
   const kept = { memories: new Set(memoryRows.map((row) => row.key)), messages: new Set(messages.map((message) => message.key)) }
-  const memoryKeyOf = new Map(stored.memories.map((memory) => [memory.id, memory.key]))
-  const keepHidden = {
-    memories: new Set([...kept.memories, ...hiddenRows.map((row) => memoryKeyOf.get(row.memory_id)!).filter(Boolean)]),
-    messages: new Set([...kept.messages, ...hiddenRows.map((row) => row.key)]),
-  }
-  const removed = await removeWhatNoLongerFits(db, stored, keepHidden)
+  const removed = await removeWhatNoLongerFits(db, stored, kept)
   // Files that no row points at, left by a run that stopped while removing them.
   await removeFilesWithoutRow(db, chatId)
+  // Once more at the very end: a hide that landed while this import ran (which may have written a
+  // hidden photo's row again from what was read at the start) is put right here.
+  const late = await applyMarks(db, chat.key)
+  removed.memories += late.memories
+  removed.messages += late.messages
+  removed.photos += late.photos
+  removed.comments += late.comments
   const had = {
     memories: stored.memories.filter((memory) => kept.memories.has(memory.key)).length,
     messages: stored.messages.filter((message) => kept.messages.has(message.key)).length,
@@ -202,6 +196,15 @@ async function savePeople(db: Db, messages: MemoryMessage[]): Promise<Map<string
     rowIds.set(slug, created.data.id)
   }
   return rowIds
+}
+
+// A seam for a test only: with EZELI_TEST_PAUSE set, the import stops here until `<value>.go` exists
+// (and says so by writing `<value>.ready`), so a test can run an owner command in the middle of it.
+async function testPause(): Promise<void> {
+  const base = process.env.EZELI_TEST_PAUSE
+  if (!base) return
+  writeFileSync(`${base}.ready`, '')
+  while (!existsSync(`${base}.go`)) await new Promise((resolve) => setTimeout(resolve, 50))
 }
 
 // Runs `work` on every item, a few at a time. Stops at the first failure.

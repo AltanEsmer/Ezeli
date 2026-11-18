@@ -23,10 +23,9 @@ export type StoredMessage = {
   memory_id: string
   text: string
   media_kind: MediaKind | null
-  hidden: boolean
   people: { id: string; slug: string; display_name: string }
 }
-export type StoredPhoto = { key: string; view_path: string; thumb_path: string; width: number; height: number; content_hash: string | null; hidden: boolean }
+export type StoredPhoto = { key: string; view_path: string; thumb_path: string; width: number; height: number; content_hash: string | null }
 export type Stored = { memories: StoredMemory[]; messages: StoredMessage[]; photos: StoredPhoto[] }
 export type Span = { from: number; to: number } // moments, in milliseconds, both included
 export type Kept = { memories: Set<string>; messages: Set<string> } // the keys of this import
@@ -58,7 +57,7 @@ export async function loadStored(db: Db, chatId: string): Promise<Stored> {
     messages: await pages<StoredMessage>((from, to) =>
       db
         .from('messages')
-        .select('id, key, at, seq, memory_id, text, media_kind, hidden, people(id, slug, display_name), memories!inner(chat_id)')
+        .select('id, key, at, seq, memory_id, text, media_kind, people(id, slug, display_name), memories!inner(chat_id)')
         .eq('memories.chat_id', chatId)
         .order('key')
         .range(from, to),
@@ -67,36 +66,9 @@ export async function loadStored(db: Db, chatId: string): Promise<Stored> {
   }
 }
 
-// What an owner has hidden in one chat (issue 20), as the import matches it: by lasting key, by the
-// hash of a photo's file, and by a text message's minute, sender and text. A key shifts when an
-// earlier message of the same minute goes away; the other two do not. Matching more than was hidden
-// (a second identical "tamam" in the same minute) is chosen over letting something come back.
-export type Marks = { keys: Set<string>; hashes: Set<string>; texts: Set<string> }
-const minuteOf = (moment: number) => Math.floor(moment / 60_000) * 60_000
-const textMark = (moment: number, person: string, text: string) => JSON.stringify([minuteOf(moment), person, text])
-
-export async function loadHidden(db: Db, chatKey: string): Promise<Marks> {
-  const rows = await pages<{ key: string; content_hash: string | null; minute: string | null; person_slug: string | null; text: string | null }>((from, to) =>
-    db.from('hidden').select('key, content_hash, minute, person_slug, text').eq('chat_key', chatKey).order('key').range(from, to),
-  )
-  const marks: Marks = { keys: new Set(), hashes: new Set(), texts: new Set() }
-  for (const row of rows) {
-    marks.keys.add(row.key)
-    if (row.content_hash) marks.hashes.add(row.content_hash)
-    if (row.minute && row.person_slug && row.text) marks.texts.add(textMark(Date.parse(row.minute), row.person_slug, row.text))
-  }
-  return marks
-}
-
-export function isHidden(message: MemoryMessage, marks: Marks): boolean {
-  if (marks.keys.has(message.key)) return true
-  if (message.media?.hash && marks.hashes.has(message.media.hash)) return true
-  return !message.media && message.text !== '' && marks.texts.has(textMark(message.at, message.personId, message.text))
-}
-
 function loadPhotos(db: Db, chatId: string) {
   return pages<StoredPhoto>((from, to) =>
-    db.from('photos').select('key, view_path, thumb_path, width, height, content_hash, hidden, memories!inner(chat_id)').eq('memories.chat_id', chatId).order('key').range(from, to),
+    db.from('photos').select('key, view_path, thumb_path, width, height, content_hash, memories!inner(chat_id)').eq('memories.chat_id', chatId).order('key').range(from, to),
   )
 }
 
@@ -105,7 +77,6 @@ function loadPhotos(db: Db, chatId: string) {
 // are in the bucket already).
 export function storedOutside(stored: Stored, span: Span | undefined): { before: MemoryMessage[]; after: MemoryMessage[] } {
   const photos = new Set(stored.photos.map((photo) => photo.key))
-  const hashes = new Map(stored.photos.flatMap((photo) => (photo.content_hash ? [[photo.key, photo.content_hash] as const] : [])))
   const sorted = [...stored.messages].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime() || a.seq - b.seq)
   const before: MemoryMessage[] = []
   const after: MemoryMessage[] = []
@@ -116,8 +87,6 @@ export function storedOutside(stored: Stored, span: Span | undefined): { before:
     if (row.media_kind) {
       const media: Media = { kind: row.media_kind }
       if (photos.has(row.key)) media.file = 'stored'
-      const hash = hashes.get(row.key)
-      if (hash) media.hash = hash
       message.media = media
     }
     ;(span && at > span.to ? after : before).push(message)
@@ -212,7 +181,11 @@ async function removeFiles(db: Db, paths: string[]): Promise<void> {
 // Files in the chat's folder of the bucket that no photo row points at: left by a run that
 // stopped while removing them. Run at the end of a saving run, when every row of the run is in
 // place. Other chats' folders are never looked at.
-export async function removeFilesWithoutRow(db: Db, chatId: string): Promise<void> {
+// A file uploaded in the last minute is left alone: an import that is still running (another owner's, or
+// a second run of the same one) has not given it a row yet. EZELI_SWEEP_AFTER_MS changes that, for tests.
+export const sweepAfterMs = Number(process.env.EZELI_SWEEP_AFTER_MS ?? 60_000)
+
+export async function removeFilesWithoutRow(db: Db, chatId: string, minAgeMs = sweepAfterMs): Promise<void> {
   const known = new Set<string>()
   for (const photo of await loadPhotos(db, chatId)) {
     known.add(photo.view_path)
@@ -222,7 +195,11 @@ export async function removeFilesWithoutRow(db: Db, chatId: string): Promise<voi
   for (let offset = 0; ; offset += PAGE) {
     const listed = await db.storage.from(BUCKET).list(chatId, { limit: PAGE, offset, sortBy: { column: 'name', order: 'asc' } })
     if (listed.error) throw listed.error
-    for (const file of listed.data) if (file.id && !known.has(`${chatId}/${file.name}`)) orphans.push(`${chatId}/${file.name}`)
+    for (const file of listed.data) {
+      // `minAgeMs`: leave alone a file uploaded just now, which an import that is still running has not given a row yet.
+      const young = Date.now() - Date.parse(file.created_at ?? '') < minAgeMs
+      if (file.id && !known.has(`${chatId}/${file.name}`) && !young) orphans.push(`${chatId}/${file.name}`)
+    }
     if (listed.data.length < PAGE) break
   }
   await removeFiles(db, orphans)

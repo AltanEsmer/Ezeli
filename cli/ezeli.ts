@@ -1,5 +1,5 @@
 // The owner commands. Run as: pnpm ezeli <command>
-import { runHide, runList, runShow } from './hide.ts'
+import { runHidden, runHide, runList, runShow } from './hide.ts'
 import { runImport } from './import/command.ts'
 import { runPerson } from './person.ts'
 
@@ -10,7 +10,8 @@ const commands: Record<string, Command> = {
   import: { summary: 'Load a chat export (WhatsApp iPhone layout or Discord; import <folder> --people <file> --timezone <zone> --chat <name> [--trial])', run: runImport },
   memory: { summary: 'List what a memory holds, numbered (memory <address>)', run: runList },
   hide: { summary: 'Hide a whole memory or one numbered item (hide <address> [number])', run: runHide },
-  show: { summary: 'Show it again (show <address> [number])', run: runShow },
+  hidden: { summary: 'List what is hidden, numbered', run: runHidden },
+  show: { summary: 'Stop hiding an item of that list (show <number>); it returns with the next import', run: runShow },
 }
 
 const [name, ...args] = process.argv.slice(2)

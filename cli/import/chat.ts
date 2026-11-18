@@ -7,8 +7,7 @@ export type MediaKind = 'photo' | 'video' | 'gif' | 'voice' | 'document' | 'medi
 
 // `file` is the path of a photo found in the export. A photo without one is missing from the
 // export. Other kinds are never imported, so they carry no file.
-// `hash` is the hash of the original file's bytes, made when saving, so a hidden photo is known again
-// whatever its key becomes.
+// `hash` is the hash of the original file's bytes, made when saving, so a hidden photo can be found again.
 export type Media = { kind: MediaKind; name?: string; file?: string; hash?: string }
 
 export type ChatMessage = {

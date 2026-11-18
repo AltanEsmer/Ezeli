@@ -64,12 +64,13 @@ test('a hidden photo and a hidden message are gone from the memory, and the link
   await signIn(page)
   await page.goto(`/m/${july14}`)
   await expect(page.locator('.prints img')).toHaveCount(2)
-  await expect(talk(page).getByText('Ben geldim bile')).toBeVisible()
+  await expect(talk(page).getByText('Yarın tekneye gidiyoruz')).toBeVisible()
   const held = await page.locator('.prints img').first().getAttribute('src')
   expect((await request.get(held!)).ok()).toBe(true)
 
   const photo = ownerCommand(['hide', july14, numberOf(july14, /\[Photo\]/)])
-  const message = ownerCommand(['hide', july14, numberOf(july14, /Ben geldim bile/)])
+  const next = await addressOf(ids[0]!)
+  const message = ownerCommand(['hide', next, numberOf(next, /Yarın tekneye gidiyoruz/)])
   expect(photo.status).toBe(0)
   expect(message.status).toBe(0)
 
@@ -80,19 +81,26 @@ test('a hidden photo and a hidden message are gone from the memory, and the link
   await page.goto(`/m/${await addressOf(ids[0]!)}`)
   await expect(page.locator('.prints img')).toHaveCount(1)
   await expect(talk(page).locator('img')).toHaveCount(1)
-  await expect(talk(page).getByText('Ben geldim bile')).toHaveCount(0)
+  await expect(talk(page).getByText('Yarın tekneye gidiyoruz')).toHaveCount(0)
   // A link a friend already held opens nothing: the files are gone.
   expect((await request.get(held!)).ok()).toBe(false)
   // Hiding is not a change of grouping: the rest of the conversation is still there.
   await expect(talk(page).getByText('Çok güzel çıkmış')).toBeVisible()
 })
 
-test('a hidden message is shown again by one command, and shows on the next load', async ({ page }) => {
+test('a hidden message returns with the next import once it is shown, not before', async ({ page }) => {
   await signIn(page)
-  expect(ownerCommand(['show', july14, numberOf(july14, /Ben geldim bile/)]).status).toBe(0)
+  const listing = ownerCommand(['hidden']).stdout.split('\n')
+  const start = listing.findIndex((line) => line.trim() === CHAT)
+  const number = listing.slice(start + 1).find((line) => /Limon.*: message/.test(line))!.trim().split(/\s+/)[0]!
+  expect(ownerCommand(['show', number]).status).toBe(0)
 
   await page.goto(`/m/${await addressOf(ids[0]!)}`)
-  await expect(talk(page).getByText('Ben geldim bile')).toBeVisible()
+  await expect(talk(page).getByText('Yarın tekneye gidiyoruz')).toHaveCount(0)
+  const again = ownerCommand(['import', await distinctWeekend(), '--people', 'tests/fixtures/whatsapp-iphone/people.json', '--timezone', 'Europe/Istanbul', '--chat', CHAT])
+  expect(again.status).toBe(0)
+  await page.goto(`/m/${await addressOf(ids[0]!)}`)
+  await expect(talk(page).getByText('Yarın tekneye gidiyoruz')).toBeVisible()
 })
 
 test('a memory whose only photo is hidden leaves the timeline, and its address is a memory that is not there', async ({ page }) => {
@@ -120,14 +128,14 @@ test('with the friend\'s own token, nothing hidden can be read from the database
   const headers = { apikey: publishableKey, authorization: `Bearer ${token}` }
   const get = async (path: string) => (await request.get(`${apiUrl}/rest/v1/${path}`, { headers })).json()
 
-  const memory = await owner.from('memories').select('id').eq('key', july15).single()
+  const memory = { data: { id: ids[1]! } }
   expect(await get(`memories?id=eq.${memory.data!.id}&select=id`)).toEqual([])
   expect(await get(`messages?memory_id=eq.${memory.data!.id}&select=id`)).toEqual([])
   expect(await get(`photos?memory_id=eq.${memory.data!.id}&select=id`)).toEqual([])
   expect(await get(`timeline?id=eq.${memory.data!.id}&select=id`)).toEqual([])
-  const marks = await request.get(`${apiUrl}/rest/v1/hidden?select=key`, { headers })
-  expect(marks.ok() ? await marks.json() : []).toEqual([])
-  expect(marks.ok()).toBe(false)
+  expect((await request.get(`${apiUrl}/rest/v1/hidden?select=id`, { headers })).ok()).toBe(false)
+  expect((await request.get(`${apiUrl}/rest/v1/chats?select=secret`, { headers })).ok()).toBe(false)
+  expect((await request.get(`${apiUrl}/rest/v1/photos?select=content_hash`, { headers })).ok()).toBe(false)
   const detail = await request.post(`${apiUrl}/rest/v1/rpc/memory_detail`, { headers, data: { p_key: july15 } })
   expect(await detail.json()).toBeNull()
 
