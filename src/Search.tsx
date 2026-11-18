@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { language, t } from './i18n.ts'
-import { type Group, ChunkView, useNear } from './Memories.tsx'
+import { type Group, ChunkView, ListName, useNear } from './Memories.tsx'
 import type { Chunk, MemoryCard } from './memories.ts'
-import { takeLastViewed, toTimeline } from './route.ts'
+import { takeReturnKeys, toTimeline } from './route.ts'
 import { supabase } from './supabase.ts'
 
 const PAGE = 20
@@ -39,9 +39,9 @@ async function fetchPage(words: string, after: MemoryCard | undefined, signal: A
 export function Search({ onSessionLost }: { onSessionLost: () => void }) {
   // Coming back from a result: the box, the results and the place are what they were.
   const [back] = useState(() => {
-    const key = takeLastViewed()
-    if (!key) saved = null
-    return saved && key ? { ...saved, key } : null
+    const keys = takeReturnKeys()
+    if (keys.length === 0) saved = null
+    return saved && keys.length ? { ...saved, keys } : null
   })
   const [text, setText] = useState(back?.text ?? '')
   const [state, setState] = useState<State>(back ? { status: 'ready', chunks: back.chunks, more: back.more, busy: false, pageFailed: false, cut: back.cut } : { status: 'idle' })
@@ -58,7 +58,9 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
   useLayoutEffect(() => {
     if (!back) return
     const cards = [...(list.current?.querySelectorAll<HTMLElement>('[data-key]') ?? [])]
-    cards.find((card) => card.dataset.key === back.key)?.scrollIntoView({ block: 'center' })
+    // The memory looked at last if it is among the results, else the one opened from them.
+    const key = back.keys.find((k) => cards.some((card) => card.dataset.key === k))
+    cards.find((card) => card.dataset.key === key)?.scrollIntoView({ block: 'center' })
   }, [back])
   useEffect(
     () => () => {
@@ -183,7 +185,9 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
       )}
       {ready && ready.chunks.length > 0 && (
         <div className="memories" ref={list}>
-          <Results chunks={ready.chunks} more={ready.more} busy={ready.busy} failed={ready.pageFailed} onMore={() => void more()} />
+          <ListName.Provider value={t.search}>
+            <Results chunks={ready.chunks} more={ready.more} busy={ready.busy} failed={ready.pageFailed} onMore={() => void more()} />
+          </ListName.Provider>
         </div>
       )}
     </main>

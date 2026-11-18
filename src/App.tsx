@@ -3,6 +3,7 @@ import { type Language, getLanguage, setLanguage, subscribeLanguage, t } from '.
 import { Memories } from './Memories.tsx'
 import { MemoryPage } from './MemoryPage.tsx'
 import { Search } from './Search.tsx'
+import { PeoplePage, PersonPage } from './People.tsx'
 import { follow, navigate, useRoute } from './route.ts'
 import { type Person, useSession } from './session.ts'
 import { supabase } from './supabase.ts'
@@ -49,6 +50,8 @@ function Signed(props: { person: Person; onSignOut: () => void; onSessionLost: (
   }, [unknown])
   if (route.name === 'memory') return <MemoryPage key={route.key} memoryKey={route.key} person={props.person} onSessionLost={props.onSessionLost} />
   if (route.name === 'search') return <Search onSessionLost={props.onSessionLost} />
+  if (route.name === 'people') return <PeoplePage onSessionLost={props.onSessionLost} />
+  if (route.name === 'person') return <PersonPage key={route.id} id={route.id} onSessionLost={props.onSessionLost} />
   return <Timeline person={props.person} onSignOut={props.onSignOut} onSessionLost={props.onSessionLost} />
 }
 
@@ -83,8 +86,13 @@ function Timeline({ person, onSignOut, onSessionLost }: { person: Person; onSign
           <span aria-hidden="true">▾</span>
         </button>
       </header>
-      {/* Where else to go, as a plain list of handwritten links (the people screen adds its own). */}
+      {/* Where else to go, as a plain list of handwritten links . */}
       <ul className="links">
+        <li>
+          <a className="hand" href="/people" onClick={follow('/people')}>
+            {t.people}
+          </a>
+        </li>
         <li>
           <a className="hand" href="/search" onClick={follow('/search')}>
             {t.search}

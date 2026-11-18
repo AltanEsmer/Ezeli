@@ -1,6 +1,6 @@
 // One memory as a friend sees it. The data is what the real import saved (import.setup.ts: the
 // Kaş Tatili and Mart Gezisi chats) plus one more chat imported here, whose memory is the newest:
-// 2 September 2023, two photos, links, a video, a voice message and a document.
+// 2 September 2023, two photos, links, a video, a voice message and a document (memory.setup.ts).
 import { type Page, expect, test } from '@playwright/test'
 import { addPerson, apiUrl, fruit, ownerCommand, publishableKey } from './support.ts'
 
@@ -8,20 +8,6 @@ const fixtures = 'tests/fixtures/whatsapp-iphone'
 const articles = (page: Page) => page.getByRole('article')
 const address = /\/m\/[0-9a-f]{32}$/
 const CHAT = 'Gezi Notları'
-
-test.beforeAll(() => {
-  // Gezi Notları: 2 September 2023 and 10 January 2023 (passes midnight). İkiz A and B: one photo
-  // each at the very same moment, 1 February 2023 10:00.
-  for (const [folder, chat] of [['links', CHAT], ['twin', 'İkiz A'], ['twin', 'İkiz B']] as const) {
-    const result = ownerCommand(['import', `${fixtures}/${folder}`, '--people', `${fixtures}/people.json`, '--timezone', 'Europe/Istanbul', '--chat', chat, '--date-order', 'day-first'])
-    expect(result.stderr).toBe('')
-    expect(result.status).toBe(0)
-  }
-  // An Android export (3 August 2019) with one line of media that is not in the export.
-  const android = ownerCommand(['import', 'tests/fixtures/whatsapp-variants/android-english', '--people', 'tests/fixtures/whatsapp-variants/people.json', '--timezone', 'Europe/Istanbul', '--chat', 'Android Kamp'])
-  expect(android.stderr).toBe('')
-  expect(android.status).toBe(0)
-})
 
 // The access token the app keeps on this device.
 const accessToken = (page: Page) =>
@@ -96,7 +82,8 @@ test.describe('a friend on a memory', () => {
   test('can tap real web addresses, which open safely in a new tab, and nothing else', async ({ page }) => {
     await openNewest(page)
 
-    const links = page.getByRole('region', { name: 'Conversation' }).getByRole('link')
+    // The words of the messages; the names above them are links to the people.
+    const links = page.getByRole('region', { name: 'Conversation' }).locator('.body').getByRole('link')
     await expect(links).toHaveCount(3)
     await expect(links).toHaveText(['https://example.com/rota?gun=2', 'www.example.org/kas', 'https://example.com/yer'])
     expect(await links.evaluateAll((all) => all.map((a) => (a as HTMLAnchorElement).href))).toEqual([

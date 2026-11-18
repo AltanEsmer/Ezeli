@@ -56,6 +56,15 @@ const en = {
   searching: 'Searching',
   nothingFound: 'Nothing found',
   nothingFoundBody: 'Try another word, or fewer words.',
+  people: 'People',
+  noPeople: 'Nobody here yet',
+  back: 'Back',
+  noPhotos: 'No photos yet',
+  photosSent: (n: string) => (n === '1' ? '1 photo sent' : `${n} photos sent`),
+  firstMemory: 'First memory',
+  latestMemory: 'Latest memory',
+  personMissingTitle: 'This person is not here',
+  personMissingBody: 'The address may be wrong, or they are not in the group.',
 }
 
 export type Labels = typeof en
@@ -116,6 +125,15 @@ const tr: Labels = {
   searching: 'Aranıyor',
   nothingFound: 'Hiçbir şey bulunamadı',
   nothingFoundBody: 'Başka bir kelime dene, ya da daha az kelime.',
+  people: 'Kişiler',
+  noPeople: 'Henüz kimse yok',
+  back: 'Geri',
+  noPhotos: 'Henüz fotoğraf yok',
+  photosSent: (n: string) => `${n} fotoğraf gönderdi`,
+  firstMemory: 'İlk anı',
+  latestMemory: 'Son anı',
+  personMissingTitle: 'Bu kişi burada yok',
+  personMissingBody: 'Adres yanlış olabilir ya da bu kişi grupta değil.',
 }
 
 export type Language = 'tr' | 'en'
