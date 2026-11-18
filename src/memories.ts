@@ -60,17 +60,18 @@ const afterMonth = (month: string): Cursor => {
 }
 
 // One page, in the order of the screen (newest first). Null when the request failed.
-async function fetchPage(newer: boolean, from: Cursor | null, inclusive = false): Promise<MemoryCard[] | null> {
-  const found = await supabase.rpc('timeline_page', { p_newer: newer, p_at: from?.at ?? null, p_key: from?.key ?? null, p_limit: PAGE, p_inclusive: inclusive })
+async function fetchPage(person: string | null, newer: boolean, from: Cursor | null, inclusive = false): Promise<MemoryCard[] | null> {
+  const found = await supabase.rpc('timeline_page', { p_newer: newer, p_at: from?.at ?? null, p_key: from?.key ?? null, p_limit: PAGE, p_inclusive: inclusive, p_person: person })
   if (found.error) return null
   const rows = found.data as MemoryCard[]
   return newer ? rows.reverse() : rows
 }
 
-export function useTimeline(onSessionLost: () => void) {
+// With a person's lasting id, the timeline holds only the memories that person took part in.
+export function useTimeline(onSessionLost: () => void, person: string | null = null) {
   const [timeline, setTimeline] = useState<Timeline>({ status: 'loading' })
   // The memory the friend came back from: the timeline opens around it, wherever it is.
-  const [comeBack] = useState(takeLastViewed)
+  const [comeBack] = useState(() => takeLastViewed(person !== null))
   const data = useRef({ chunks: [] as Chunk[], months: [] as MonthCount[], hasNewer: false, hasOlder: false })
   const running = useRef(false)
   // A new opening or a reload makes anything still on its way stale.
@@ -122,9 +123,9 @@ export function useTimeline(onSessionLost: () => void) {
       } else if (target) from = afterMonth(target.month)
 
       const [older, newer, months] = await Promise.all([
-        fetchPage(false, from, inclusive),
-        from ? fetchPage(true, from) : Promise.resolve([] as MemoryCard[]),
-        first ? supabase.from('timeline_months').select('*') : Promise.resolve(null),
+        fetchPage(person, false, from, inclusive),
+        from ? fetchPage(person, true, from) : Promise.resolve([] as MemoryCard[]),
+        first ? (person === null ? supabase.from('timeline_months').select('*') : supabase.rpc('person_months', { p_person: person })) : Promise.resolve(null),
       ])
       if (mine !== generation.current) return
       if (!older || !newer || months?.error) return fail()
@@ -141,7 +142,7 @@ export function useTimeline(onSessionLost: () => void) {
       running.current = false
       commit({ busy: null, kind: 'open', target })
     },
-    [commit, sessionEnded],
+    [commit, sessionEnded, person],
   )
 
   const reload = useCallback(() => {
@@ -159,7 +160,7 @@ export function useTimeline(onSessionLost: () => void) {
       running.current = true
       commit({ busy: end })
       const edge = end === 'older' ? held.chunks.at(-1)!.memories.at(-1)! : held.chunks[0]!.memories[0]!
-      const page = await fetchPage(end === 'newer', cursorOf(edge))
+      const page = await fetchPage(person, end === 'newer', cursorOf(edge))
       if (mine !== generation.current) return
       running.current = false
       if (!page) return commit({ busy: null, failed: end })
@@ -173,7 +174,7 @@ export function useTimeline(onSessionLost: () => void) {
       }
       commit({ busy: null, kind: end, id: chunk.id })
     },
-    [commit, sessionEnded],
+    [commit, sessionEnded, person],
   )
 
   const retry = useCallback(() => {

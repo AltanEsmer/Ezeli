@@ -1,14 +1,25 @@
-import { useSyncExternalStore } from 'react'
+import { type MouseEvent, useSyncExternalStore } from 'react'
 
 // The addresses of the app, kept small on purpose. `/` is the timeline and `/m/<key>` one memory,
 // by the memory's lasting key, so the address survives a later import. The people and search
-// screens (issues 17 and 19) add their paths in `parse`. Hosting must answer every path with
+// screens (issues 17 and 19) add their paths in `parse`: `/people`, and `/p/<id>` for one person by
+// their lasting id (the slug of the people file). Hosting must answer every path with
 // index.html (vercel.json); the dev server does it already.
-export type Route = { name: 'timeline' } | { name: 'memory'; key: string }
+export type Route = { name: 'timeline' } | { name: 'memory'; key: string } | { name: 'people' } | { name: 'person'; id: string }
 
 export const memoryPath = (key: string) => `/m/${encodeURIComponent(key)}`
+export const personPath = (id: string) => `/p/${encodeURIComponent(id)}`
 
 export function parse(pathname: string): Route {
+  if (/^\/people\/?$/.test(pathname)) return { name: 'people' }
+  const person = pathname.match(/^\/p\/([^/]+)\/?$/)
+  if (person) {
+    try {
+      return { name: 'person', id: decodeURIComponent(person[1]!) }
+    } catch {
+      return { name: 'person', id: '' }
+    }
+  }
   const memory = pathname.match(/^\/m\/([^/]+)\/?$/)
   if (memory) {
     try {
@@ -25,11 +36,17 @@ export function parse(pathname: string): Route {
 history.scrollRestoration = 'manual'
 
 const CHANGED = 'ezeli:route'
+// Whether the last move was the browser's back or forward, not a tap on a link of the app.
+let lastWasPop = false
+window.addEventListener('popstate', () => {
+  lastWasPop = true
+})
 // The state of an entry of the history counts how many screens of this app are behind it,
 // so a button can tell "go back" from "this address was opened directly".
 const depth = () => (history.state as { depth?: number } | null)?.depth ?? 0
 
 export function navigate(path: string, options: { replace?: boolean } = {}) {
+  lastWasPop = false
   if (options.replace) history.replaceState({ depth: depth() }, '', path)
   else history.pushState({ depth: depth() + 1 }, '', path)
   window.dispatchEvent(new Event(CHANGED))
@@ -42,10 +59,18 @@ export function pushLayer() {
 }
 
 // Back to the timeline: the browser's own back when this app has a screen behind, else forward to it.
-export function toTimeline() {
-  if (depth() > 0) history.back()
-  else navigate('/')
+// A tap on a link of the app goes there without a reload; a modified tap is left to the browser.
+export const follow = (path: string) => (event: MouseEvent) => {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  event.preventDefault()
+  navigate(path)
 }
+
+export function goBack(fallback: string) {
+  if (depth() > 0) history.back()
+  else navigate(fallback)
+}
+export const toTimeline = () => goBack('/')
 
 function subscribe(listener: () => void) {
   window.addEventListener('popstate', listener)
@@ -68,7 +93,10 @@ let lastViewed: string | null = null
 export const viewed = (key: string) => {
   lastViewed = key
 }
-export function takeLastViewed(): string | null {
+// A person's timeline asks for it only after going back: tapping a name in a memory must not
+// open their page at that memory, and the memory stays remembered for the timeline behind it.
+export function takeLastViewed(onlyAfterBack = false): string | null {
+  if (onlyAfterBack && !lastWasPop) return null
   const key = lastViewed
   lastViewed = null
   return key

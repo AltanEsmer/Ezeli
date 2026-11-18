@@ -3,7 +3,7 @@ import { type Language, formatDate, language, t } from './i18n.ts'
 import { Comments } from './Comments.tsx'
 import { type MemoryDetail, useMemory } from './memory.ts'
 import type { Person } from './session.ts'
-import { memoryPath, navigate, pushLayer, toTimeline, viewed } from './route.ts'
+import { follow, memoryPath, navigate, personPath, pushLayer, toTimeline, viewed } from './route.ts'
 import { Pic, Viewer } from './Viewer.tsx'
 
 // One memory: the date as a heading, the chat it came from as a stamp, every photo as a large
@@ -86,7 +86,7 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
             <button aria-label={t.openPhoto(String(index + 1))} onClick={() => show(index)}>
               <Pic src={links.get(photo.view)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={relink} loading={index === 0 ? 'eager' : 'lazy'} />
             </button>
-            <figcaption className="cap hand">{photo.by}</figcaption>
+            <figcaption className="cap hand">{named(photo.by, photo.by_id)}</figcaption>
           </figure>
         ))}
       </div>
@@ -97,7 +97,7 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
           <div className="group" key={group.messages[0]!.id}>
             {group.day && <p className="day hand">{formatDate(language, group.day, memory.timezone)}</p>}
             <div className="who hand" style={{ color: pen(group.messages[0]!.by_id ?? group.by) }}>
-              {group.by}
+              {named(group.by, group.messages[0]!.by_id)}
             </div>
             {group.messages.map((message) => {
               const index = photoOf.get(message.id)
@@ -145,6 +145,16 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
     </main>
   )
 }
+
+// A name opens that person's page, when the owners gave the person a lasting id.
+const named = (name: string, id: string | null) =>
+  id ? (
+    <a href={personPath(id)} onClick={follow(personPath(id))}>
+      {name}
+    </a>
+  ) : (
+    name
+  )
 
 // Another memory replaces this one in the history, so Back still leads to the timeline.
 const go = (key: string) => (event: React.MouseEvent) => {

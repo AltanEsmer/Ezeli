@@ -96,7 +96,8 @@ test.describe('a friend on a memory', () => {
   test('can tap real web addresses, which open safely in a new tab, and nothing else', async ({ page }) => {
     await openNewest(page)
 
-    const links = page.getByRole('region', { name: 'Conversation' }).getByRole('link')
+    // The words of the messages; the names above them are links to the people.
+    const links = page.getByRole('region', { name: 'Conversation' }).locator('.body').getByRole('link')
     await expect(links).toHaveCount(3)
     await expect(links).toHaveText(['https://example.com/rota?gun=2', 'www.example.org/kas', 'https://example.com/yer'])
     expect(await links.evaluateAll((all) => all.map((a) => (a as HTMLAnchorElement).href))).toEqual([

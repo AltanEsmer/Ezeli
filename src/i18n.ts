@@ -49,6 +49,14 @@ const en = {
   deleteNo: 'Keep it',
   deleteFailed: 'Could not delete. Try again.',
   mediaNotInExport: 'Media (not in the export)',
+  people: 'People',
+  back: 'Back',
+  noPhotos: 'No photos yet',
+  photosSent: (n: string) => (n === '1' ? '1 photo sent' : `${n} photos sent`),
+  firstMemory: 'First memory',
+  latestMemory: 'Latest memory',
+  personMissingTitle: 'This person is not here',
+  personMissingBody: 'The address may be wrong, or they are not in the group.',
 }
 
 export type Labels = typeof en
@@ -102,6 +110,14 @@ const tr: Labels = {
   deleteNo: 'Vazgeç',
   deleteFailed: 'Silinemedi. Tekrar dene.',
   mediaNotInExport: 'Medya (dışa aktarımda yok)',
+  people: 'Kişiler',
+  back: 'Geri',
+  noPhotos: 'Henüz fotoğraf yok',
+  photosSent: (n: string) => `${n} fotoğraf gönderdi`,
+  firstMemory: 'İlk anı',
+  latestMemory: 'Son anı',
+  personMissingTitle: 'Bu kişi burada yok',
+  personMissingBody: 'Adres yanlış olabilir ya da bu kişi grupta değil.',
 }
 
 export type Language = 'tr' | 'en'

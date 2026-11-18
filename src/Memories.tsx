@@ -13,8 +13,10 @@ const GAP = 54
 // held by tape. The timeline holds a run of the archive and grows at both ends as the friend
 // scrolls; the year tabs open it around a month. Only the part near the screen is in the page:
 // the rest of the run keeps its height as an empty box.
-export function Memories({ onSessionLost }: { onSessionLost: () => void }) {
-  const { timeline, reload, grow, retry, jump } = useTimeline(onSessionLost)
+// With `person` (a lasting id) it holds only the memories that person took part in: the same
+// timeline, filtered by the database.
+export function Memories({ onSessionLost, person = null }: { onSessionLost: () => void; person?: string | null }) {
+  const { timeline, reload, grow, retry, jump } = useTimeline(onSessionLost, person)
   const [current, setCurrent] = useState<string | null>(null)
   const list = useRef<HTMLDivElement>(null)
   const heights = useRef(new Map<number, number>())
@@ -315,7 +317,7 @@ function Icon({ d }: { d: string }) {
 }
 
 // The place of one photo: it holds its shape while the photo loads, and when it fails to load.
-function Shot({ url, alt = '', ratio }: { url: string | null | undefined; alt?: string; ratio?: number }) {
+export function Shot({ url, alt = '', ratio }: { url: string | null | undefined; alt?: string; ratio?: number }) {
   const [failed, setFailed] = useState<string | null>(null)
   const broken = url != null && failed === url
   return (
@@ -327,7 +329,7 @@ function Shot({ url, alt = '', ratio }: { url: string | null | undefined; alt?: 
 }
 
 // Links for the given small photos, once they are signed. An empty list lets the photos go.
-function useLinks(paths: string[]): (string | null | undefined)[] {
+export function useLinks(paths: string[]): (string | null | undefined)[] {
   const key = paths.join('\n')
   const [urls, setUrls] = useState<{ key: string; urls: (string | null)[] }>({ key: '', urls: [] })
   useEffect(() => {
