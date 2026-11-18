@@ -306,3 +306,20 @@ test('hiding twice, or a photo that has no row, is not an error; a wrong address
   expect(unset.status).toBe(1)
   expect(unset.err.trim().split('\n')).toEqual(['Set SUPABASE_URL, SUPABASE_SECRET_KEY in the environment first.'])
 })
+
+test('comments of a memory that is hidden cannot be read or added, and stay with that memory after an import with other numbers', async () => {
+  const { chat, people, folder, first, friend } = await setup()
+  const added = await friend.from('comments').insert({ memory_id: first.id, body: 'Ne güzel gündü' }).select('id').single()
+  expect(added.error).toBeNull()
+  expect((await rows(friend.from('comments').select('id').eq('memory_id', first.id))).length).toBe(1)
+
+  expect(ezeli(['hide', first.key]).status).toBe(0)
+
+  expect(await rows(friend.from('comments').select('id').eq('memory_id', first.id))).toEqual([])
+  expect((await friend.from('comments').insert({ memory_id: first.id, body: 'Hâlâ burada mısınız' })).error).not.toBeNull()
+  // A regroup does not hand them to a memory that is shown: the hidden photos take no part in it.
+  expect(importChat(chat, { people, folder, extra: ['--photo-gap', '5'] }).status).toBe(0)
+  const kept = await rows<{ memory_id: string }>(owner.from('comments').select('memory_id').eq('id', added.data!.id))
+  expect(kept[0]!.memory_id).toBe(first.id)
+  expect(await rows(friend.from('comments').select('id').eq('id', added.data!.id))).toEqual([])
+})

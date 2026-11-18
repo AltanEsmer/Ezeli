@@ -117,15 +117,24 @@ async function relinkPerson(args: string[]): Promise<number> {
   return 0
 }
 
-// Everyone, whether they have a link, whether they are an owner, and when they last opened it.
+// Everyone, whether they have a link, whether they are an owner, how many comments they wrote, and when they last opened it.
 // Read from the sign-in records Auth already keeps (last_sign_in_at): no tracking of our own.
 // Auth keeps only the latest sign-in, so this is the last opening, not the first.
 async function listPeople(args: string[]): Promise<number> {
   parseArgs({ args, options: {}, strict: true })
   const { client } = adminClient({ needsAppUrl: false })
 
-  const people = await client.from('people').select('display_name, is_owner, user_id').order('display_name')
+  const people = await client.from('people').select('id, display_name, is_owner, user_id').order('display_name')
   if (people.error) throw people.error
+
+  // Who has commented, read from the comments themselves.
+  const commented = new Map<string, number>()
+  for (let from = 0; ; from += 1000) {
+    const page = await client.from('comments').select('person_id').order('id').range(from, from + 999)
+    if (page.error) throw page.error
+    for (const { person_id } of page.data) commented.set(person_id, (commented.get(person_id) ?? 0) + 1)
+    if (page.data.length < 1000) break
+  }
 
   const accounts = new Map<string, { opened: string | null }>()
   for (let page = 1; ; page++) {
@@ -148,13 +157,14 @@ async function listPeople(args: string[]): Promise<number> {
       person.display_name,
       account ? 'yes' : 'no',
       person.is_owner ? 'yes' : 'no',
+      String(commented.get(person.id) ?? 0),
       !account ? '-' : account.opened ? when(account.opened) : 'not yet',
     ]
   })
-  const table = [['Name', 'Link', 'Owner', 'Last opened'], ...rows]
-  const widths = [0, 1, 2].map((i) => Math.max(...table.map((row) => row[i]!.length)))
+  const table = [['Name', 'Link', 'Owner', 'Comments', 'Last opened'], ...rows]
+  const widths = [0, 1, 2, 3].map((i) => Math.max(...table.map((row) => row[i]!.length)))
   for (const row of table) {
-    console.log([...widths.map((w, i) => row[i]!.padEnd(w)), row[3]].join('  '))
+    console.log([...widths.map((w, i) => row[i]!.padEnd(w)), row[4]].join('  '))
   }
   return 0
 }

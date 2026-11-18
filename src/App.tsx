@@ -46,7 +46,7 @@ function Signed(props: { person: Person; onSignOut: () => void; onSessionLost: (
   useEffect(() => {
     if (unknown) navigate('/', { replace: true })
   }, [unknown])
-  if (route.name === 'memory') return <MemoryPage key={route.key} memoryKey={route.key} onSessionLost={props.onSessionLost} />
+  if (route.name === 'memory') return <MemoryPage key={route.key} memoryKey={route.key} person={props.person} onSessionLost={props.onSessionLost} />
   return <Timeline person={props.person} onSignOut={props.onSignOut} />
 }
 

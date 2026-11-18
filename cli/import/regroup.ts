@@ -31,6 +31,8 @@ export type Stored = { memories: StoredMemory[]; messages: StoredMessage[]; phot
 export type Span = { from: number; to: number } // moments, in milliseconds, both included
 export type Kept = { memories: Set<string>; messages: Set<string> } // the keys of this import
 export type Counts = { memories: number; messages: number; photos: number }
+// What a saving run removed also counts the comments that went with a memory with no photo left.
+export type Removed = Counts & { comments: number }
 
 const PAGE = 1000
 const CHUNK = 200
@@ -127,13 +129,13 @@ export function storedOutside(stored: Stored, span: Span | undefined): { before:
 // memory that now holds its first photo; if that photo is gone, to the memory that now holds the
 // earliest of its remaining photos; only if none of its photos remain do they go with it.
 //
-// Comments (issue 18) add one line here: `{ table: 'comments', column: 'memory_id' }`. The column
-// must be `on delete restrict`, so that a table that is not listed stops the import with its name
-// instead of losing rows. Hidden marks (issue 20) do not point at memories: they mark photos and
-// messages by their lasting keys, so the regroup owes them nothing.
-export const followsMemory: { table: string; column: string }[] = []
+// A table that points at memories is listed here, and its column must be `on delete restrict`, so
+// that a table that is not listed stops the import with its name instead of losing rows. Hidden
+// marks (issue 20) do not point at memories: they mark photos and messages by their lasting keys,
+// so the regroup owes them nothing.
+export const followsMemory: { table: string; column: string }[] = [{ table: 'comments', column: 'memory_id' }]
 
-export async function removeWhatNoLongerFits(db: Db, stored: Stored, kept: Kept): Promise<Counts> {
+export async function removeWhatNoLongerFits(db: Db, stored: Stored, kept: Kept): Promise<Removed> {
   // Rows first, then files: a leftover file is harmless, a photo row without its files is broken.
   const messages = stored.messages.filter((message) => !kept.messages.has(message.key))
   const gonePhotos = stored.photos.filter((photo) => messages.some((message) => message.key === photo.key))
@@ -151,10 +153,21 @@ export async function removeWhatNoLongerFits(db: Db, stored: Stored, kept: Kept)
       if (moved.error) throw moved.error
     }
   }
+  // A memory with no photo left has no heir: what is attached to it goes with it, on purpose, and
+  // is counted so the summary can say so. Before the memory, which `restrict` would otherwise keep.
+  let comments = 0
+  const homeless = gone.filter((memory) => !heirs.has(memory.id)).map((memory) => memory.id)
+  for (const part of chunks(homeless)) {
+    for (const { table, column } of followsMemory) {
+      const removed = await db.from(table).delete({ count: 'exact' }).in(column, part)
+      if (removed.error) throw removed.error
+      if (table === 'comments') comments += removed.count ?? 0
+    }
+  }
   for (const part of chunks(gone.map((memory) => memory.id))) {
     const deleted = await db.from('memories').delete().in('id', part)
     const table = deleted.error?.code === '23503' && /constraint "[^"]+" on table "([^"]+)"/.exec(deleted.error.message)?.[1]
-    if (table) {
+    if (table && !followsMemory.some((entry) => entry.table === table)) {
       throw new Stop(
         `The table "${table}" points at memories but is not in followsMemory (cli/import/regroup.ts), so a memory that disappears cannot be removed. ` +
           'Add it there and run the same import again; it finishes the job.',
@@ -162,7 +175,7 @@ export async function removeWhatNoLongerFits(db: Db, stored: Stored, kept: Kept)
     }
     if (deleted.error) throw deleted.error
   }
-  return { memories: gone.length, messages: messages.length, photos: gonePhotos.length }
+  return { memories: gone.length, messages: messages.length, photos: gonePhotos.length, comments }
 }
 
 // For each memory that goes: the id of the memory that now holds its first photo, or the
