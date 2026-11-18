@@ -34,8 +34,7 @@ as $$ select '(^|[^[:alnum:]])' || regexp_replace($1, '([^[:alnum:]])', '\\\1', 
 -- Trigram indexes on the folded text, fast on a large archive.
 create index messages_folded on public.messages using gin (private.fold(text) extensions.gin_trgm_ops);
 create index comments_folded on public.comments using gin (private.fold(body) extensions.gin_trgm_ops);
--- Which memories a person has written in.
-create index messages_person on public.messages (person_id, memory_id);
+-- (Names use `messages (person_id, memory_id)`, which the people screens already index.)
 
 -- Why two functions. Row level security makes the planner run its rules before any condition that
 -- is not "leakproof", and `like` on our folded text is not, so under the caller's own rights the
