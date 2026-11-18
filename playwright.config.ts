@@ -18,9 +18,11 @@ export default defineConfig({
     { name: 'memory', testMatch: ['memory.spec.ts', 'comments.spec.ts'], dependencies: ['memories'] },
     // The full timeline: imports chats of its own, so it runs after the tests above have counted.
     { name: 'full-timeline', testMatch: 'full-timeline.spec.ts', dependencies: ['memory'] },
+    // Search: imports chats of its own, so it runs after the tests above have counted.
+    { name: 'search', testMatch: 'search.spec.ts', dependencies: ['full-timeline'] },
     // Last: a few thousand made-up memories, made at test time. They are removed once every test
     // that uses them has finished (the teardown), so one failure cannot take the data from the next.
-    { name: 'large-import', testMatch: 'large.setup.ts', dependencies: ['full-timeline'], teardown: 'large-clean' },
+    { name: 'large-import', testMatch: 'large.setup.ts', dependencies: ['search'], teardown: 'large-clean' },
     { name: 'large', testMatch: 'large.spec.ts', dependencies: ['large-import'], fullyParallel: false },
     { name: 'large-clean', testMatch: 'large.teardown.ts' },
   ],

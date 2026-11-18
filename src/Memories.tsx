@@ -252,7 +252,7 @@ const tapes = ['var(--tape2)', 'var(--tape1)', 'var(--tape3)', 'var(--tape4)']
 // A memory is one element, the article: it opens the memory. Its shape never depends on whether
 // photos have loaded: every print keeps its place at the photo's real shape, and photos are only
 // held in the page while the memory is near the screen.
-const Memory = memo(function Memory({ memory, index }: { memory: MemoryCard; index: number; lang: string }) {
+export const Memory = memo(function Memory({ memory, index }: { memory: MemoryCard; index: number; lang: string }) {
   const card = useRef<HTMLElement>(null)
   const near = useNear(card)
   const urls = useLinks(near ? memory.photos.map((photo) => photo.thumb) : [])
@@ -346,7 +346,7 @@ function useLinks(paths: string[]): (string | null | undefined)[] {
 // True while the element is within a screen or two of the visible part of the page.
 let observer: IntersectionObserver | undefined
 const listeners = new WeakMap<Element, (near: boolean) => void>()
-function useNear(ref: RefObject<Element | null>, initial = false): boolean {
+export function useNear(ref: RefObject<Element | null>, initial = false): boolean {
   const [near, setNear] = useState(initial)
   useEffect(() => {
     const element = ref.current

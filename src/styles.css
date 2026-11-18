@@ -925,3 +925,67 @@ button {
 .note.write .btn:disabled {
   opacity: 0.5;
 }
+
+/* The row of links under the timeline's header, in pen blue. */
+.links ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 22px;
+  margin: 10px 0 0;
+  padding: 0 6px;
+  list-style: none;
+}
+.links a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--pen);
+  text-decoration: underline wavy;
+  text-underline-offset: 6px;
+  text-decoration-thickness: 2px;
+}
+.links + .memories,
+.links + .empty {
+  margin-top: 18px;
+}
+
+/* The search screen: one box on a strip of paper. */
+.find {
+  margin: 14px 0 26px;
+}
+.find input {
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 16px 6px;
+  border: 2px dashed var(--pen);
+  border-radius: 4px;
+  background: var(--paper);
+  color: var(--pen);
+  font-size: 26px;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+  transform: rotate(-0.6deg);
+  /* The paper stays light in dark mode, so the browser's clear button must be dark. */
+  color-scheme: light;
+}
+.hint {
+  max-width: 28ch;
+  margin: 0 auto;
+  text-align: center;
+  font-size: 18px;
+  color: var(--ink);
+  text-shadow: 0 0 6px var(--page);
+}
+.mlist.found {
+  padding-right: 0;
+}
+.search .empty {
+  padding-top: 20px;
+}
+.search .empty h2 {
+  margin: 0;
+  font-size: 32px;
+  color: var(--ink);
+}

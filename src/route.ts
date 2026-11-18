@@ -1,14 +1,16 @@
 import { useSyncExternalStore } from 'react'
 
 // The addresses of the app, kept small on purpose. `/` is the timeline and `/m/<key>` one memory,
-// by the memory's lasting key, so the address survives a later import. The people and search
-// screens (issues 17 and 19) add their paths in `parse`. Hosting must answer every path with
+// by the memory's lasting key, so the address survives a later import. `/search` is the search
+// screen; what is typed there is never part of the address. The people screen (issue 17) adds its
+// path in `parse`. Hosting must answer every path with
 // index.html (vercel.json); the dev server does it already.
-export type Route = { name: 'timeline' } | { name: 'memory'; key: string }
+export type Route = { name: 'timeline' } | { name: 'memory'; key: string } | { name: 'search' }
 
 export const memoryPath = (key: string) => `/m/${encodeURIComponent(key)}`
 
 export function parse(pathname: string): Route {
+  if (/^\/search\/?$/.test(pathname)) return { name: 'search' }
   const memory = pathname.match(/^\/m\/([^/]+)\/?$/)
   if (memory) {
     try {

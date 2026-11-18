@@ -49,6 +49,13 @@ const en = {
   deleteNo: 'Keep it',
   deleteFailed: 'Could not delete. Try again.',
   mediaNotInExport: 'Media (not in the export)',
+  pages: 'Pages',
+  search: 'Search',
+  searchLabel: 'Search the memories',
+  searchHint: 'Type a word from the messages or comments, or a name.',
+  searching: 'Searching',
+  nothingFound: 'Nothing found',
+  nothingFoundBody: 'Try another word, or fewer words.',
 }
 
 export type Labels = typeof en
@@ -102,6 +109,13 @@ const tr: Labels = {
   deleteNo: 'Vazgeç',
   deleteFailed: 'Silinemedi. Tekrar dene.',
   mediaNotInExport: 'Medya (dışa aktarımda yok)',
+  pages: 'Sayfalar',
+  search: 'Ara',
+  searchLabel: 'Anılarda ara',
+  searchHint: 'Mesajlardan ya da yorumlardan bir kelime, ya da bir isim yaz.',
+  searching: 'Aranıyor',
+  nothingFound: 'Hiçbir şey bulunamadı',
+  nothingFoundBody: 'Başka bir kelime dene, ya da daha az kelime.',
 }
 
 export type Language = 'tr' | 'en'
