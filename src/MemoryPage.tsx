@@ -3,7 +3,7 @@ import { type Language, formatDate, language, t } from './i18n.ts'
 import { Comments } from './Comments.tsx'
 import { type MemoryDetail, useMemory } from './memory.ts'
 import type { Person } from './session.ts'
-import { memoryPath, navigate, pushLayer, toTimeline, viewed } from './route.ts'
+import { cameFrom, memoryPath, navigate, pushLayer, toTimeline, viewed } from './route.ts'
 import { Pic, Viewer } from './Viewer.tsx'
 
 // One memory: the date as a heading, the chat it came from as a stamp, every photo as a large
@@ -65,6 +65,8 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
     window.addEventListener('popstate', closed)
     return () => window.removeEventListener('popstate', closed)
   }, [])
+  // Back names the list this memory was opened from (the search results), else the timeline.
+  const [from] = useState(cameFrom)
   const photoOf = new Map(memory.photos.map((photo, index) => [photo.message, index]))
 
   return (
@@ -72,7 +74,7 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
       <header className="top">
         <button className="back hand" onClick={toTimeline}>
           <span aria-hidden="true">← </span>
-          {t.allMemories}
+          {from === '/search' ? t.search : t.allMemories}
         </button>
       </header>
 

@@ -34,6 +34,9 @@ test.beforeAll(async () => {
       { when: '05.03.2022, 10:00:00', text: 'Şarkı söyledik' },
       { when: '06.03.2022, 10:00:00', text: 'ÇİĞ KÖFTE yedik' },
       { when: '07.03.2022, 10:00:00', text: 'yüzde 50 indirim_var \\ ve 100%' },
+      { when: '08.03.2022, 10:00:00', text: 'Şeftali topladık' },
+      { when: '09.03.2022, 10:00:00', text: 'gece yürüyüşü' },
+      { when: '10.03.2022, 10:00:00', text: 'Café açıldı' },
     ]),
     'Arama Sohbeti',
   )
@@ -42,6 +45,10 @@ test.beforeAll(async () => {
     await makeSmallExport(Array.from({ length: 30 }, (_, i) => ({ when: `${String(i + 1).padStart(2, '0')}.05.2021, 12:00:00`, text: `Deniz kenarı ${i + 1}` }))),
     'Deniz Sohbeti',
   )
+  // More than a hundred matches, so the database looks for candidates more than once for a page.
+  const start = Date.UTC(2020, 0, 1)
+  const stamp = (i: number) => new Date(start + i * 86_400_000).toISOString().slice(0, 10).split('-').reverse().join('.')
+  load(await makeSmallExport(Array.from({ length: 130 }, (_, i) => ({ when: `${stamp(i)}, 09:00:00`, text: `Kıyı yürüyüşü ${i + 1}` }))), 'Kıyı Sohbeti')
 })
 
 async function device(browser: Browser, locale = 'en-US') {
@@ -73,7 +80,7 @@ test.describe('search', () => {
     await expect(page).toHaveURL(/\/search$/)
     await expect(box(page)).toHaveCount(1)
     await expect(page.getByRole('combobox')).toHaveCount(0)
-    await expect(page.getByText('Type a word from the messages or comments, or a name.')).toBeVisible()
+    await expect(page.getByText(/Type a word from the messages or comments, or a name\./)).toBeVisible()
     await expect(results(page)).toHaveCount(0)
   })
 
@@ -173,7 +180,7 @@ test.describe('search', () => {
       await expect(nothing(page), typed).toBeVisible()
     }
     // The characters themselves are found where they are written.
-    for (const typed of ['100%', 'indirim_var', '_var', 'var \\ ve']) {
+    for (const typed of ['100%', 'indirim_var', 'var \\ ve']) {
       await find(page, typed)
       await expect(results(page), typed).toHaveCount(1)
       expect(await dates(page)).toEqual([march(7)])
@@ -227,7 +234,7 @@ test.describe('search', () => {
     expect(page.url()).not.toMatch(/tekneye|gidiyoruz|\?|#/)
     // Clearing the box goes back to the hint.
     await box(page).fill('')
-    await expect(page.getByText('Type a word from the messages or comments, or a name.')).toBeVisible()
+    await expect(page.getByText(/Type a word from the messages or comments, or a name\./)).toBeVisible()
     await expect(results(page)).toHaveCount(0)
   })
 
@@ -237,23 +244,156 @@ test.describe('search', () => {
     await find(page, 'deniz')
 
     await expect(results(page)).toHaveCount(20)
+    expect((await dates(page))[0]).toBe('Sunday, May 30, 2021')
     await page.mouse.wheel(0, 100000)
-    await expect(results(page)).toHaveCount(30)
-    const all = await dates(page)
-    // Newest first: the 30th of May 2021 down to the 1st.
-    expect(all[0]).toBe('Sunday, May 30, 2021')
-    expect(all.at(-1)).toBe('Saturday, May 1, 2021')
-    const middle = results(page).nth(24)
-    await middle.scrollIntoViewIfNeeded()
-    const title = await middle.getByRole('heading').innerText()
-    await middle.getByRole('link').click()
-    await expect(page.getByRole('heading', { level: 1 })).toHaveText(title)
+    // The last of the thirty, the 1st of May: newest first, so it comes last.
+    const last = results(page).filter({ hasText: 'Saturday, May 1, 2021' })
+    await expect(last).toBeVisible()
+    await last.scrollIntoViewIfNeeded()
+    await last.getByRole('link').click()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Saturday, May 1, 2021')
+    // Back names the list the memory was opened from.
+    await expect(page.getByRole('button', { name: /Search$/ })).toBeVisible()
 
     await page.goBack()
 
     await expect(box(page)).toHaveValue('deniz')
-    await expect(results(page)).toHaveCount(30)
-    await expect(results(page).filter({ hasText: title })).toBeInViewport()
+    await expect(results(page).filter({ hasText: 'Saturday, May 1, 2021' })).toBeInViewport()
+  })
+
+  test('goes on past a hundred matches: each once, newest first, and the page holds only the cards near the screen', async ({ page }) => {
+    await openSearch(page)
+    const keys: string[] = []
+    const ats: string[] = []
+    page.on('response', async (response) => {
+      if (!response.url().includes('/rpc/search_memories')) return
+      for (const row of (await response.json()) as { key: string; local_at: string }[]) {
+        keys.push(row.key)
+        ats.push(row.local_at)
+      }
+    })
+
+    await find(page, 'kiyi yuruyusu')
+    let held = 0
+    for (let i = 0; i < 80 && keys.length < 130; i += 1) {
+      await page.mouse.wheel(0, 3000)
+      await page.waitForTimeout(150)
+      held = Math.max(held, await results(page).count())
+    }
+    await expect.poll(() => keys.length).toBe(130)
+
+    expect(new Set(keys).size).toBe(130)
+    expect(ats).toEqual(ats.slice().sort().reverse())
+    expect(held).toBeLessThan(60)
+  })
+
+  test('has a main heading', async ({ page }) => {
+    await openSearch(page)
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Search')
+  })
+
+  test('a word matches only at the start of a word, in messages and in names', async ({ page }) => {
+    await openSearch(page)
+
+    // "ali" is inside "Şeftali", "ece" inside "gece"/"geceler", "imon" inside the name Limon.
+    for (const typed of ['ali', 'ece', 'imon', 'ftali', 'ilek']) {
+      await find(page, typed)
+      await expect(nothing(page), typed).toBeVisible()
+    }
+    // The start of a word still finds it, with or without the Turkish letters.
+    await find(page, 'sef')
+    await expect(results(page)).toHaveCount(1)
+    expect(await dates(page)).toEqual([march(8)])
+    await find(page, 'ista')
+    await expect(results(page).filter({ hasText: 'March' })).toHaveCount(4)
+    await find(page, 'gec')
+    await expect(results(page).filter({ hasText: 'March 9, 2022' })).toHaveCount(1)
+    await find(page, 'lim')
+    await expect(results(page).filter({ hasText: JULY14 })).toHaveCount(1)
+    // A word after a punctuation mark is the start of a word.
+    await find(page, 'var')
+    await expect(results(page).filter({ hasText: 'March 7, 2022' })).toHaveCount(1)
+  })
+
+  test('treats a letter typed as one character or as a letter and a mark the same way', async ({ page }) => {
+    await openSearch(page)
+
+    await find(page, 'şarkı')
+    await expect(results(page)).toHaveCount(1)
+    expect(await dates(page)).toEqual([march(5)])
+    for (const typed of ['café', 'café', 'CAFÉ']) {
+      await find(page, typed)
+      await expect(results(page), typed).toHaveCount(1)
+      expect(await dates(page), typed).toEqual([march(10)])
+    }
+    await find(page, 'İstanbul')
+    await expect(results(page).filter({ hasText: 'March' })).toHaveCount(4)
+  })
+
+  test('a word of one or two letters, or of punctuation or emoji, waits for Enter, and the hint says so', async ({ page }) => {
+    await openSearch(page)
+    await expect(page.getByText(/one or two letters/)).toBeVisible()
+    const asked: string[] = []
+    page.on('request', (request) => {
+      if (request.url().includes('/rpc/search_memories')) asked.push(request.postData() ?? '')
+    })
+
+    for (const typed of ['ab', 'a b', '...', '😂😂😂', '!!!']) {
+      await box(page).fill('')
+      await box(page).pressSequentially(typed, { delay: 20 })
+      await page.waitForTimeout(700)
+      expect(asked, typed).toHaveLength(0)
+    }
+    await box(page).fill('ye')
+    await box(page).press('Enter')
+    await expect(results(page).first()).toBeVisible()
+    expect(asked).toHaveLength(1)
+    // A longer word beside a short one is searched as the friend pauses.
+    await box(page).fill('')
+    await box(page).pressSequentially('ye tekneye', { delay: 20 })
+    await expect.poll(() => asked.length).toBe(2)
+  })
+
+  test('an older search that answers late never replaces a newer one', async ({ page }) => {
+    await openSearch(page)
+    let calls = 0
+    await page.route(/\/rpc\/search_memories/, async (route) => {
+      if (++calls === 1) await new Promise((done) => setTimeout(done, 1500))
+      await route.continue().catch(() => {})
+    })
+
+    await find(page, 'tekneye')
+    await find(page, 'zzzyyy')
+    await expect(nothing(page)).toBeVisible()
+    await page.waitForTimeout(2000)
+
+    await expect(nothing(page)).toBeVisible()
+    await expect(results(page)).toHaveCount(0)
+    await expect(box(page)).toHaveValue('zzzyyy')
+  })
+
+  test('uses the first eight words and says so', async ({ page }) => {
+    await openSearch(page)
+
+    // The ninth word is in no memory: it is not searched.
+    await find(page, 'tekneye gidiyoruz unutmayın yarın ışık şahane güzel çıkmış zzzyyy')
+
+    await expect(results(page)).toHaveCount(1)
+    expect(await dates(page)).toEqual([JULY14])
+    await expect(page.getByText('Only the first 8 words were searched.')).toBeVisible()
+    await find(page, 'tekneye gidiyoruz')
+    await expect(page.getByText('Only the first 8 words were searched.')).toHaveCount(0)
+  })
+
+  test('does not find what is not stored: a left-out sender’s text, or the line shown for a video or a voice message', async ({ page }) => {
+    await openSearch(page)
+
+    // Çilek is left out of the made-up people file, so "Ben de çektim bir tane" was never saved.
+    for (const typed of ['çektim', 'video', 'voice', 'document', 'not in the export']) {
+      await find(page, typed)
+      await expect(nothing(page), typed).toBeVisible()
+    }
   })
 
   test('a visitor gets nothing, and a session that has ended is shown the private page', async ({ browser }) => {
@@ -273,5 +413,21 @@ test.describe('search', () => {
 
     await expect(page.getByRole('heading', { name: 'Ezeli is private' })).toBeVisible()
     await context.close()
+  })
+
+  test('the function itself answers nothing to a token kept from before the link was replaced', async ({ page, request }) => {
+    const name = fruit('Limon')
+    await openSearch(page, addPerson(name))
+    const token = await page.evaluate(() => {
+      const key = Object.keys(localStorage).find((k) => k.endsWith('-auth-token'))!
+      return JSON.parse(localStorage.getItem(key)!).access_token as string
+    })
+    const ask = async (words: string) => (await request.post(`${apiUrl}/rest/v1/rpc/search_memories`, { headers: { apikey: publishableKey, authorization: `Bearer ${token}` }, data: { p_query: words } })).json()
+    expect(((await ask('tekneye')) as unknown[]).length).toBe(1)
+
+    ownerCommand(['person', 'relink', '--name', name])
+
+    expect(await ask('tekneye')).toEqual([])
+    expect(await ask('a')).toEqual([])
   })
 })

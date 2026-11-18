@@ -4,7 +4,7 @@ import { type Chunk, type MemoryCard, type MonthCount, type Timeline, signedLink
 import { memoryPath, navigate } from './route.ts'
 
 type Ready = Extract<Timeline, { status: 'ready' }>
-type Group = { month: string; memories: MemoryCard[]; heading: boolean }
+export type Group = { month: string; memories: MemoryCard[]; heading: boolean }
 
 // The gap between the parts of the timeline (the same as in the stylesheet).
 const GAP = 54
@@ -125,7 +125,7 @@ export function Memories({ onSessionLost }: { onSessionLost: () => void }) {
 // One page of the run. Near the screen it holds its memories; far away it is an empty box of the
 // height it had, so nothing moves and the page stays small however far the friend has gone.
 // `lang` is only here so that a change of language draws the memories again.
-const ChunkView = memo(function ChunkView({ chunk, groups, heights, lang }: { chunk: Chunk; groups: Group[]; heights: Map<number, number>; lang: string }) {
+export const ChunkView = memo(function ChunkView({ chunk, groups, heights, lang }: { chunk: Chunk; groups: Group[]; heights: Map<number, number>; lang: string }) {
   const box = useRef<HTMLDivElement>(null)
   const near = useNear(box, true)
 
@@ -252,7 +252,7 @@ const tapes = ['var(--tape2)', 'var(--tape1)', 'var(--tape3)', 'var(--tape4)']
 // A memory is one element, the article: it opens the memory. Its shape never depends on whether
 // photos have loaded: every print keeps its place at the photo's real shape, and photos are only
 // held in the page while the memory is near the screen.
-export const Memory = memo(function Memory({ memory, index }: { memory: MemoryCard; index: number; lang: string }) {
+const Memory = memo(function Memory({ memory, index }: { memory: MemoryCard; index: number; lang: string }) {
   const card = useRef<HTMLElement>(null)
   const near = useNear(card)
   const urls = useLinks(near ? memory.photos.map((photo) => photo.thumb) : [])
@@ -303,7 +303,7 @@ export const Memory = memo(function Memory({ memory, index }: { memory: MemoryCa
 const open = (key: string) => (event: MouseEvent) => {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
   event.preventDefault()
-  navigate(memoryPath(key))
+  navigate(memoryPath(key), { from: location.pathname })
 }
 
 function Icon({ d }: { d: string }) {

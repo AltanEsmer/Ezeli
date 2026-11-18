@@ -3,7 +3,7 @@ import { type Language, getLanguage, setLanguage, subscribeLanguage, t } from '.
 import { Memories } from './Memories.tsx'
 import { MemoryPage } from './MemoryPage.tsx'
 import { Search } from './Search.tsx'
-import { navigate, useRoute } from './route.ts'
+import { follow, navigate, useRoute } from './route.ts'
 import { type Person, useSession } from './session.ts'
 import { supabase } from './supabase.ts'
 
@@ -83,28 +83,20 @@ function Timeline({ person, onSignOut, onSessionLost }: { person: Person; onSign
           <span aria-hidden="true">▾</span>
         </button>
       </header>
-      <nav className="links hand" aria-label={t.pages}>
-        <ul>
-          <li>
-            <a href="/search" onClick={go('/search')}>
-              {t.search}
-            </a>
-          </li>
-        </ul>
-      </nav>
+      {/* Where else to go, as a plain list of handwritten links (the people screen adds its own). */}
+      <ul className="links">
+        <li>
+          <a className="hand" href="/search" onClick={follow('/search')}>
+            {t.search}
+          </a>
+        </li>
+      </ul>
 
       <Memories onSessionLost={onSessionLost} />
 
       {menuOpen && <Menu person={person} onClose={closeMenu} onSignOut={onSignOut} />}
     </main>
   )
-}
-
-// A link to another screen of the app: a plain click changes the screen without a reload.
-const go = (path: string) => (event: React.MouseEvent) => {
-  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-  event.preventDefault()
-  navigate(path)
 }
 
 function Menu(props: { person: Person; onClose: () => void; onSignOut: () => void }) {

@@ -51,6 +51,7 @@
   }
   /* Handwriting straight on the dark page is a lighter blue. */
   .mdate,
+  .links,
   .back {
     --pen: #a9bdf0;
   }
@@ -926,13 +927,13 @@ button {
   opacity: 0.5;
 }
 
-/* The row of links under the timeline's header, in pen blue. */
-.links ul {
+/* The row of handwritten links under the timeline's header: a plain list, one link per item. */
+.links {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 22px;
+  gap: 4px 18px;
   margin: 10px 0 0;
-  padding: 0 6px;
+  padding: 0 8px;
   list-style: none;
 }
 .links a {
@@ -942,13 +943,9 @@ button {
   font-size: 24px;
   font-weight: 700;
   color: var(--pen);
-  text-decoration: underline wavy;
-  text-underline-offset: 6px;
+  text-decoration: underline;
   text-decoration-thickness: 2px;
-}
-.links + .memories,
-.links + .empty {
-  margin-top: 18px;
+  text-underline-offset: 5px;
 }
 
 /* The search screen: one box on a strip of paper. */
@@ -978,7 +975,7 @@ button {
   color: var(--ink);
   text-shadow: 0 0 6px var(--page);
 }
-.mlist.found {
+.search .mlist {
   padding-right: 0;
 }
 .search .empty {

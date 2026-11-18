@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { type MouseEvent, useSyncExternalStore } from 'react'
 
 // The addresses of the app, kept small on purpose. `/` is the timeline and `/m/<key>` one memory,
 // by the memory's lasting key, so the address survives a later import. `/search` is the search
@@ -31,10 +31,22 @@ const CHANGED = 'ezeli:route'
 // so a button can tell "go back" from "this address was opened directly".
 const depth = () => (history.state as { depth?: number } | null)?.depth ?? 0
 
-export function navigate(path: string, options: { replace?: boolean } = {}) {
-  if (options.replace) history.replaceState({ depth: depth() }, '', path)
-  else history.pushState({ depth: depth() + 1 }, '', path)
+// The screen an entry was opened from (`from`, an address like `/search`), so the memory screen can
+// name the list its Back button returns to. A memory that replaces another keeps it.
+export const cameFrom = (): string | null => (history.state as { from?: string } | null)?.from ?? null
+
+export function navigate(path: string, options: { replace?: boolean; from?: string } = {}) {
+  const from = options.from ?? (options.replace ? cameFrom() : null) ?? undefined
+  if (options.replace) history.replaceState({ depth: depth(), from }, '', path)
+  else history.pushState({ depth: depth() + 1, from }, '', path)
   window.dispatchEvent(new Event(CHANGED))
+}
+
+// A link of the app: a tap goes there without a reload; a modified tap is left to the browser.
+export const follow = (path: string) => (event: MouseEvent) => {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+  event.preventDefault()
+  navigate(path)
 }
 
 // A layer on top of a screen (the full-screen photo) is a step of its own in the history, so the
