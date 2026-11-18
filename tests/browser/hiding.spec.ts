@@ -149,3 +149,39 @@ test('with the friend\'s own token, nothing hidden can be read from the database
   expect(keys).toEqual([])
   expect(files.data!.some((file) => file.name.startsWith(july15))).toBe(false)
 })
+
+test('a memory whose address moved still opens from the search results, with its viewer, Earlier, Later and Back', async ({ page }) => {
+  await signIn(page)
+  const key = await addressOf(ids[0]!)
+  expect(key).not.toBe(july14)
+
+  // A word of a message that was not hidden finds the memory, under its new address.
+  await page.getByRole('link', { name: 'Search', exact: true }).click()
+  await page.getByRole('searchbox').fill('ışık şahane')
+  await page.getByRole('searchbox').press('Enter')
+  const card = page.getByRole('article').filter({ has: page.locator(`a[href$="/m/${key}"]`) })
+  await expect(card).toHaveCount(1)
+  const others = (await page.getByRole('article').count()) - 1
+  await card.getByRole('link').click()
+
+  // The photo that is left opens full screen, and the phone's Back closes it and stays here.
+  await expect(page.getByRole('button', { name: /Search$/ })).toBeVisible()
+  await page.locator('.prints img').first().click()
+  const viewer = page.getByRole('dialog', { name: 'Photo' })
+  await expect(viewer.getByText('1 / 1')).toBeVisible()
+  await page.goBack()
+  await expect(viewer).toHaveCount(0)
+  await expect(page).toHaveURL(new RegExp(`/m/${key}$`))
+
+  // Earlier and Later step to the neighbours (the other results, when there are any), and Back still
+  // leads to the results.
+  if (others > 0) {
+    const later = page.getByRole('link', { name: 'Later memory' })
+    const earlier = page.getByRole('link', { name: 'Earlier memory' })
+    expect((await later.count()) + (await earlier.count())).toBeGreaterThan(0)
+    await ((await later.count()) > 0 ? later : earlier).click()
+    await expect(page).not.toHaveURL(new RegExp(`/m/${key}$`))
+  }
+  await page.getByRole('button', { name: /Search$/ }).click()
+  await expect(page.getByRole('searchbox')).toHaveValue('ışık şahane')
+})

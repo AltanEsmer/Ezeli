@@ -529,6 +529,66 @@ test('a friend cannot read what lets a key be worked out or a hidden thing be fo
   expect(secret).toMatch(/^[0-9a-f]{48}$/)
 })
 
+test('the people pages and search count and find nothing that is hidden: a photo, a message, a whole memory and the comment on it', async () => {
+  const day2 = (time: string, who: string, text: string) => `[15.08.2023, ${time}] ${who}: ${text}`
+  const lines = [
+    photoLine('10:00:10', 'Limon L', 'a.jpg'),
+    textLine('10:01:00', 'Limon L', 'zeytinlik burası'),
+    textLine('10:05:00', 'Fıstık F', 'sakızlı dondurma'),
+    photoLine('10:10:00', 'Karpuz K', 'b.jpg'),
+    photoLine('10:20:00', 'Limon L', 'c.jpg'),
+    `${LRM}[15.08.2023, 12:00:00] Fıstık F: ${LRM}<attached: d.jpg>`,
+    day2('12:01:00', 'Karpuz K', 'badem ağacı'),
+  ]
+  const { chat, chatId, people, memories, first, friend } = await ownChat(lines, { 'a.jpg': 200, 'b.jpg': 40, 'c.jpg': 120, 'd.jpg': 80 })
+  const second = memories[1]!
+  const comment = await friend.from('comments').insert({ memory_id: second.id, body: 'kuşkonmaz zamanı' }).select('id').single()
+  expect(comment.error).toBeNull()
+  const person = async (slug: string) => (await friend.rpc('person_page', { p_person: slug })).data as { photo_count: number; first: { at: string } | null; last: { at: string } | null } | null
+  const months = async (slug: string) => ((await friend.rpc('person_months', { p_person: slug })).data ?? []) as { month: string; memories: number }[]
+  const recent = async (slug: string) => ((await friend.rpc('people_page')).data as { id: string; photos: { thumb: string }[] }[]).find((row) => row.id === slug)!.photos.map((photo) => photo.thumb)
+  const search = async (words: string) => ((await friend.rpc('search_memories', { p_query: words })).data ?? []) as { id: string; key: string }[]
+  const thumbOfC = (await rows<{ thumb_path: string }>(owner.from('photos').select('thumb_path, memories!inner(chat_id)').eq('memories.chat_id', chatId).order('at'))).map((p) => p.thumb_path)[2]!
+  const limon = people.ids.limon
+  const fistik = people.ids.fistik
+  expect((await recent(limon)).length).toBe(2)
+  expect((await person(fistik))!.photo_count).toBe(1)
+  expect((await search('zeytinlik')).length).toBe(1)
+  expect((await search('kuşkonmaz')).length).toBe(1)
+  expect((await search(people.fistik)).length).toBe(2)
+
+  // Hide a photo of Limon, a message of Limon, Fıstık's message of the first memory, and the whole second memory.
+  expect(ezeli(['hide', first.key, codeFor(first, /Limon.*\[Photo\]/)]).status).toBe(0)
+  const moved = (await rows<{ key: string }>(owner.from('memories').select('key').eq('id', first.id)))[0]!.key
+  expect(ezeli(['hide', moved, codeFor(moved, /zeytinlik/)]).status).toBe(0)
+  expect(ezeli(['hide', moved, codeFor(moved, /sakızlı/)]).status).toBe(0)
+  expect(ezeli(['hide', second.key]).out).toMatch(/1 memory and 1 comment removed/)
+
+  // The people page: only the photo that is left among Limon's recent ones; nobody's count, months, first and last include the rest.
+  expect(await recent(limon)).toEqual([thumbOfC])
+  expect((await person(limon))!.photo_count).toBe(1)
+  const remaining = (await rows<{ at: string }>(owner.from('memories').select('at').eq('chat_id', chatId)))[0]!.at
+  expect(new Date((await person(limon))!.first!.at).getTime()).toBe(new Date(remaining).getTime())
+  expect(new Date((await person(limon))!.last!.at).getTime()).toBe(new Date(remaining).getTime())
+  expect((await months(limon)).reduce((all, row) => all + row.memories, 0)).toBeGreaterThan(0)
+  expect(await recent(fistik)).toEqual([])
+  const empty = await person(fistik)
+  expect(empty!.photo_count).toBe(0)
+  expect(empty!.first).toBeNull()
+  expect(empty!.last).toBeNull()
+  expect((await months(fistik)).filter((row) => row.month === '2023-08')).toEqual([])
+  expect((await rows(friend.from('timeline').select('id').eq('chat_name', chat))).length).toBe(1)
+
+  // Search: no word that only a hidden message or the comment on the removed memory held, and no name
+  // of someone who is in a memory only through hidden things.
+  expect(await search('zeytinlik')).toEqual([])
+  expect(await search('badem')).toEqual([])
+  expect(await search('kuşkonmaz')).toEqual([])
+  expect(await search('sakızlı')).toEqual([])
+  expect(await search(people.fistik)).toEqual([])
+  expect((await search(people.limon)).length).toBe(1)
+})
+
 test('comments of a memory that goes cannot be read or added, and a regroup does not move them to another memory', async () => {
   const { chat, people, folder, first, friend } = await setup()
   const added = await friend.from('comments').insert({ memory_id: first.id, body: 'Ne güzel gündü' }).select('id').single()

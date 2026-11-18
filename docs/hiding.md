@@ -79,7 +79,7 @@ It may hide too much. It never hides too little, and it never touches another pe
 - **A hide while an import runs is put right by the import** (it runs the same step at its very end), and a hide never removes a file that no row of it points at, so it cannot take the new files of an import that is still running. Still, run one at a time: the numbers an import prints for that run may not be exact. An import clears files that no row points at only at its own end, and only files that were already there when it began; two imports of one chat at once can still remove each other's new files.
 - Hiding is by owners only. A friend cannot hide their own things in the app.
 - The marks table is a seventh table beside the spec's six (the spec names six; this one holds what the import needs to read).
-- Code that runs with its owner's rights (a `security definer` function, such as a search) must never read `hidden`: its column `match` holds the text of what was hidden.
+- Code that runs with its owner's rights (a `security definer` function, such as the search's `private.search_memory_ids`) must never read `hidden`: its column `match` holds the text of what was hidden. Search and the people pages read only `messages`, `photos`, `comments`, `memories` and `people`, so a hidden thing is not found by a word or a name, and is not counted. The search's trigram indexes (`messages_folded`, `comments_folded`) keep trigrams, not text, and an index entry whose row is gone is never returned; `vacuum` removes the entries.
 
 ## How it is kept
 
