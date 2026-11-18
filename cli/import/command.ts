@@ -1,7 +1,8 @@
 // pnpm ezeli import <export folder> --people <file> --timezone <zone> --chat <name> [--trial]
 import { parseArgs } from 'node:util'
 import { adminClient } from '../supabase.ts'
-import { existsSync, readdirSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chatKey, idKey, messageKeys } from './keys.ts'
 import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } from './memories.ts'
@@ -99,6 +100,7 @@ async function importExport(args: string[]): Promise<string> {
       problems.push(`Photo missing from the export: ${media.name ?? 'no file in the export'} (${where})`)
       continue
     }
+    if (db) media.hash = createHash('sha256').update(readFileSync(media.file)).digest('hex')
     // A photo that cannot be read is a problem to report, not a crash. It stays in the
     // conversation as a photo that is missing.
     const readable = await readablePhoto(media.file)

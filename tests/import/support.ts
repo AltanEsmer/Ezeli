@@ -21,10 +21,10 @@ export function fresh(base: string): string {
 }
 
 // Runs any real owner command (memory, hide, show) with the secret key in the environment.
-export function ezeli(args: string[]) {
+export function ezeli(args: string[], env: Record<string, string> = {}) {
   const result = spawnSync('node', ['cli/ezeli.ts', ...args], {
     encoding: 'utf8',
-    env: { ...process.env, SUPABASE_URL: stack.apiUrl, SUPABASE_SECRET_KEY: stack.secretKey },
+    env: { ...process.env, SUPABASE_URL: stack.apiUrl, SUPABASE_SECRET_KEY: stack.secretKey, ...env },
   })
   return { status: result.status, out: result.stdout, err: result.stderr }
 }

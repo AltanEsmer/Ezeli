@@ -5,7 +5,7 @@ import type { Db } from '../supabase.ts'
 import { buildMemories, hasPhotoFile, isPhoto, type Grouping, type MemoryMessage } from './memories.ts'
 import type { ChatApp } from './people.ts'
 import { makeSizes } from './photos.ts'
-import { chunks, loadHidden, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Span } from './regroup.ts'
+import { chunks, isHidden, loadHidden, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Span, type Stored } from './regroup.ts'
 import { Stop } from './stop.ts'
 
 export type ChatToSave = { key: string; name: string; app: ChatApp; timezone: string }
@@ -30,10 +30,23 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
     )
   }
 
-  const stored = existing.data ? await loadStored(db, existing.data.id) : nothingStored
-  const hidden = await loadHidden(db)
+  const everything = existing.data ? await loadStored(db, existing.data.id) : nothingStored
+  // A hidden thing is treated as if it was never sent: left out before grouping, whether it comes
+  // from the export or from what is stored (by its key, and by what it is, so a shifted key does not
+  // bring it back). Rows already flagged hidden stay where they are, so `show` can return them;
+  // they and the memories that hold them are kept, never removed by the regroup.
+  const marks = await loadHidden(db, chat.key)
+  const hiddenRows = everything.messages.filter((message) => message.hidden)
+  const stored: Stored = {
+    memories: everything.memories,
+    messages: everything.messages.filter((message) => !message.hidden),
+    photos: everything.photos.filter((photo) => !photo.hidden),
+  }
+  exported = exported.filter((message) => !isHidden(message, marks))
   const storedPhotos = new Map(stored.photos.map((photo) => [photo.key, photo]))
   const outside = storedOutside(stored, span)
+  outside.before = outside.before.filter((message) => !isHidden(message, marks))
+  outside.after = outside.after.filter((message) => !isHidden(message, marks))
   // A stored message that this export holds again is the export's: the same chat from another phone
   // has other seconds, so a message stored at 20:58:11 may lie outside an export that has minutes only.
   const again = new Set(exported.map((message) => message.key))
@@ -45,15 +58,13 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   if (savedChat.error) throw savedChat.error
   const chatId = savedChat.data.id
 
-  // Photos first, so that a photo row exists only when both its files are in the bucket. A hidden
-  // photo is never converted or uploaded again; its message row is saved like any other and stays
-  // hidden by its mark.
-  const sizes = new Map<string, { view: string; thumb: string; width: number; height: number }>()
-  await mapLimit(messages.filter((message) => hasPhotoFile(message) && !hidden.has(message.key)), 4, async (message) => {
+  // Photos first, so that a photo row exists only when both its files are in the bucket.
+  const sizes = new Map<string, { view: string; thumb: string; width: number; height: number; hash: string | null }>()
+  await mapLimit(messages.filter(hasPhotoFile), 4, async (message) => {
     // Already stored with both files: nothing to convert or upload again.
     const there = storedPhotos.get(message.key)
     if (there) {
-      sizes.set(message.key, { view: there.view_path, thumb: there.thumb_path, width: there.width, height: there.height })
+      sizes.set(message.key, { view: there.view_path, thumb: there.thumb_path, width: there.width, height: there.height, hash: message.media?.hash ?? there.content_hash })
       return
     }
     const file = message.media!.file!
@@ -69,7 +80,7 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
       const uploaded = await db.storage.from(BUCKET).upload(path, body, { contentType: 'image/webp', upsert: true })
       if (uploaded.error) throw uploaded.error
     }
-    sizes.set(message.key, { view, thumb, width: made.width, height: made.height })
+    sizes.set(message.key, { view, thumb, width: made.width, height: made.height, hash: message.media?.hash ?? null })
   })
 
   // People of the export are saved (and renamed) from the export; the others are known by their rows.
@@ -110,8 +121,8 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
 
   // A photo message with a stored row keeps its row (and gets the memory the regroup gives it)
   // even when this export has no file for it.
-  const photoRows = placed.filter(({ message }) => !hidden.has(message.key) && (sizes.has(message.key) || storedPhotos.has(message.key))).map(({ message, seq, memory }) => {
-    const size = sizes.get(message.key) ?? (({ view_path, thumb_path, width, height }) => ({ view: view_path, thumb: thumb_path, width, height }))(storedPhotos.get(message.key)!)
+  const photoRows = placed.filter(({ message }) => sizes.has(message.key) || storedPhotos.has(message.key)).map(({ message, seq, memory }) => {
+    const size = sizes.get(message.key) ?? (({ view_path, thumb_path, width, height, content_hash }) => ({ view: view_path, thumb: thumb_path, width, height, hash: message.media?.hash ?? content_hash }))(storedPhotos.get(message.key)!)
     return {
       memory_id: memory,
       message_id: messageIds.get(message.key)!,
@@ -123,6 +134,7 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
       thumb_path: size.thumb,
       width: size.width,
       height: size.height,
+      content_hash: size.hash,
     }
   })
   for (const part of chunks(photoRows)) {
@@ -132,7 +144,12 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
 
   // Only now, with every row of this import in place, is anything that no longer fits removed.
   const kept = { memories: new Set(memoryRows.map((row) => row.key)), messages: new Set(messages.map((message) => message.key)) }
-  const removed = await removeWhatNoLongerFits(db, stored, kept)
+  const memoryKeyOf = new Map(stored.memories.map((memory) => [memory.id, memory.key]))
+  const keepHidden = {
+    memories: new Set([...kept.memories, ...hiddenRows.map((row) => memoryKeyOf.get(row.memory_id)!).filter(Boolean)]),
+    messages: new Set([...kept.messages, ...hiddenRows.map((row) => row.key)]),
+  }
+  const removed = await removeWhatNoLongerFits(db, stored, keepHidden)
   // Files that no row points at, left by a run that stopped while removing them.
   await removeFilesWithoutRow(db, chatId)
   const had = {

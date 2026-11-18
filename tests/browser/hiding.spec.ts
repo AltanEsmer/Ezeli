@@ -3,6 +3,10 @@
 // memory and the timeline must simply not show what is hidden, and a signed-in person's own token
 // must not be able to read it from the database or the bucket either.
 import { createClient } from '@supabase/supabase-js'
+import { cpSync, mkdtempSync, readdirSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import sharp from 'sharp'
 import { type Page, expect, test } from '@playwright/test'
 import { localStack } from '../stack.ts'
 import { addPerson, apiUrl, fruit, ownerCommand, publishableKey } from './support.ts'
@@ -14,13 +18,29 @@ test.describe.configure({ mode: 'serial' })
 
 let july14 = ''
 let july15 = ''
+const ids: string[] = []
+
+// The made-up photos of the fixtures are all the same bytes; a hidden photo is also known by its
+// bytes, so give each its own colour, as real photos have.
+async function distinctWeekend(): Promise<string> {
+  const folder = mkdtempSync(join(tmpdir(), 'ezeli-gizli-'))
+  cpSync('tests/fixtures/whatsapp-iphone/weekend', folder, { recursive: true })
+  for (const [index, name] of readdirSync(folder).filter((file) => file.endsWith('.jpg')).entries()) {
+    await sharp({ create: { width: 32, height: 24, channels: 3, background: { r: 30 + index * 37, g: 90, b: 140 } } }).jpeg().toFile(join(folder, name))
+  }
+  return folder
+}
+
+// A memory's address now: it moves when its first photo is hidden.
+const addressOf = async (id: string) => (await owner.from('memories').select('key').eq('id', id).single()).data!.key as string
 
 test.beforeAll(async () => {
-  const result = ownerCommand(['import', 'tests/fixtures/whatsapp-iphone/weekend', '--people', 'tests/fixtures/whatsapp-iphone/people.json', '--timezone', 'Europe/Istanbul', '--chat', CHAT])
+  const result = ownerCommand(['import', await distinctWeekend(), '--people', 'tests/fixtures/whatsapp-iphone/people.json', '--timezone', 'Europe/Istanbul', '--chat', CHAT])
   expect(result.stderr).toBe('')
   expect(result.status).toBe(0)
   const chat = await owner.from('chats').select('id').eq('name', CHAT).single()
-  const found = await owner.from('memories').select('key').eq('chat_id', chat.data!.id).order('at')
+  const found = await owner.from('memories').select('id, key').eq('chat_id', chat.data!.id).order('at')
+  ids.push(...found.data!.map((memory) => memory.id))
   ;[july14, july15] = found.data!.map((memory) => memory.key)
 })
 
@@ -53,7 +73,11 @@ test('a hidden photo and a hidden message are gone from the memory, and the link
   expect(photo.status).toBe(0)
   expect(message.status).toBe(0)
 
-  await page.reload()
+  // The memory looks as if the photo was never sent: its address is now the next photo's.
+  expect(await addressOf(ids[0]!)).not.toBe(july14)
+  await page.goto(`/m/${july14}`)
+  await expect(page.getByRole('heading', { name: 'This memory is not here' })).toBeVisible()
+  await page.goto(`/m/${await addressOf(ids[0]!)}`)
   await expect(page.locator('.prints img')).toHaveCount(1)
   await expect(talk(page).locator('img')).toHaveCount(1)
   await expect(talk(page).getByText('Ben geldim bile')).toHaveCount(0)
@@ -67,7 +91,7 @@ test('a hidden message is shown again by one command, and shows on the next load
   await signIn(page)
   expect(ownerCommand(['show', july14, numberOf(july14, /Ben geldim bile/)]).status).toBe(0)
 
-  await page.goto(`/m/${july14}`)
+  await page.goto(`/m/${await addressOf(ids[0]!)}`)
   await expect(talk(page).getByText('Ben geldim bile')).toBeVisible()
 })
 
@@ -101,7 +125,9 @@ test('with the friend\'s own token, nothing hidden can be read from the database
   expect(await get(`messages?memory_id=eq.${memory.data!.id}&select=id`)).toEqual([])
   expect(await get(`photos?memory_id=eq.${memory.data!.id}&select=id`)).toEqual([])
   expect(await get(`timeline?id=eq.${memory.data!.id}&select=id`)).toEqual([])
-  expect(await get('hidden?select=key')).not.toEqual(expect.arrayContaining([expect.objectContaining({ key: expect.anything() })]))
+  const marks = await request.get(`${apiUrl}/rest/v1/hidden?select=key`, { headers })
+  expect(marks.ok() ? await marks.json() : []).toEqual([])
+  expect(marks.ok()).toBe(false)
   const detail = await request.post(`${apiUrl}/rest/v1/rpc/memory_detail`, { headers, data: { p_key: july15 } })
   expect(await detail.json()).toBeNull()
 

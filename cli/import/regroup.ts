@@ -23,9 +23,10 @@ export type StoredMessage = {
   memory_id: string
   text: string
   media_kind: MediaKind | null
+  hidden: boolean
   people: { id: string; slug: string; display_name: string }
 }
-export type StoredPhoto = { key: string; view_path: string; thumb_path: string; width: number; height: number }
+export type StoredPhoto = { key: string; view_path: string; thumb_path: string; width: number; height: number; content_hash: string | null; hidden: boolean }
 export type Stored = { memories: StoredMemory[]; messages: StoredMessage[]; photos: StoredPhoto[] }
 export type Span = { from: number; to: number } // moments, in milliseconds, both included
 export type Kept = { memories: Set<string>; messages: Set<string> } // the keys of this import
@@ -55,7 +56,7 @@ export async function loadStored(db: Db, chatId: string): Promise<Stored> {
     messages: await pages<StoredMessage>((from, to) =>
       db
         .from('messages')
-        .select('id, key, at, seq, memory_id, text, media_kind, people(id, slug, display_name), memories!inner(chat_id)')
+        .select('id, key, at, seq, memory_id, text, media_kind, hidden, people(id, slug, display_name), memories!inner(chat_id)')
         .eq('memories.chat_id', chatId)
         .order('key')
         .range(from, to),
@@ -64,15 +65,36 @@ export async function loadStored(db: Db, chatId: string): Promise<Stored> {
   }
 }
 
-// The lasting keys of everything an owner has hidden (issue 20). The import never stores the files
-// of a hidden photo; the rows of hidden messages stay, and stay hidden by the access rules.
-export async function loadHidden(db: Db): Promise<Set<string>> {
-  return new Set((await pages<{ key: string }>((from, to) => db.from('hidden').select('key').order('key').range(from, to))).map((row) => row.key))
+// What an owner has hidden in one chat (issue 20), as the import matches it: by lasting key, by the
+// hash of a photo's file, and by a text message's minute, sender and text. A key shifts when an
+// earlier message of the same minute goes away; the other two do not. Matching more than was hidden
+// (a second identical "tamam" in the same minute) is chosen over letting something come back.
+export type Marks = { keys: Set<string>; hashes: Set<string>; texts: Set<string> }
+const minuteOf = (moment: number) => Math.floor(moment / 60_000) * 60_000
+const textMark = (moment: number, person: string, text: string) => JSON.stringify([minuteOf(moment), person, text])
+
+export async function loadHidden(db: Db, chatKey: string): Promise<Marks> {
+  const rows = await pages<{ key: string; content_hash: string | null; minute: string | null; person_slug: string | null; text: string | null }>((from, to) =>
+    db.from('hidden').select('key, content_hash, minute, person_slug, text').eq('chat_key', chatKey).order('key').range(from, to),
+  )
+  const marks: Marks = { keys: new Set(), hashes: new Set(), texts: new Set() }
+  for (const row of rows) {
+    marks.keys.add(row.key)
+    if (row.content_hash) marks.hashes.add(row.content_hash)
+    if (row.minute && row.person_slug && row.text) marks.texts.add(textMark(Date.parse(row.minute), row.person_slug, row.text))
+  }
+  return marks
+}
+
+export function isHidden(message: MemoryMessage, marks: Marks): boolean {
+  if (marks.keys.has(message.key)) return true
+  if (message.media?.hash && marks.hashes.has(message.media.hash)) return true
+  return !message.media && message.text !== '' && marks.texts.has(textMark(message.at, message.personId, message.text))
 }
 
 function loadPhotos(db: Db, chatId: string) {
   return pages<StoredPhoto>((from, to) =>
-    db.from('photos').select('key, view_path, thumb_path, width, height, memories!inner(chat_id)').eq('memories.chat_id', chatId).order('key').range(from, to),
+    db.from('photos').select('key, view_path, thumb_path, width, height, content_hash, hidden, memories!inner(chat_id)').eq('memories.chat_id', chatId).order('key').range(from, to),
   )
 }
 
@@ -81,6 +103,7 @@ function loadPhotos(db: Db, chatId: string) {
 // are in the bucket already).
 export function storedOutside(stored: Stored, span: Span | undefined): { before: MemoryMessage[]; after: MemoryMessage[] } {
   const photos = new Set(stored.photos.map((photo) => photo.key))
+  const hashes = new Map(stored.photos.flatMap((photo) => (photo.content_hash ? [[photo.key, photo.content_hash] as const] : [])))
   const sorted = [...stored.messages].sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime() || a.seq - b.seq)
   const before: MemoryMessage[] = []
   const after: MemoryMessage[] = []
@@ -91,6 +114,8 @@ export function storedOutside(stored: Stored, span: Span | undefined): { before:
     if (row.media_kind) {
       const media: Media = { kind: row.media_kind }
       if (photos.has(row.key)) media.file = 'stored'
+      const hash = hashes.get(row.key)
+      if (hash) media.hash = hash
       message.media = media
     }
     ;(span && at > span.to ? after : before).push(message)
