@@ -1,10 +1,10 @@
-import { type CSSProperties, type MouseEvent, type RefObject, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { type CSSProperties, type MouseEvent, type RefObject, createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { formatDate, formatMonth, formatNames, language, t } from './i18n.ts'
 import { type Chunk, type MemoryCard, type MonthCount, type Timeline, signedLink, useTimeline } from './memories.ts'
-import { memoryPath, navigate } from './route.ts'
+import { memoryPath, navigate, opened } from './route.ts'
 
 type Ready = Extract<Timeline, { status: 'ready' }>
-type Group = { month: string; memories: MemoryCard[]; heading: boolean }
+export type Group = { month: string; memories: MemoryCard[]; heading: boolean }
 
 // The gap between the parts of the timeline (the same as in the stylesheet).
 const GAP = 54
@@ -13,8 +13,12 @@ const GAP = 54
 // held by tape. The timeline holds a run of the archive and grows at both ends as the friend
 // scrolls; the year tabs open it around a month. Only the part near the screen is in the page:
 // the rest of the run keeps its height as an empty box.
-export function Memories({ onSessionLost }: { onSessionLost: () => void }) {
-  const { timeline, reload, grow, retry, jump } = useTimeline(onSessionLost)
+// With `person` (a lasting id) it holds only the memories that person took part in: the same
+// timeline, filtered by the database.
+// `listName` is what the memory screen calls this list in its back link (none: "All memories").
+export const ListName = createContext<string | undefined>(undefined)
+export function Memories({ onSessionLost, person = null, listName }: { onSessionLost: () => void; person?: string | null; listName?: string }) {
+  const { timeline, reload, grow, retry, jump } = useTimeline(onSessionLost, person)
   const [current, setCurrent] = useState<string | null>(null)
   const list = useRef<HTMLDivElement>(null)
   const heights = useRef(new Map<number, number>())
@@ -101,6 +105,7 @@ export function Memories({ onSessionLost }: { onSessionLost: () => void }) {
   if (timeline.chunks.length === 0) return <EmptyTimeline />
 
   return (
+    <ListName.Provider value={listName}>
     <div className="memories" ref={list}>
       <End side="newer" timeline={timeline} grow={grow} retry={retry} />
       {rows.map(({ chunk, groups }) => (
@@ -119,13 +124,14 @@ export function Memories({ onSessionLost }: { onSessionLost: () => void }) {
         </div>
       )}
     </div>
+    </ListName.Provider>
   )
 }
 
 // One page of the run. Near the screen it holds its memories; far away it is an empty box of the
 // height it had, so nothing moves and the page stays small however far the friend has gone.
 // `lang` is only here so that a change of language draws the memories again.
-const ChunkView = memo(function ChunkView({ chunk, groups, heights, lang }: { chunk: Chunk; groups: Group[]; heights: Map<number, number>; lang: string }) {
+export const ChunkView = memo(function ChunkView({ chunk, groups, heights, lang }: { chunk: Chunk; groups: Group[]; heights: Map<number, number>; lang: string }) {
   const box = useRef<HTMLDivElement>(null)
   const near = useNear(box, true)
 
@@ -255,6 +261,7 @@ const tapes = ['var(--tape2)', 'var(--tape1)', 'var(--tape3)', 'var(--tape4)']
 const Memory = memo(function Memory({ memory, index }: { memory: MemoryCard; index: number; lang: string }) {
   const card = useRef<HTMLElement>(null)
   const near = useNear(card)
+  const listName = useContext(ListName)
   const urls = useLinks(near ? memory.photos.map((photo) => photo.thumb) : [])
   const [front, ...behind] = memory.photos
   const date = formatDate(language, memory.at, memory.timezone)
@@ -263,7 +270,7 @@ const Memory = memo(function Memory({ memory, index }: { memory: MemoryCard; ind
 
   return (
     <article className="mem" style={style} ref={card} data-key={memory.key}>
-      <a className="open" href={memoryPath(memory.key)} onClick={open(memory.key)}>
+      <a className="open" href={memoryPath(memory.key)} onClick={open(memory.key, listName)}>
         <div className="stack">
           {behind
             .slice()
@@ -300,10 +307,11 @@ const Memory = memo(function Memory({ memory, index }: { memory: MemoryCard; ind
   )
 })
 
-const open = (key: string) => (event: MouseEvent) => {
+const open = (key: string, listName?: string) => (event: MouseEvent) => {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
   event.preventDefault()
-  navigate(memoryPath(key))
+  opened(key)
+  navigate(memoryPath(key), { from: { path: location.pathname, name: listName } })
 }
 
 function Icon({ d }: { d: string }) {
@@ -315,7 +323,7 @@ function Icon({ d }: { d: string }) {
 }
 
 // The place of one photo: it holds its shape while the photo loads, and when it fails to load.
-function Shot({ url, alt = '', ratio }: { url: string | null | undefined; alt?: string; ratio?: number }) {
+export function Shot({ url, alt = '', ratio }: { url: string | null | undefined; alt?: string; ratio?: number }) {
   const [failed, setFailed] = useState<string | null>(null)
   const broken = url != null && failed === url
   return (
@@ -327,7 +335,7 @@ function Shot({ url, alt = '', ratio }: { url: string | null | undefined; alt?: 
 }
 
 // Links for the given small photos, once they are signed. An empty list lets the photos go.
-function useLinks(paths: string[]): (string | null | undefined)[] {
+export function useLinks(paths: string[]): (string | null | undefined)[] {
   const key = paths.join('\n')
   const [urls, setUrls] = useState<{ key: string; urls: (string | null)[] }>({ key: '', urls: [] })
   useEffect(() => {
@@ -346,7 +354,7 @@ function useLinks(paths: string[]): (string | null | undefined)[] {
 // True while the element is within a screen or two of the visible part of the page.
 let observer: IntersectionObserver | undefined
 const listeners = new WeakMap<Element, (near: boolean) => void>()
-function useNear(ref: RefObject<Element | null>, initial = false): boolean {
+export function useNear(ref: RefObject<Element | null>, initial = false): boolean {
   const [near, setNear] = useState(initial)
   useEffect(() => {
     const element = ref.current

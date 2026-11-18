@@ -193,19 +193,8 @@ async function savePeople(db: Db, messages: MemoryMessage[]): Promise<Map<string
       continue
     }
     const created = await db.from('people').insert({ display_name: name, slug }).select('id').single()
-    if (created.error?.code === '23505') {
-      // Another import of the same people made the person a moment ago: it is theirs now.
-      const bySlugNow = await db.from('people').select('id').eq('slug', slug).maybeSingle()
-      if (bySlugNow.error) throw bySlugNow.error
-      const there = bySlugNow.data ? bySlugNow : await db.from('people').select('id').eq('display_name', name).maybeSingle()
-      if (there.error) throw there.error
-      if (there.data) {
-        rowIds.set(slug, there.data.id)
-        continue
-      }
-    }
     if (created.error) throw created.error
-    rowIds.set(slug, created.data!.id)
+    rowIds.set(slug, created.data.id)
   }
   return rowIds
 }

@@ -197,3 +197,56 @@ test('shows the private page when the session ends while scrolling, not an end o
   await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight))
   await expect(page.getByRole('heading', { name: 'Ezeli is private' })).toBeVisible()
 })
+
+// The memories a person took part in, in the timeline's order, read from the tables themselves
+// (never through the functions the screen uses): memories where they sent a photo or a message.
+async function expectedPersonKeys(slug: string): Promise<string[]> {
+  const get = async <T>(path: string): Promise<T[]> => {
+    const rows: T[] = []
+    for (let from = 0; ; from += 1000) {
+      const read = await fetch(`${stack.apiUrl}/rest/v1/${path}&limit=1000&offset=${from}`, { headers: { apikey: stack.secretKey } })
+      const page = (await read.json()) as T[]
+      rows.push(...page)
+      if (page.length < 1000) return rows
+    }
+  }
+  const [who] = await get<{ id: string }>(`people?select=id&slug=eq.${slug}`)
+  const took = new Set<string>()
+  for (const table of ['messages', 'photos']) {
+    for (const row of await get<{ memory_id: string }>(`${table}?select=memory_id&person_id=eq.${who!.id}&order=id`)) took.add(row.memory_id)
+  }
+  const all = await get<{ id: string; key: string }>('timeline?select=id,key&order=local_at.desc,key.desc')
+  return all.filter((row) => took.has(row.id)).map((row) => row.key)
+}
+
+test("a person's page scrolls through only their memories, once each and in order, with few in the page", async ({ page }) => {
+  const expected = await expectedPersonKeys('limon')
+  expect(expected.length).toBeGreaterThan(large.memories / 2)
+  await open(page)
+  const first = Date.now()
+  await page.goto('/p/limon')
+  // The timeline under the facts appears about as fast as the main one does, not seconds later.
+  await expect(memories(page).first()).toBeVisible({ timeout: 2000 })
+  console.log(`person page: first memory after ${Date.now() - first} ms`)
+
+  const { order, mostMemories } = await sweep(page, 'down')
+  expect(differs(order, expected)).toBe('same')
+  expect(mostMemories).toBeLessThan(MOST_MEMORIES)
+})
+
+test("a jump on a person's page opens around one of their older months, and scrolling up reaches their newest", async ({ page }) => {
+  const expected = await expectedPersonKeys('limon')
+  await open(page)
+  await page.goto('/p/limon')
+  await expect(memories(page).first()).toBeVisible()
+
+  await tabs(page).getByRole('button', { name: '2017', exact: true }).click()
+  await tabs(page).getByRole('button', { name: 'March 2017' }).click()
+  await expect(page.getByRole('heading', { name: 'March 2017' })).toBeInViewport()
+  expect(await memories(page).count()).toBeLessThan(MOST_MEMORIES)
+
+  const { order, mostMemories } = await sweep(page, 'up')
+  expect(differs(order, expected.slice(0, order.length))).toBe('same')
+  expect(order[0]).toBe(expected[0])
+  expect(mostMemories).toBeLessThan(MOST_MEMORIES)
+})
