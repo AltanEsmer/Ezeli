@@ -47,7 +47,7 @@ function Signed(props: { person: Person; onSignOut: () => void; onSessionLost: (
     if (unknown) navigate('/', { replace: true })
   }, [unknown])
   if (route.name === 'memory') return <MemoryPage key={route.key} memoryKey={route.key} person={props.person} onSessionLost={props.onSessionLost} />
-  return <Timeline person={props.person} onSignOut={props.onSignOut} />
+  return <Timeline person={props.person} onSignOut={props.onSignOut} onSessionLost={props.onSessionLost} />
 }
 
 // One taped slip of paper in the middle of the page: the private page and its variants.
@@ -64,7 +64,7 @@ function Note(props: { title: string; body: string; tone?: 'red'; children?: Rea
   )
 }
 
-function Timeline({ person, onSignOut }: { person: Person; onSignOut: () => void }) {
+function Timeline({ person, onSignOut, onSessionLost }: { person: Person; onSignOut: () => void; onSessionLost: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const closeMenu = useCallback(() => setMenuOpen(false), [])
   return (
@@ -82,7 +82,7 @@ function Timeline({ person, onSignOut }: { person: Person; onSignOut: () => void
         </button>
       </header>
 
-      <Memories />
+      <Memories onSessionLost={onSessionLost} />
 
       {menuOpen && <Menu person={person} onClose={closeMenu} onSignOut={onSignOut} />}
     </main>

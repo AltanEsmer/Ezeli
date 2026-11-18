@@ -22,6 +22,9 @@ const en = {
   sentBy: (names: string) => `Sent by ${names}`,
   photoBy: (name: string) => `Photo sent by ${name}`,
   photoGone: 'Photo could not load',
+  photoCount: (n: string) => (n === '1' ? '1 photo' : `${n} photos`),
+  commentCount: (n: string) => (n === '0' ? 'No comments' : n === '1' ? '1 comment' : `${n} comments`),
+  jumpTo: 'Jump to a year or month',
   allMemories: 'All memories',
   conversation: 'Conversation',
   earlierMemory: 'Earlier memory',
@@ -72,6 +75,9 @@ const tr: Labels = {
   sentBy: (names: string) => `${names} gönderdi`,
   photoBy: (name: string) => `${name} gönderdi`,
   photoGone: 'Fotoğraf yüklenemedi',
+  photoCount: (n: string) => `${n} fotoğraf`,
+  commentCount: (n: string) => (n === '0' ? 'Yorum yok' : `${n} yorum`),
+  jumpTo: 'Bir yıla ya da aya git',
   allMemories: 'Tüm anılar',
   conversation: 'Konuşma',
   earlierMemory: 'Önceki anı',
@@ -141,4 +147,10 @@ export function formatDateTime(lang: Language, moment: string | number | Date): 
 // "Karpuz, Limon and Fıstık" / "Karpuz, Limon ve Fıstık".
 export function formatNames(lang: Language, names: string[]): string {
   return new Intl.ListFormat(lang, { style: 'long', type: 'conjunction' }).format(names)
+}
+
+// "July 2023" / "Temmuz 2023" for a month key such as 2023-07; the short form is "Jul" / "Tem".
+export function formatMonth(lang: Language, month: string, short = false): string {
+  const options: Intl.DateTimeFormatOptions = short ? { month: 'short' } : { month: 'long', year: 'numeric' }
+  return new Intl.DateTimeFormat(lang, { ...options, timeZone: 'UTC' }).format(new Date(`${month}-15T12:00:00Z`))
 }

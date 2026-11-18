@@ -17,10 +17,12 @@ test.describe('a visitor without a link', () => {
     await expect(page.getByRole('heading', { name: 'Ezeli is private' })).toBeVisible()
     await expect(memories(page)).toHaveCount(0)
 
-    for (const table of ['timeline', 'chats', 'memories', 'messages', 'photos']) {
+    for (const table of ['timeline', 'timeline_months', 'chats', 'memories', 'messages', 'photos']) {
       const read = await request.get(`${apiUrl}/rest/v1/${table}?select=*`, { headers: { apikey: publishableKey } })
       expect(await read.json(), table).not.toEqual(expect.arrayContaining([expect.objectContaining({ id: expect.anything() })]))
     }
+    const page1 = await request.post(`${apiUrl}/rest/v1/rpc/timeline_page`, { headers: { apikey: publishableKey }, data: { p_newer: false, p_at: null, p_key: null, p_limit: 5 } })
+    expect(page1.ok()).toBe(false)
     const files = await request.post(`${apiUrl}/storage/v1/object/list/photos`, {
       headers: { apikey: publishableKey },
       data: { prefix: '', limit: 10 },
