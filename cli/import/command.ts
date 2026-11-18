@@ -9,7 +9,7 @@ import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } fr
 import { isDiscordExport, readDiscord, withMentions } from './discord.ts'
 import { readPeople } from './people.ts'
 import { readablePhoto, removeConvertedPhotos } from './photos.ts'
-import { kindOf, loadMarks, matched } from './marks.ts'
+import { codeOf, kindOf, loadMarks, matched, widerThanOne, type Mark } from './marks.ts'
 import { spanOf } from './regroup.ts'
 import { saveChat, type SaveReport } from './save.ts'
 import { Stop } from './stop.ts'
@@ -116,9 +116,17 @@ async function importExport(args: string[]): Promise<string> {
 
   // What an owner hid is left out here, before grouping, so the summary matches the app (marks.ts).
   // The keys above were worked out with it in place, so what stays keeps the key it has stored.
+  const leftOut: string[] = []
   if (db) {
     const things = messages.map((message) => ({ message, slug: message.personId, at: message.at, kind: kindOf(message.media), match: message.media ? (message.media.hash ?? '') : message.text }))
-    const { hits: hidden } = matched(things, await savingStop(() => loadMarks(db, chatText)))
+    const { hits: hidden, results } = matched(things, await savingStop(() => loadMarks(db, chatText)))
+    // Nothing innocent goes without a line: a mark that could not match exactly left out others.
+    for (const result of widerThanOne(results)) {
+      const mark = result.mark as Mark
+      const others = result.things.length - (mark.kind === 'photo' || mark.kind === 'text' ? 0 : 1)
+      const first = result.things[0]!
+      leftOut.push(`Left out by a hidden mark: ${first.message.person}, ${momentText(first.message.at, timezone)}, ${others} other ${others === 1 ? 'thing' : 'things'}. If the hidden thing is no longer in the chat, pnpm ezeli show ${codeOf(mark.id)} brings them back at the next import.`)
+    }
     const kept = things.filter((thing) => !hidden.has(thing)).map((thing) => thing.message)
     messages.length = 0
     for (const message of kept) messages.push(message)
@@ -139,7 +147,8 @@ async function importExport(args: string[]): Promise<string> {
       throw new Stop(`Saving stopped before it finished: ${reason}. Fix that and run the same import again; it finishes the job.`)
     }
   }
-  return importSummary(memories, problems.map(removePhoneNumbers), timezone, details, report && chatName!.trim(), report)
+  const summary = importSummary(memories, problems.map(removePhoneNumbers), timezone, details, report && chatName!.trim(), report)
+  return leftOut.length > 0 ? `${summary}\n${leftOut.join('\n')}` : summary
 }
 
 // A failed request before saving is told in plain words, like a failed save.
@@ -147,6 +156,7 @@ async function savingStop<T>(work: () => Promise<T>): Promise<T> {
   try {
     return await work()
   } catch (error) {
+    if (error instanceof Stop) throw error
     const reason = ((error as { message?: string }).message ?? String(error)).replace(/\s+/g, ' ')
     throw new Stop(`Saving stopped before it finished: ${reason}. Fix that and run the same import again; it finishes the job.`)
   }
@@ -155,17 +165,22 @@ async function savingStop<T>(work: () => Promise<T>): Promise<T> {
 // The secret of a stored chat; none for a chat stored before secrets existed (it keeps its keys). A
 // chat not stored yet is stored now, with a new secret, so that two imports of it that start together
 // make their keys with the same one.
-async function chatSecret(db: NonNullable<ReturnType<typeof databaseOrStop>>, chat: { key: string; name: string; app: string; timezone: string }): Promise<string | undefined> {
+async function chatSecret(db: NonNullable<ReturnType<typeof databaseOrStop>>, chat: { key: string; name: string; app: string; timezone: string }): Promise<string> {
   const read = async () => {
     const found = await db.from('chats').select('secret').eq('key', chat.key).maybeSingle()
     if (found.error) throw found.error
     return found.data
   }
   const there = await read()
-  if (there) return there.secret ?? undefined
+  if (there) {
+    if (!there.secret) throw new Stop('This chat was stored before its keys had a secret, so it cannot be imported again. Remove the chat and import it again (no real chat exists yet).')
+    return there.secret
+  }
   const made = await db.from('chats').upsert({ ...chat, secret: randomBytes(24).toString('hex') }, { onConflict: 'key', ignoreDuplicates: true })
   if (made.error) throw made.error
-  return (await read())?.secret ?? undefined
+  const made2 = (await read())?.secret
+  if (!made2) throw new Stop('The chat could not be stored with a secret. Run the same import again.')
+  return made2
 }
 
 function databaseOrStop() {

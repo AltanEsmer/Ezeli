@@ -2,16 +2,18 @@
 // writes marks for one item or the whole memory and applies them; `hidden` lists the marks,
 // numbered; `show` removes a mark. The numbers are printed to the owner's terminal only.
 import { adminClient, type Db } from './supabase.ts'
-import { applyMarks, kindOf, loadMarks, matched, storedThings, type Kind } from './import/marks.ts'
+import { applyMarks, codeOf, kindOf, loadMarks, matched, storedThings, widerThanOne, type Kind } from './import/marks.ts'
 import { chunks } from './import/regroup.ts'
+import { createInterface } from 'node:readline'
 import { Stop } from './import/stop.ts'
 
 const USAGE = [
-  "Usage: pnpm ezeli memory <address>             list the memory's photos and messages, numbered",
-  '       pnpm ezeli hide <address> [number]      hide one item, or the whole memory without a number',
-  '       pnpm ezeli hidden                       list what is hidden, numbered',
-  '       pnpm ezeli show <number>                stop hiding an item of that list (it returns with the next import)',
+  "Usage: pnpm ezeli memory <address>             list the memory's photos and messages, each with a code",
+  '       pnpm ezeli hide <address> [code] [--yes] hide one item by its code, or the whole memory without one',
+  '       pnpm ezeli hidden                       apply every mark again, then list what is hidden, each with a code',
+  '       pnpm ezeli show <code>                  stop hiding an item of that list (it returns with the next import)',
   "The address is the memory's address in the app (https://.../m/<key>, /m/<key> or just <key>).",
+  'A code is the short name printed beside the item; it never changes, so it cannot name the wrong thing.',
 ].join('\n')
 
 type Item = { n: number; key: string; kind: string | null; by: string; slug: string; at: string; text: string }
@@ -54,7 +56,7 @@ async function find(db: Db, address: string): Promise<Found> {
 
 const clock = (at: string, zone: string) => new Intl.DateTimeFormat('en-GB', { timeZone: zone, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(at))
 const when = (at: string, zone: string) => new Intl.DateTimeFormat('en-GB', { timeZone: zone, dateStyle: 'medium', timeStyle: 'short' }).format(new Date(at))
-const kindName = (kind: Kind) => (kind === 'photo' ? 'photo' : kind === 'text' ? 'message' : 'other media')
+const kindName = (kind: Kind) => (kind === 'photo' ? 'photo' : kind === 'text' ? 'message' : kind === 'media' ? 'media' : 'other media')
 
 export const runList = (args: string[]) =>
   plain(async () => {
@@ -63,20 +65,33 @@ export const runList = (args: string[]) =>
     console.log(`${new Intl.DateTimeFormat('en-GB', { timeZone: found.chat.timezone, dateStyle: 'full' }).format(new Date(found.memory.at))} (${found.chat.name})`)
     for (const item of found.items) {
       const what = item.kind === 'photo' ? '[Photo]' : item.kind ? `[${item.kind}]` : item.text.replace(/\s+/g, ' ').slice(0, 80)
-      console.log(`${String(item.n).padStart(3)}  ${clock(item.at, found.chat.timezone)}  ${item.by}: ${what}`)
+      console.log(`${codeOf(item.key)}  ${clock(item.at, found.chat.timezone)}  ${item.by}: ${what}`)
     }
     return 0
   })
 
+// One line from the owner. No answer (nothing to read) is a no.
+async function ask(question: string): Promise<boolean> {
+  process.stdout.write(question)
+  const lines = createInterface({ input: process.stdin })
+  for await (const line of lines) {
+    lines.close()
+    return /^\s*(y|yes)\s*$/i.test(line)
+  }
+  return false
+}
+
 export const runHide = (args: string[]) =>
   plain(async () => {
-    const [address, number, ...rest] = args
-    if (!address || rest.length > 0 || (number !== undefined && !/^[1-9]\d*$/.test(number))) throw new Stop(USAGE)
+    const yes = args.includes('--yes')
+    const [address, code, ...rest] = args.filter((arg) => arg !== '--yes')
+    if (!address || rest.length > 0 || (code !== undefined && !/^[0-9a-f]{4,32}$/.test(code))) throw new Stop(USAGE)
     const db = adminClient()
     const found = await find(db, address)
-    const chosen = number === undefined ? found.items : found.items.filter((item) => item.n === Number(number))
-    if (chosen.length === 0) throw new Stop(`The memory has no item number ${number}. List it with: pnpm ezeli memory <address>`)
-
+    const chosen = code === undefined ? found.items : found.items.filter((item) => item.key.startsWith(code))
+    if (chosen.length === 0) throw new Stop(`This memory has no item with the code ${code}. List it with: pnpm ezeli memory <address>`)
+    if (code !== undefined && chosen.length > 1) throw new Stop(`More than one item of this memory starts with ${code}. Give more of the code.`)
+    const whole = code === undefined
     // What to match: a photo's file hash ('' when it has none), a message's text, nothing for other media.
     const hashes = await db.from('photos').select('key, content_hash').in('key', chosen.map((item) => item.key))
     if (hashes.error) throw hashes.error
@@ -93,21 +108,32 @@ export const runHide = (args: string[]) =>
     }
 
     // The match is exact where it can be. Where it cannot (no stored hash, other media), all of that
-    // person's things of that kind in that minute go: say what else goes before it does.
+    // person's things of that kind in that minute go: say what else goes, and wait for a yes.
     const { things } = await storedThings(db, found.chat.id)
-    const { hits: going } = matched(things, [...fresh.values()], true)
+    const { hits: going, results } = matched(things, [...fresh.values()], true)
     const asked = new Set(chosen.map((item) => item.key))
     const more = [...going].filter((thing) => !asked.has(thing.message.key))
     if (more.length > 0) {
-      console.log(`The match is not exact, so ${more.length === 1 ? 'this goes' : 'these go'} with it:`)
+      const exact = results.every((result) => result.exact)
+      console.log(exact ? `The same match also takes ${more.length === 1 ? 'this' : 'these'}:` : `The match is not exact, so ${more.length === 1 ? 'this goes' : 'these go'} with it:`)
       for (const thing of more) console.log(`  ${when(thing.message.at, found.chat.timezone)}  ${thing.message.people.display_name}: ${kindName(thing.kind)}`)
+      if (!yes && !(await ask('Hide them as well? (yes/no) '))) {
+        console.log('Nothing was hidden.')
+        return 1
+      }
     }
 
     for (const part of chunks([...fresh.values()].map(({ key: _key, ...mark }) => mark))) {
       const written = await db.from('hidden').insert(part)
       if (written.error) throw written.error
     }
-    const done = await applyMarks(db, found.chat.key)
+    let done
+    try {
+      done = await applyMarks(db, found.chat.key)
+    } catch (error) {
+      if (error instanceof Stop) throw error
+      throw new Stop(`${((error as { message?: string }).message ?? String(error)).replace(/\s+/g, ' ')}. The marks are saved. Run: pnpm ezeli hidden (it applies them again).`)
+    }
     console.log(`Hidden: ${done.messages} ${done.messages === 1 ? 'message' : 'messages'} (${done.photos} ${done.photos === 1 ? 'photo' : 'photos'} with their files); ${done.memories} ${done.memories === 1 ? 'memory' : 'memories'} and ${done.comments} ${done.comments === 1 ? 'comment' : 'comments'} removed with them.`)
     const now = await db.from('memories').select('key').eq('id', found.memory.id).maybeSingle()
     if (now.data && now.data.key !== found.memory.key) console.log(`The memory's address is now /m/${now.data.key}.`)
@@ -117,12 +143,17 @@ export const runHide = (args: string[]) =>
 export const runHidden = (args: string[]) =>
   plain(async () => {
     if (args.length !== 0) throw new Stop(USAGE)
-    const marks = await listMarks(adminClient())
+    const db = adminClient()
+    // Every mark is applied again first, so a hide that stopped halfway is finished.
+    const keys = await db.from('hidden').select('chat_key')
+    if (keys.error) throw keys.error
+    for (const key of new Set(keys.data.map((row) => row.chat_key))) await applyMarks(db, key)
+    const marks = await listMarks(db)
     if (marks.length === 0) console.log('Nothing is hidden.')
     let chat = ''
-    for (const [index, mark] of marks.entries()) {
+    for (const mark of marks) {
       if (mark.chatName !== chat) console.log(`${(chat = mark.chatName)}`)
-      console.log(`${String(index + 1).padStart(3)}  ${when(mark.minute, mark.timezone)}  ${mark.by}: ${kindName(mark.kind)}`)
+      console.log(`  ${codeOf(mark.id)}  ${when(mark.minute, mark.timezone)}  ${mark.by}: ${kindName(mark.kind)}`)
     }
     return 0
   })
@@ -142,11 +173,13 @@ async function listMarks(db: Db) {
 
 export const runShow = (args: string[]) =>
   plain(async () => {
-    const [number, ...rest] = args
-    if (!number || rest.length > 0 || !/^[1-9]\d*$/.test(number)) throw new Stop(USAGE)
+    const [code, ...rest] = args
+    if (!code || rest.length > 0 || !/^[0-9a-f]{4,32}$/.test(code)) throw new Stop(USAGE)
     const db = adminClient()
-    const mark = (await listMarks(db))[Number(number) - 1]
-    if (!mark) throw new Stop(`Nothing hidden has number ${number}. List it with: pnpm ezeli hidden`)
+    const found = (await listMarks(db)).filter((mark) => mark.id.replace(/-/g, '').startsWith(code))
+    if (found.length === 0) throw new Stop(`Nothing hidden has the code ${code}. List it with: pnpm ezeli hidden`)
+    if (found.length > 1) throw new Stop(`More than one mark starts with ${code}. Give more of the code.`)
+    const mark = found[0]!
     const removed = await db.from('hidden').delete().eq('id', mark.id)
     if (removed.error) throw removed.error
     console.log(`No longer hidden: ${kindName(mark.kind)} by ${mark.by}, ${when(mark.minute, mark.timezone)} (${mark.chatName}). It returns with the next import of that chat.`)

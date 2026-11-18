@@ -181,11 +181,9 @@ async function removeFiles(db: Db, paths: string[]): Promise<void> {
 // Files in the chat's folder of the bucket that no photo row points at: left by a run that
 // stopped while removing them. Run at the end of a saving run, when every row of the run is in
 // place. Other chats' folders are never looked at.
-// A file uploaded in the last minute is left alone: an import that is still running (another owner's, or
-// a second run of the same one) has not given it a row yet. EZELI_SWEEP_AFTER_MS changes that, for tests.
-export const sweepAfterMs = Number(process.env.EZELI_SWEEP_AFTER_MS ?? 60_000)
-
-export async function removeFilesWithoutRow(db: Db, chatId: string, minAgeMs = sweepAfterMs): Promise<void> {
+// Only an import does this, at its own end, and only for files that were already there when it began:
+// a file uploaded since then belongs to an import that is still running and has not given it a row yet.
+export async function removeFilesWithoutRow(db: Db, chatId: string, since: number): Promise<void> {
   const known = new Set<string>()
   for (const photo of await loadPhotos(db, chatId)) {
     known.add(photo.view_path)
@@ -196,9 +194,8 @@ export async function removeFilesWithoutRow(db: Db, chatId: string, minAgeMs = s
     const listed = await db.storage.from(BUCKET).list(chatId, { limit: PAGE, offset, sortBy: { column: 'name', order: 'asc' } })
     if (listed.error) throw listed.error
     for (const file of listed.data) {
-      // `minAgeMs`: leave alone a file uploaded just now, which an import that is still running has not given a row yet.
-      const young = Date.now() - Date.parse(file.created_at ?? '') < minAgeMs
-      if (file.id && !known.has(`${chatId}/${file.name}`) && !young) orphans.push(`${chatId}/${file.name}`)
+      const newer = Date.parse(file.created_at ?? '') >= since
+      if (file.id && !known.has(`${chatId}/${file.name}`) && !newer) orphans.push(`${chatId}/${file.name}`)
     }
     if (listed.data.length < PAGE) break
   }

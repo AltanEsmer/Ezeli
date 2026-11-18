@@ -44,7 +44,7 @@ test.beforeAll(async () => {
   ;[july14, july15] = found.data!.map((memory) => memory.key)
 })
 
-// The number of the first line of the owner's listing that matches.
+// The code (first word) of the first line of the owner's listing that matches.
 function numberOf(key: string, matching: RegExp): string {
   const listing = ownerCommand(['memory', `/m/${key}`]).stdout
   const line = listing.split('\n').find((candidate) => matching.test(candidate))
@@ -91,8 +91,8 @@ test('a hidden message returns with the next import once it is shown, not before
   await signIn(page)
   const listing = ownerCommand(['hidden']).stdout.split('\n')
   const start = listing.findIndex((line) => line.trim() === CHAT)
-  const number = listing.slice(start + 1).find((line) => /Limon.*: message/.test(line))!.trim().split(/\s+/)[0]!
-  expect(ownerCommand(['show', number]).status).toBe(0)
+  const code = listing.slice(start + 1).find((line) => /Limon.*: message/.test(line))!.trim().split(/\s+/)[0]!
+  expect(ownerCommand(['show', code]).status).toBe(0)
 
   await page.goto(`/m/${await addressOf(ids[0]!)}`)
   await expect(talk(page).getByText('Yarın tekneye gidiyoruz')).toHaveCount(0)

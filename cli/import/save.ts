@@ -21,6 +21,7 @@ export type SaveReport = { added: Counts; already: Counts; removed: Removed }
 // time the export covers. What is stored outside that time is joined with the export before the
 // grouping (see regroup.ts), so a memory cut by the edge of the export stays whole.
 export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage[], grouping: Grouping, span: Span | undefined): Promise<SaveReport> {
+  const startedAt = Date.now()
   // The time zone is fixed at the chat's first import: the dates of what is stored were made
   // with it. Checked before anything is written.
   const existing = await db.from('chats').select('id, timezone').eq('key', chat.key).maybeSingle()
@@ -138,7 +139,7 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   const kept = { memories: new Set(memoryRows.map((row) => row.key)), messages: new Set(messages.map((message) => message.key)) }
   const removed = await removeWhatNoLongerFits(db, stored, kept)
   // Files that no row points at, left by a run that stopped while removing them.
-  await removeFilesWithoutRow(db, chatId)
+  await removeFilesWithoutRow(db, chatId, startedAt)
   // Once more at the very end: a hide that landed while this import ran (which may have written a
   // hidden photo's row again from what was read at the start) is put right here.
   const late = await applyMarks(db, chat.key)
@@ -192,8 +193,19 @@ async function savePeople(db: Db, messages: MemoryMessage[]): Promise<Map<string
       continue
     }
     const created = await db.from('people').insert({ display_name: name, slug }).select('id').single()
+    if (created.error?.code === '23505') {
+      // Another import of the same people made the person a moment ago: it is theirs now.
+      const bySlugNow = await db.from('people').select('id').eq('slug', slug).maybeSingle()
+      if (bySlugNow.error) throw bySlugNow.error
+      const there = bySlugNow.data ? bySlugNow : await db.from('people').select('id').eq('display_name', name).maybeSingle()
+      if (there.error) throw there.error
+      if (there.data) {
+        rowIds.set(slug, there.data.id)
+        continue
+      }
+    }
     if (created.error) throw created.error
-    rowIds.set(slug, created.data.id)
+    rowIds.set(slug, created.data!.id)
   }
   return rowIds
 }
