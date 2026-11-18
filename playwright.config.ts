@@ -15,7 +15,8 @@ export default defineConfig({
     { name: 'import', testMatch: 'import.setup.ts', dependencies: ['sign-in'] },
     { name: 'memories', testMatch: ['timeline.spec.ts', 'language.spec.ts'], dependencies: ['import'] },
     // Imports more chats of its own, so it runs after the timeline tests have counted.
-    { name: 'memory', testMatch: ['memory.spec.ts', 'comments.spec.ts'], dependencies: ['memories'] },
+    { name: 'memory-import', testMatch: 'memory.setup.ts', dependencies: ['memories'] },
+    { name: 'memory', testMatch: ['memory.spec.ts', 'comments.spec.ts'], dependencies: ['memory-import'] },
     // The full timeline: imports chats of its own, so it runs after the tests above have counted.
     { name: 'full-timeline', testMatch: 'full-timeline.spec.ts', dependencies: ['memory'] },
     // The people pages: they read what the earlier projects imported and import nothing of their own.
