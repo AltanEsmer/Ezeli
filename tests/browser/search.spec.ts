@@ -98,7 +98,9 @@ test.describe('search', () => {
     await results(page).filter({ hasText: 'Çok güzel çıkmış' }).click()
     await page.getByRole('textbox').fill(`Bu ${word} çorbası harikaydı`)
     await page.getByRole('button', { name: 'Add comment' }).click()
-    await expect(page.getByText(`Bu ${word} çorbası harikaydı`)).toBeVisible()
+    // Saved: the box is emptied and the note is shown among the comments (the typed text is not yet).
+    await expect(page.getByRole('textbox')).toHaveValue('')
+    await expect(page.getByRole('article').filter({ hasText: `Bu ${word} çorbası harikaydı` })).toBeVisible()
     await page.goto('/search')
     await find(page, word.toUpperCase())
 

@@ -56,6 +56,16 @@ Added with issue 18: the table `comments` (memory, person, text, time). Same pat
 - **For owners:** a friend deletes only their own comments; an owner deletes any, one by one, in the app (Delete on the note). To remove a flood (a leaked link, say), first replace the link (`person relink`), then in the Supabase dashboard's SQL editor run `delete from public.comments where person_id = (select id from public.people where display_name = '<name>');`. `person list` counts the comments a person has now: someone who deleted their own comment counts one less. A memory that loses all its photos in an import takes its comments with it; the import prints how many in its `Removed:` line.
 - Tests: `tests/import/comments.test.ts` asks the database directly (a friend's token, another friend's, an owner's, a replaced link, no token) and the second import; `tests/browser/comments.spec.ts` is the phone seam.
 
+## Search
+
+Added with issue 19: `search_memories(p_query, p_at, p_key, p_limit)`, one function, one box in the app (`/search`; the typed words never go in the address).
+
+- **What it finds:** memories (the same rows as the timeline, newest first, a page of at most 100 after a cursor like `timeline_page`) that have every word typed, in a message (a photo's caption too), in a comment, or in the name of a person who sent a photo or a message in it. Different words may be found in different places. At most 8 words; a word matches anywhere inside the stored text, as plain text: `%`, `_` and `\` mean themselves.
+- **Folding:** `private.fold(text)` is applied to the stored text and to the typed words alike: capital letters, then İ, I and ı all become `i`, and ş ğ ü ö ç (â î û) become s g u o c. So `istanbul` finds `İstanbul`, `ISTANBUL` and `ıstanbul`, and `sarki` finds `şarkı`. It does not depend on the database's locale.
+- **Access:** row level security keeps the planner from using an index for a condition that is not leakproof (`like` is not), so a search under the caller's own rights read every message. `private.search_memory_ids` therefore finds the candidates with the owner's rights, using the trigram indexes, and answers only a person with a live session (`current_person_id()`). `search_memories` runs with the caller's rights and checks every candidate again: a memory is returned only if each word is in a message, comment or name the caller's own rules let them read, and the row itself comes from the `timeline` view. A visitor has no right to run it; a session that has ended gets nothing.
+- **Speed:** GIN trigram indexes on the folded `messages.text` and `comments.body`, and `messages (person_id, memory_id)` for names. A word of one or two letters cannot use them: with no longer word beside it, the memories are walked from the newest and checked, which is quick when the word is common and slower when it is rare (see the PR for numbers).
+- The browser test is `tests/browser/search.spec.ts`; `language.spec.ts` walks the screen in both languages.
+
 ## Tests
 
 - `pnpm test`: the import seam. The command runs on made-up exports and the result is read from the running local Supabase (database and bucket), so Supabase must be up. Each test uses names of its own.
