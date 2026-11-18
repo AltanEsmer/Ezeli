@@ -1054,6 +1054,7 @@ button {
   font-weight: 700;
   line-height: 1.15;
   color: var(--pen);
+}
 
 /* The search screen: one box on a strip of paper. */
 .find {
