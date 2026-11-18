@@ -25,7 +25,7 @@ export type StoredMessage = {
   media_kind: MediaKind | null
   people: { id: string; slug: string; display_name: string }
 }
-export type StoredPhoto = { key: string; view_path: string; thumb_path: string; width: number; height: number }
+export type StoredPhoto = { key: string; view_path: string; thumb_path: string; width: number; height: number; content_hash: string | null }
 export type Stored = { memories: StoredMemory[]; messages: StoredMessage[]; photos: StoredPhoto[] }
 export type Span = { from: number; to: number } // moments, in milliseconds, both included
 export type Kept = { memories: Set<string>; messages: Set<string> } // the keys of this import
@@ -68,7 +68,7 @@ export async function loadStored(db: Db, chatId: string): Promise<Stored> {
 
 function loadPhotos(db: Db, chatId: string) {
   return pages<StoredPhoto>((from, to) =>
-    db.from('photos').select('key, view_path, thumb_path, width, height, memories!inner(chat_id)').eq('memories.chat_id', chatId).order('key').range(from, to),
+    db.from('photos').select('key, view_path, thumb_path, width, height, content_hash, memories!inner(chat_id)').eq('memories.chat_id', chatId).order('key').range(from, to),
   )
 }
 
@@ -181,7 +181,9 @@ async function removeFiles(db: Db, paths: string[]): Promise<void> {
 // Files in the chat's folder of the bucket that no photo row points at: left by a run that
 // stopped while removing them. Run at the end of a saving run, when every row of the run is in
 // place. Other chats' folders are never looked at.
-export async function removeFilesWithoutRow(db: Db, chatId: string): Promise<void> {
+// Only an import does this, at its own end, and only for files that were already there when it began:
+// a file uploaded since then belongs to an import that is still running and has not given it a row yet.
+export async function removeFilesWithoutRow(db: Db, chatId: string, since: number): Promise<void> {
   const known = new Set<string>()
   for (const photo of await loadPhotos(db, chatId)) {
     known.add(photo.view_path)
@@ -191,7 +193,10 @@ export async function removeFilesWithoutRow(db: Db, chatId: string): Promise<voi
   for (let offset = 0; ; offset += PAGE) {
     const listed = await db.storage.from(BUCKET).list(chatId, { limit: PAGE, offset, sortBy: { column: 'name', order: 'asc' } })
     if (listed.error) throw listed.error
-    for (const file of listed.data) if (file.id && !known.has(`${chatId}/${file.name}`)) orphans.push(`${chatId}/${file.name}`)
+    for (const file of listed.data) {
+      const newer = Date.parse(file.created_at ?? '') >= since
+      if (file.id && !known.has(`${chatId}/${file.name}`) && !newer) orphans.push(`${chatId}/${file.name}`)
+    }
     if (listed.data.length < PAGE) break
   }
   await removeFiles(db, orphans)

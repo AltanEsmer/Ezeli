@@ -30,11 +30,19 @@ test('a visitor without a session reads nothing from any table or from the bucke
 test('a signed-in person reads memories, messages and photos, and the photos through short-lived links', async () => {
   const friend = await signedInAs(fresh('Limon'))
 
+  // Every column but the chat's key secret and a photo's file hash (hiding, issue 20).
+  const columns: Record<string, string> = { chats: 'id, key, name, app, timezone', photos: 'id, memory_id, message_id, key, person_id, at, seq, view_path, thumb_path, width, height' }
   for (const table of tables) {
-    const read = await friend.from(table).select('*')
+    const read = await friend.from(table).select(columns[table] ?? '*')
     expect(read.error, table).toBeNull()
     expect(read.data!.length, table).toBeGreaterThan(0)
   }
+  // The secret of a chat's keys and a photo's file hash cannot be read, not even by asking for them.
+  expect((await friend.from('chats').select('secret')).error).not.toBeNull()
+  expect((await friend.from('chats').select('*')).error).not.toBeNull()
+  expect((await friend.from('photos').select('content_hash')).error).not.toBeNull()
+  // The marks of hiding are not readable either.
+  expect((await friend.from('hidden').select('*')).error).not.toBeNull()
 
   const link = await friend.storage.from('photos').createSignedUrl(thumb, 3600)
   expect(link.error).toBeNull()

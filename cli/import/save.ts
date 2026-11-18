@@ -1,10 +1,12 @@
 // Saving: the two sizes of each photo, then the chat, its people, the memories, messages and
 // photos. Everything is written by key, so the same export saved twice leaves one copy, and an
 // import that stopped halfway is finished by running it again.
+import { existsSync, writeFileSync } from 'node:fs'
 import type { Db } from '../supabase.ts'
 import { buildMemories, hasPhotoFile, isPhoto, type Grouping, type MemoryMessage } from './memories.ts'
 import type { ChatApp } from './people.ts'
 import { makeSizes } from './photos.ts'
+import { applyMarks } from './marks.ts'
 import { chunks, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Removed, type Span } from './regroup.ts'
 import { Stop } from './stop.ts'
 
@@ -19,6 +21,7 @@ export type SaveReport = { added: Counts; already: Counts; removed: Removed }
 // time the export covers. What is stored outside that time is joined with the export before the
 // grouping (see regroup.ts), so a memory cut by the edge of the export stays whole.
 export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage[], grouping: Grouping, span: Span | undefined): Promise<SaveReport> {
+  const startedAt = Date.now()
   // The time zone is fixed at the chat's first import: the dates of what is stored were made
   // with it. Checked before anything is written.
   const existing = await db.from('chats').select('id, timezone').eq('key', chat.key).maybeSingle()
@@ -30,6 +33,8 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
     )
   }
 
+  // What an owner hid is removed from what is stored before anything is read from it (marks.ts).
+  await applyMarks(db, chat.key)
   const stored = existing.data ? await loadStored(db, existing.data.id) : nothingStored
   const storedPhotos = new Map(stored.photos.map((photo) => [photo.key, photo]))
   const outside = storedOutside(stored, span)
@@ -45,12 +50,12 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   const chatId = savedChat.data.id
 
   // Photos first, so that a photo row exists only when both its files are in the bucket.
-  const sizes = new Map<string, { view: string; thumb: string; width: number; height: number }>()
+  const sizes = new Map<string, { view: string; thumb: string; width: number; height: number; hash: string | null }>()
   await mapLimit(messages.filter(hasPhotoFile), 4, async (message) => {
     // Already stored with both files: nothing to convert or upload again.
     const there = storedPhotos.get(message.key)
     if (there) {
-      sizes.set(message.key, { view: there.view_path, thumb: there.thumb_path, width: there.width, height: there.height })
+      sizes.set(message.key, { view: there.view_path, thumb: there.thumb_path, width: there.width, height: there.height, hash: message.media?.hash ?? there.content_hash })
       return
     }
     const file = message.media!.file!
@@ -66,12 +71,14 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
       const uploaded = await db.storage.from(BUCKET).upload(path, body, { contentType: 'image/webp', upsert: true })
       if (uploaded.error) throw uploaded.error
     }
-    sizes.set(message.key, { view, thumb, width: made.width, height: made.height })
+    sizes.set(message.key, { view, thumb, width: made.width, height: made.height, hash: message.media?.hash ?? null })
   })
 
   // People of the export are saved (and renamed) from the export; the others are known by their rows.
   const people = await savePeople(db, exported)
   for (const row of stored.messages) if (!people.has(row.people.slug)) people.set(row.people.slug, row.people.id)
+
+  await testPause()
 
   // A memory is known by its first photo message, whether or not its file was there.
   const memoryRows = memories.map((memory) => ({
@@ -108,7 +115,7 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   // A photo message with a stored row keeps its row (and gets the memory the regroup gives it)
   // even when this export has no file for it.
   const photoRows = placed.filter(({ message }) => sizes.has(message.key) || storedPhotos.has(message.key)).map(({ message, seq, memory }) => {
-    const size = sizes.get(message.key) ?? (({ view_path, thumb_path, width, height }) => ({ view: view_path, thumb: thumb_path, width, height }))(storedPhotos.get(message.key)!)
+    const size = sizes.get(message.key) ?? (({ view_path, thumb_path, width, height, content_hash }) => ({ view: view_path, thumb: thumb_path, width, height, hash: message.media?.hash ?? content_hash }))(storedPhotos.get(message.key)!)
     return {
       memory_id: memory,
       message_id: messageIds.get(message.key)!,
@@ -120,6 +127,7 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
       thumb_path: size.thumb,
       width: size.width,
       height: size.height,
+      content_hash: size.hash,
     }
   })
   for (const part of chunks(photoRows)) {
@@ -131,7 +139,14 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   const kept = { memories: new Set(memoryRows.map((row) => row.key)), messages: new Set(messages.map((message) => message.key)) }
   const removed = await removeWhatNoLongerFits(db, stored, kept)
   // Files that no row points at, left by a run that stopped while removing them.
-  await removeFilesWithoutRow(db, chatId)
+  await removeFilesWithoutRow(db, chatId, startedAt)
+  // Once more at the very end: a hide that landed while this import ran (which may have written a
+  // hidden photo's row again from what was read at the start) is put right here.
+  const late = await applyMarks(db, chat.key)
+  removed.memories += late.memories
+  removed.messages += late.messages
+  removed.photos += late.photos
+  removed.comments += late.comments
   const had = {
     memories: stored.memories.filter((memory) => kept.memories.has(memory.key)).length,
     messages: stored.messages.filter((message) => kept.messages.has(message.key)).length,
@@ -182,6 +197,15 @@ async function savePeople(db: Db, messages: MemoryMessage[]): Promise<Map<string
     rowIds.set(slug, created.data.id)
   }
   return rowIds
+}
+
+// A seam for a test only: with EZELI_TEST_PAUSE set, the import stops here until `<value>.go` exists
+// (and says so by writing `<value>.ready`), so a test can run an owner command in the middle of it.
+async function testPause(): Promise<void> {
+  const base = process.env.EZELI_TEST_PAUSE
+  if (!base) return
+  writeFileSync(`${base}.ready`, '')
+  while (!existsSync(`${base}.go`)) await new Promise((resolve) => setTimeout(resolve, 50))
 }
 
 // Runs `work` on every item, a few at a time. Stops at the first failure.

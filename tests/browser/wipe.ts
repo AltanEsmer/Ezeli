@@ -21,6 +21,10 @@ export default async function wipe() {
   const chats = await db.from('chats').delete().not('id', 'is', null)
   if (chats.error) throw chats.error
 
+  // Hidden marks outlive their chats on purpose; a clean start needs them gone too.
+  const hidden = await db.from('hidden').delete().not('id', 'is', null)
+  if (hidden.error) throw hidden.error
+
   // The people the import made (they have a lasting id) go with them: the people page lists
   // them, so another test suite's leftovers would show there.
   const people = await db.from('people').delete().not('slug', 'is', null)

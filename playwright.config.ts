@@ -29,6 +29,8 @@ export default defineConfig({
     { name: 'large-import', testMatch: 'large.setup.ts', dependencies: ['search'], teardown: 'large-clean' },
     { name: 'large', testMatch: 'large.spec.ts', dependencies: ['large-import'], fullyParallel: false },
     { name: 'large-clean', testMatch: 'large.teardown.ts' },
+    // Hides things of a chat of its own, last: it adds a chat, and the tests above count memories.
+    { name: 'hiding', testMatch: 'hiding.spec.ts', dependencies: ['large'] },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',
