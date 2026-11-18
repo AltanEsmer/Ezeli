@@ -4,8 +4,11 @@ import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import sharp from 'sharp'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { copyOfWeekend, ezeli, fresh, freshPeople, importChat, owner, rows, signedInAs, storedChat, type Names } from './support.ts'
+
+// Each test runs several real commands one after the other; a slow machine needs more than 5 s.
+vi.setConfig({ testTimeout: 60_000 })
 
 type Memory = { id: string; key: string }
 const LRM = '‎'
