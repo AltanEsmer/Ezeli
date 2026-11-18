@@ -6,8 +6,12 @@ import { appendFileSync, mkdtempSync, readdirSync, readFileSync, writeFileSync }
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import sharp from 'sharp'
-import { expect, test } from 'vitest'
+import { expect, test, vi } from 'vitest'
 import { copyOfWeekend, ezeli, ezeliImport, fresh, freshPeople, importChat, owner, peopleFile, rows, signedInAs, stack, storedChat, type Names } from './support.ts'
+
+// Each test runs several real commands one after the other (each a new process). On the CI machine
+// they take 5 to 10 s, not the 0.5 to 2 s of a laptop, so the 5 s default is too short here.
+vi.setConfig({ testTimeout: 30_000 })
 
 type Memory = { id: string; key: string }
 type Friend = Awaited<ReturnType<typeof signedInAs>>

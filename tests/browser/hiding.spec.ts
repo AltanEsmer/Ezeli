@@ -58,7 +58,6 @@ async function signIn(page: Page) {
 }
 
 const talk = (page: Page) => page.getByRole('region', { name: 'Conversation' })
-const keyLinks = (page: Page, key: string) => page.locator(`a[href$="/m/${key}"]`)
 
 test('a hidden photo and a hidden message are gone from the memory, and the link to the photo stops working', async ({ page, request }) => {
   await signIn(page)
@@ -103,16 +102,21 @@ test('a hidden message returns with the next import once it is shown, not before
   await expect(talk(page).getByText('Yarın tekneye gidiyoruz')).toBeVisible()
 })
 
-test('a memory whose only photo is hidden leaves the timeline, and its address is a memory that is not there', async ({ page }) => {
+test('a memory whose only photo is hidden leaves the timeline, and its address is a memory that is not there', async ({ page, request }) => {
   await signIn(page)
-  await expect(keyLinks(page, july15)).toHaveCount(1)
-  const before = await page.getByRole('article').count()
+  const token = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find((name) => name.endsWith('-auth-token'))!
+    return JSON.parse(localStorage.getItem(key)!).access_token as string
+  })
+  // The timeline pages hold only the memories near the screen, so ask the view for this memory.
+  const onTimeline = async () => (await (await request.get(`${apiUrl}/rest/v1/timeline?select=key&key=eq.${july15}`, { headers: { apikey: publishableKey, authorization: `Bearer ${token}` } })).json()) as unknown[]
+  expect(await onTimeline()).toHaveLength(1)
+  await page.goto(`/m/${july15}`)
+  await expect(page.getByText('Şu suyun rengine bak')).toBeVisible()
 
   expect(ownerCommand(['hide', july15, numberOf(july15, /\[Photo\]/)]).status).toBe(0)
 
-  await page.goto('/')
-  await expect(page.getByRole('article')).toHaveCount(before - 1)
-  await expect(keyLinks(page, july15)).toHaveCount(0)
+  expect(await onTimeline()).toEqual([])
   await page.goto(`/m/${july15}`)
   await expect(page.getByRole('heading', { name: 'This memory is not here' })).toBeVisible()
   // Nothing of it, not even the sentence after the photo.
