@@ -34,6 +34,9 @@ export default defineConfig({
     // A made-up album of June 2021, for the memory on a list: it adds a chat, so it runs last.
     { name: 'memory-list-import', testMatch: 'memory-list.setup.ts', dependencies: ['hiding'] },
     { name: 'memory-list', testMatch: 'memory-list.spec.ts', dependencies: ['memory-list-import'] },
+    // A long chat for the memory screen: it adds a memory, so it runs after everything that counts.
+    { name: 'memory-screen-import', testMatch: 'memory-screen.setup.ts', dependencies: ['memory-list'] },
+    { name: 'memory-screen', testMatch: 'memory-screen.spec.ts', dependencies: ['memory-screen-import'] },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',

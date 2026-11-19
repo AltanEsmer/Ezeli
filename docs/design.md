@@ -10,6 +10,7 @@ All in `src/styles/`, loaded in this order by `src/main.tsx`.
 |---|---|---|
 | `tokens.css` | the tokens below, the base (reset, body, focus, `.btn`, the fade) | anyone adding a token |
 | `shell.css` | the bar, the menu, the small pages | the shell only |
+| `memory.css` | the memory screen and the full-screen photo (ticket 54) | the memory screen |
 | `old.css` | the styles of the first build's screens. It maps the old names onto the tokens, so old screens sit on the new background | tickets 53 to 57 delete the rules of the screen they rebuild; ticket 58 deletes the file. Nothing new goes in |
 
 A rebuilt screen gets its own file (for example `timeline.css`), imported in `main.tsx`, named for the screen and using only tokens. Class names of a screen are its own; shared names are only those in `tokens.css` and `shell.css` (`.btn`, `.bar`, `.sheet`, `.notice`, `.fade-in`).
@@ -89,3 +90,19 @@ One part draws a memory wherever a list of memories is shown: `MemoryItem` (`src
 **Wide frame.** The page is the content area right of the bar: 40px left, `--rail` + 24px right for the list of years, months at most 1180px wide. Narrow: 16px gutter on each memory and heading, the strip of years edge to edge.
 
 **Empty and failed** timeline: a centred heading (24px), one muted sentence, and Try again where it helps (`.tl-note`).
+
+## The memory screen (ticket 54)
+
+`src/MemoryPage.tsx` with `memory.css` (classes `mem-*`, `nm`, `pic`, `gone`, `viewer`, `strip`, `slide`). The photo parts (`Pic`, `Viewer`) are in `src/Viewer.tsx`.
+
+**Parts, in order:** the back link (a button: the list the friend came from, else "All memories"), the stage (a `figure`: one photo, a caption "Name, time" and "n / N"), the squares (a group labelled Photos; one button per photo, the shown one `aria-pressed`; none for a memory of one photo), then the column: the date as `h1` (with the weekday), the chat's name, the photo count, "Sent by" with names as links, the conversation (region "Conversation"), the comments, Earlier and Later memory.
+
+- Narrow: one column, no bar (`.shell.bare`). The stage is edge to edge, at the shape of the first photo kept between 0.8 and 1.5 (it does not change when another photo is shown), photo contained on `--stage`. Squares 52px, 3px apart, in a row that scrolls along; the unshown ones at 45% opacity, the shown one with a 2px ink outline. Column gutter 16px.
+- Wide: the bar stays. A grid of the stage side (left, sticky, as high as the window, on `--stage`, 40px sides, squares 48px centred) and a column of 420px (border on the left, 24px padding) that scrolls with the page. The left and right arrow keys move between the photos (not while the full-screen view is open or a box has the focus).
+- Pressing the stage opens the full-screen view on that photo. A small photo in the conversation (a 64px square) opens the full-screen view on a phone and shows the photo on the stage on a PC, where the stage is in sight.
+- The conversation is plain lines: a heading (level 4) per run of one sender with the time beside it (13px, name 600), the lines in 15px, links in the accent, no bubbles. Where the day changes a day line (level 3) with rules on both sides. A video, voice message, document, GIF or media not in the export is a muted italic line with the words used before. A conversation of more than twelve messages opens on nine (three before the first photo and the ones after it); a button above and one below, each naming how many messages it shows, open the rest.
+- Names, the chat's name and messages carry `lang="tr"`; a name is a link of 44px (`.nm`) when the person has a lasting id.
+- Comments (`Comments.tsx`) still have their old look inside the column until ticket 55.
+- A photo fades in when it has loaded (`Pic`); one that cannot load is a plain `--line` box in its shape (on the stage it keeps the shape inside the stage).
+- The full-screen view: black, whatever the theme. A header with "n / N" and a Close button, arrows (a glyph, no circle) on both sides, the photos in a strip that snaps (swipe), Escape and the back button close it, Tab stays inside. It fades in and out (160ms); with less motion it just appears and goes.
+- A memory that is not there, or failed to load: a small page in the `.notice` style (name, heading, one paragraph, buttons "Try again" where it helps and "All memories").

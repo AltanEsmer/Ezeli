@@ -62,7 +62,7 @@ const talk = (page: Page) => page.getByRole('region', { name: 'Conversation' })
 test('a hidden photo and a hidden message are gone from the memory, and the link to the photo stops working', async ({ page, request }) => {
   await signIn(page)
   await page.goto(`/m/${july14}`)
-  await expect(page.getByRole('figure').locator('img')).toHaveCount(2)
+  await expect(page.getByRole('group', { name: 'Photos' }).getByRole('button')).toHaveCount(2)
   await expect(talk(page).getByText('Yarın tekneye gidiyoruz')).toBeVisible()
   const held = await page.getByRole('figure').locator('img').first().getAttribute('src')
   expect((await request.get(held!)).ok()).toBe(true)
@@ -79,6 +79,7 @@ test('a hidden photo and a hidden message are gone from the memory, and the link
   await expect(page.getByRole('heading', { name: 'This memory is not here' })).toBeVisible()
   await page.goto(`/m/${await addressOf(ids[0]!)}`)
   await expect(page.getByRole('figure').locator('img')).toHaveCount(1)
+  await expect(page.getByRole('group', { name: 'Photos' })).toHaveCount(0)
   await expect(talk(page).locator('img')).toHaveCount(1)
   await expect(talk(page).getByText('Yarın tekneye gidiyoruz')).toHaveCount(0)
   // A link a friend already held opens nothing: the files are gone.

@@ -152,7 +152,7 @@ export function useLinks(paths: string[]): (string | null | undefined)[] {
 // Wide is a window of 900 px or more: the same rule as the stylesheets' `min-width: 900px`. A memory
 // reads it because wide shows a different number of photos, not only a different layout.
 const wideQuery = typeof matchMedia === 'function' ? matchMedia('(min-width: 900px)') : undefined
-const useWide = () =>
+export const useWide = () =>
   useSyncExternalStore(
     (listen) => {
       wideQuery?.addEventListener('change', listen)

@@ -64,15 +64,6 @@
   box-shadow: var(--shadow);
 }
 
-.cap {
-  min-height: 46px;
-  padding: 13px 4px 7px;
-  font-size: 22px;
-  font-weight: 400;
-  line-height: 1;
-  color: var(--pen);
-  text-wrap: balance;
-}
 .by {
   padding-left: 8px;
   font-weight: 700;
@@ -84,16 +75,7 @@
   color: var(--ink);
 }
 
-.stamp {
-  border: 2px solid var(--stamp);
-  color: var(--stamp);
-  border-radius: 6px;
-  padding: 3px 10px 2px;
-  font-weight: 700;
-  font-size: 15px;
-}
-
-/* One memory. */
+/* The back link and the screen heading of the people, person and search screens. */
 .back {
   display: inline-flex;
   align-items: center;
@@ -110,213 +92,6 @@
   line-height: 1.05;
   color: var(--pen);
   text-wrap: balance;
-}
-.chat {
-  display: inline-block;
-  margin-top: 12px;
-  transform: rotate(-1.5deg);
-  background: var(--paper);
-}
-.prints {
-  display: grid;
-  gap: 40px;
-  padding: 34px 6px 0;
-}
-.mprint.big {
-  position: relative;
-  padding: 10px 10px 0;
-  transform: rotate(var(--tilt));
-}
-.mprint.big .tape {
-  background: var(--tape);
-}
-.mprint.big button {
-  display: block;
-  width: 100%;
-}
-.mprint.big img {
-  max-height: 80vh;
-  object-fit: contain;
-}
-.mprint.big .cap {
-  min-height: 0;
-  padding: 10px 4px 8px;
-}
-
-/* The conversation: a taped slip, grouped by sender. */
-.talk {
-  margin-top: 48px;
-  gap: 14px;
-  padding: 34px 18px 22px;
-  transform: rotate(0.6deg);
-}
-.talk .tape {
-  background: var(--tape4);
-}
-.group {
-  display: grid;
-  gap: 6px;
-}
-.who {
-  font-size: 21px;
-  font-weight: 700;
-  line-height: 1.1;
-}
-.msg {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 12px;
-}
-.msg .body {
-  min-width: 0;
-  display: grid;
-  gap: 6px;
-  justify-items: start;
-}
-.talk p {
-  font-size: 17px;
-  color: var(--ink);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}
-.talk a {
-  color: var(--accent);
-  text-decoration: underline;
-}
-.at {
-  flex: none;
-  padding-top: 3px;
-  font-size: 13px;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-.ph {
-  color: var(--muted);
-  font-size: 16px;
-}
-.small {
-  display: block;
-  padding: 0;
-  background: var(--line);
-  box-shadow: 0 1px 2px rgb(43 30 18 / 0.35);
-}
-.small img {
-  display: block;
-  width: 96px;
-  height: auto;
-  max-height: 130px;
-  object-fit: cover;
-}
-.pn {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 40px;
-}
-.pn .btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  text-decoration: none;
-}
-.pn .btn:last-child {
-  margin-left: auto;
-}
-
-/* A photo full screen, swiped sideways. */
-.viewer {
-  position: fixed;
-  z-index: 2;
-  inset: 0;
-  background: #14110e;
-  color: #f3eadb;
-}
-.strip {
-  display: flex;
-  height: 100%;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-  overscroll-behavior: contain;
-}
-.strip::-webkit-scrollbar {
-  display: none;
-}
-.slide {
-  flex: none;
-  width: 100%;
-  height: 100%;
-  display: grid;
-  /* One definite cell, so the photo is fitted into the screen and never taller than it. */
-  grid-template: 100% / 100%;
-  place-items: center;
-  scroll-snap-align: center;
-  scroll-snap-stop: always;
-}
-.slide img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-.viewer .x,
-.viewer .arrow {
-  position: absolute;
-  width: 48px;
-  height: 48px;
-  border-radius: 24px;
-  background: rgb(20 17 14 / 0.65);
-  color: #f3eadb;
-  font-size: 30px;
-  line-height: 1;
-  --focus: #a9bdf0;
-}
-.viewer .x {
-  top: max(12px, env(safe-area-inset-top));
-  right: 12px;
-}
-.viewer .arrow {
-  top: 50%;
-  margin-top: -24px;
-}
-.viewer .arrow:disabled {
-  opacity: 0.25;
-  cursor: default;
-}
-.viewer .prev {
-  left: 8px;
-}
-.viewer .next {
-  right: 8px;
-}
-.viewer .count {
-  position: absolute;
-  bottom: max(18px, env(safe-area-inset-bottom));
-  left: 0;
-  right: 0;
-  text-align: center;
-  font-size: 22px;
-}
-
-/* A photo that could not load: a blank print in the photo's shape. */
-.gone {
-  width: 100%;
-  background: var(--line);
-  border: 2px dashed color-mix(in srgb, #574229 55%, transparent);
-}
-.slide .gone {
-  width: auto;
-  max-width: 100%;
-  max-height: 100%;
-  height: 100%;
-}
-.day {
-  margin-top: 8px;
-  padding-top: 6px;
-  border-top: 2px dashed color-mix(in srgb, var(--muted) 45%, transparent);
-  font-size: 19px;
-  line-height: 1.1;
-  color: var(--pen);
 }
 
 /* Comments: sticky notes under the conversation. They stay light paper in the dark too. */
@@ -415,43 +190,6 @@
 }
 .note.write .btn:disabled {
   opacity: 0.5;
-}
-
-/* The row of handwritten links under the timeline's header: a plain list, one link per item. */
-.links {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 18px;
-  margin: 10px 0 0;
-  padding: 0 8px;
-  list-style: none;
-}
-.links a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--pen);
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 5px;
-}
-
-/* A name in a memory opens that person: it keeps the pen colour of the name. */
-.who a,
-.cap a {
-  display: inline-flex;
-  align-items: center;
-  min-width: 44px;
-  min-height: 44px;
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-thickness: 2px;
-  text-underline-offset: 4px;
-}
-.talk .who a {
-  color: inherit;
 }
 
 /* The people page: a taped slip for everyone, a few of their prints fanned across it. */
@@ -578,9 +316,4 @@
   margin: 0;
   font-size: 32px;
   color: var(--ink);
-}
-
-/* Sender names carry an old pen colour of their own: plain ink on the new background. */
-.group .who {
-  color: var(--ink) !important;
 }
