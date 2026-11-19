@@ -5,7 +5,7 @@
 // three January 2024 chats (two time zones, and a memory that only names Çilek). The tests look for
 // these people and do not count everyone, so a later fixture with another person changes nothing.
 import { type Page, expect, test } from '@playwright/test'
-import { addPerson, apiUrl, fruit, ownerCommand, publishableKey } from './support.ts'
+import { addPerson, apiUrl, expectNoSidewaysScroll, fruit, openWide, ownerCommand, publishableKey } from './support.ts'
 
 const articles = (page: Page) => page.getByRole('article')
 
@@ -249,5 +249,73 @@ test.describe('coming back to a person from a memory', () => {
     await page.goto('/')
     await articles(page).first().getByRole('link').click()
     await expect(page.getByRole('button', { name: 'All memories' })).toBeVisible()
+  })
+})
+
+test.describe('how people look', () => {
+  test('a name is marked as Turkish, a photo-less person has the name and one line, a photo person has photos', async ({ page }) => {
+    await signIn(page)
+    await page.goto('/people')
+    const cards = page.getByRole('list', { name: 'People' }).getByRole('listitem')
+
+    await expect(cards.filter({ hasText: 'İncir' }).locator('[lang="tr"]').getByRole('heading')).toHaveText('İncir')
+    await expect(cards.filter({ hasText: 'İncir' }).getByText('No photos yet')).toBeVisible()
+    await expect(cards.filter({ hasText: 'Limon' }).locator('img')).toHaveCount(4)
+    await page.goto('/p/limon')
+    await expect(page.locator('h1[lang="tr"]')).toHaveText('Limon')
+  })
+
+  test('people sit in one column on a phone and in more than one on a PC', async ({ page, browser }) => {
+    await signIn(page)
+    await page.goto('/people')
+    const first = async (p: Page) => p.getByRole('list', { name: 'People' }).getByRole('listitem')
+    const cards = await first(page)
+    await expect(cards.nth(1)).toBeVisible()
+    expect((await cards.nth(0).boundingBox())!.x).toBe((await cards.nth(1).boundingBox())!.x)
+
+    const wide = await openWide(browser, addPerson(fruit('Karpuz')))
+    await expect(articles(wide.page).first()).toBeVisible()
+    await wide.page.goto('/people')
+    const row = await first(wide.page)
+    await expect(row.nth(1)).toBeVisible()
+    const [a, b] = [(await row.nth(0).boundingBox())!, (await row.nth(1).boundingBox())!]
+    expect(b.x).toBeGreaterThan(a.x + a.width - 1)
+    expect(Math.abs(a.y - b.y)).toBeLessThan(2)
+    await wide.context.close()
+  })
+
+  test('neither screen scrolls sideways at 390, 900, 1440 and 1920 px', async ({ browser }) => {
+    for (const width of [390, 900, 1440, 1920]) {
+      const { context, page } = await openWide(browser, addPerson(fruit('Karpuz')), { width })
+      await expect(articles(page).first()).toBeVisible()
+      for (const path of ['/people', '/p/limon', '/p/nobody']) {
+        await page.goto(path)
+        await expect(page.getByRole('heading').first()).toBeVisible()
+        await expectNoSidewaysScroll(page)
+      }
+      await context.close()
+    }
+  })
+
+  test('in Turkish the labels are Turkish and the names stay as they are', async ({ browser }) => {
+    const { context, page } = await openWide(browser, addPerson(fruit('Karpuz')), { width: 390, locale: 'tr-TR' })
+    await expect(articles(page).first()).toBeVisible()
+    await page.goto('/people')
+    await expect(page.getByRole('heading', { level: 1, name: 'Kişiler' })).toBeVisible()
+    await expect(page.getByText('Henüz fotoğraf yok').first()).toBeVisible()
+    await page.goto('/p/nobody')
+    await expect(page.getByRole('heading', { name: 'Bu kişi burada yok' })).toBeVisible()
+    await context.close()
+  })
+
+  test('a failed people page says so and tries again', async ({ page }) => {
+    await signIn(page)
+    let fail = true
+    await page.route(/\/rpc\/people_page/, (route) => (fail ? route.fulfill({ status: 500, json: {} }) : route.continue()))
+    await page.goto('/people')
+    await expect(page.getByRole('heading', { name: 'Could not load' })).toBeVisible()
+    fail = false
+    await page.getByRole('button', { name: 'Try again' }).click()
+    await expect(page.getByRole('list', { name: 'People' })).toBeVisible()
   })
 })

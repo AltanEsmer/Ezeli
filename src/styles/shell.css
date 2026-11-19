@@ -201,6 +201,9 @@
   padding: var(--space-6) var(--space-4);
   text-align: center;
 }
+.content > .notice {
+  min-height: calc(100dvh - var(--bar-h));
+}
 .notice .brand {
   font-size: var(--text-lg);
   font-weight: 600;
@@ -219,4 +222,10 @@
 .notice .btn {
   justify-self: center;
   margin-top: var(--space-2);
+}
+
+@media (min-width: 900px) {
+  .content > .notice {
+    min-height: 100dvh;
+  }
 }

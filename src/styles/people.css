@@ -1,0 +1,39 @@
+/* The people page and a person's page (ticket 56). The memories on a person's page are drawn by
+   memoryitem.css inside the timeline's frame (timeline.css). */
+.pp { padding: var(--space-5) var(--space-4) var(--space-6); }
+.pp h1 { font-size: var(--text-xxl); font-weight: 600; line-height: 1.1; overflow-wrap: anywhere; text-wrap: balance; }
+
+/* Everyone: one column narrow. Each person is a name and a strip of their photos, all one height. */
+.pp ul { display: grid; gap: 0 var(--space-6); margin: var(--space-4) 0 0; padding: 0; list-style: none; }
+.pp li { border-top: 1px solid var(--line); }
+.pp li a { display: grid; align-content: start; gap: var(--space-3); min-height: 44px; padding: var(--space-4) 0 var(--space-5); text-decoration: none; }
+.pp li h2 { font-size: var(--text-xxl); font-weight: 600; line-height: 1.1; overflow-wrap: anywhere; }
+.pp li p { color: var(--muted); }
+.pp li a:hover h2 { text-decoration: underline; text-decoration-color: var(--mark); text-underline-offset: 4px; }
+/* The strip: photos side by side at one height, each as wide as its shape; when four do not fit
+   they shrink together. */
+.pp-strip { --h: 112px; display: flex; gap: var(--gap); height: var(--h); overflow: hidden; border-radius: var(--radius); }
+.pp-strip > div { position: relative; flex: 0 1 calc(var(--h) * var(--ratio)); min-width: 0; }
+
+/* A person: the name and one muted line under it, then the memories. */
+.pp-head { padding-bottom: var(--space-2); }
+.pp-head dl { display: grid; margin: var(--space-2) 0 0; color: var(--muted); }
+.pp-head dl div { display: flex; gap: var(--space-2); }
+.pp-head dt, .pp-head dd { margin: 0; }
+
+/* Empty and failed: a heading, a sentence and, when it helps, a button. */
+.pp-note { display: grid; justify-items: center; gap: var(--space-3); max-width: 36ch; margin: var(--space-7) auto 0; text-align: center; }
+.pp-note h2 { font-size: var(--text-xl); font-weight: 600; line-height: 1.15; }
+.pp-note p { color: var(--muted); }
+
+@media (min-width: 900px) {
+  .pp { max-width: 1280px; padding: var(--space-6) var(--space-6) var(--space-7); }
+  .pp ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pp ul { margin-top: var(--space-5); }
+  .pp-strip { --h: 160px; }
+  .pp-head dl { display: flex; flex-wrap: wrap; gap: 0 var(--space-5); }
+  .pp-head { padding-bottom: var(--space-3); }
+}
+@media (min-width: 1300px) {
+  .pp ul { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
