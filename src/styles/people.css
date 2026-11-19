@@ -10,21 +10,16 @@
 .pp li h2 { font-size: var(--text-xxl); font-weight: 600; line-height: 1.1; overflow-wrap: anywhere; }
 .pp li p { color: var(--muted); }
 .pp li a:hover h2 { text-decoration: underline; text-decoration-color: var(--mark); text-underline-offset: 4px; }
-/* The strip: photos side by side at one height, each as wide as its shape; when four do not fit
-   they shrink together. */
+/* The strip: photos side by side at one height, each starting as wide as its shape; they grow or
+   shrink together, so the strip always fills its width. */
 .pp-strip { --h: 112px; display: flex; gap: var(--gap); height: var(--h); overflow: hidden; border-radius: var(--radius); }
-.pp-strip > div { position: relative; flex: 0 1 calc(var(--h) * var(--ratio)); min-width: 0; }
+.pp-strip > div { position: relative; flex: 1 1 calc(var(--h) * var(--ratio)); min-width: 0; }
 
 /* A person: the name and one muted line under it, then the memories. */
 .pp-head { padding-bottom: var(--space-2); }
 .pp-head dl { display: grid; margin: var(--space-2) 0 0; color: var(--muted); }
 .pp-head dl div { display: flex; gap: var(--space-2); }
 .pp-head dt, .pp-head dd { margin: 0; }
-
-/* Empty and failed: a heading, a sentence and, when it helps, a button. */
-.pp-note { display: grid; justify-items: center; gap: var(--space-3); max-width: 36ch; margin: var(--space-7) auto 0; text-align: center; }
-.pp-note h2 { font-size: var(--text-xl); font-weight: 600; line-height: 1.15; }
-.pp-note p { color: var(--muted); }
 
 @media (min-width: 900px) {
   .pp { max-width: 1280px; padding: var(--space-6) var(--space-6) var(--space-7); }

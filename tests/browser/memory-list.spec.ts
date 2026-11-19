@@ -21,33 +21,38 @@ async function openJune(page: Page) {
 // Where each photo place of a memory is on the page.
 const places = (memory: Locator) => memory.locator('[data-photo]').evaluateAll((boxes) => boxes.map((box) => box.getBoundingClientRect()).map(({ x, y, width, height }) => ({ x, y, width, height })))
 const near = (a: number, b: number, by = 1.5) => expect(Math.abs(a - b)).toBeLessThanOrEqual(by)
+// Boxes move while photos load and a scroll settles, so a measuring test asks again until what it
+// measures holds (or the time is up), instead of measuring once right after a scroll or a render.
+const settled = (check: () => Promise<void>) => expect(check).toPass({ timeout: 10_000 })
 
 test.describe('on a phone', () => {
   test('one photo is wide; two are halves; three are one large and two stacked; four are two by two', async ({ page }) => {
     await openJune(page)
 
-    const [one] = await places(june(page).nth(fourteenth))
-    near(one!.width, 390 - 32)
+    await settled(async () => {
+      const [one] = await places(june(page).nth(fourteenth))
+      near(one!.width, 390 - 32)
 
-    const [left, right] = await places(june(page).nth(fifteenth))
-    near(left!.y, right!.y)
-    near(left!.height, right!.height)
-    near(left!.width, right!.width)
-    near(right!.x - (left!.x + left!.width), 2)
+      const [left, right] = await places(june(page).nth(fifteenth))
+      near(left!.y, right!.y)
+      near(left!.height, right!.height)
+      near(left!.width, right!.width)
+      near(right!.x - (left!.x + left!.width), 2)
 
-    const [large, top, bottom] = await places(june(page).nth(sixteenth))
-    near(top!.x, bottom!.x)
-    near(bottom!.y - (top!.y + top!.height), 2)
-    near(large!.height, top!.height + 2 + bottom!.height)
-    expect(large!.width).toBeGreaterThan(top!.width)
+      const [large, top, bottom] = await places(june(page).nth(sixteenth))
+      near(top!.x, bottom!.x)
+      near(bottom!.y - (top!.y + top!.height), 2)
+      near(large!.height, top!.height + 2 + bottom!.height)
+      expect(large!.width).toBeGreaterThan(top!.width)
 
-    const four = await places(june(page).nth(thirteenth))
-    expect(four).toHaveLength(4)
-    near(four[0]!.y, four[1]!.y)
-    near(four[2]!.y, four[3]!.y)
-    near(four[2]!.y - (four[0]!.y + four[0]!.height), 2)
-    near(four[0]!.x, four[2]!.x)
-    expect(four[1]!.x).toBeGreaterThan(four[0]!.x)
+      const four = await places(june(page).nth(thirteenth))
+      expect(four).toHaveLength(4)
+      near(four[0]!.y, four[1]!.y)
+      near(four[2]!.y, four[3]!.y)
+      near(four[2]!.y - (four[0]!.y + four[0]!.height), 2)
+      near(four[0]!.x, four[2]!.x)
+      expect(four[1]!.x).toBeGreaterThan(four[0]!.x)
+    })
   })
 
   test('more photos than the block shows say how many more on the last one', async ({ page }) => {
@@ -68,9 +73,11 @@ test.describe('on a phone', () => {
     await expect(photoCount(album)).toHaveText('8 photos')
     await expect(commentCount(album)).toHaveCount(0)
     // The words are under the block.
-    const [first] = await places(album)
-    const words = (await album.getByRole('heading').boundingBox())!
-    expect(words.y).toBeGreaterThan(first!.y + first!.height)
+    await settled(async () => {
+      const [first] = await places(album)
+      const words = (await album.getByRole('heading').boundingBox())!
+      expect(words.y).toBeGreaterThan(first!.y + first!.height)
+    })
   })
 
   test('a memory with no text shows no line and still has its date, senders and count', async ({ page }) => {
@@ -120,11 +127,13 @@ test.describe('on a phone', () => {
     await page.evaluate(() => scrollBy(0, 900))
     await expect(june(page).nth(fourteenth)).toBeInViewport()
     await expect(heading).toBeInViewport()
-    const bar = (await page.getByRole('navigation', { name: 'Pages' }).boundingBox())!
-    const strip = (await years(page).boundingBox())!
-    near(strip.y, bar.y + bar.height, 2)
-    const box = (await heading.boundingBox())!
-    near(box.y, strip.y + strip.height, 2)
+    await settled(async () => {
+      const bar = (await page.getByRole('navigation', { name: 'Pages' }).boundingBox())!
+      const strip = (await years(page).boundingBox())!
+      near(strip.y, bar.y + bar.height, 2)
+      const box = (await heading.boundingBox())!
+      near(box.y, strip.y + strip.height, 2)
+    })
   })
 
   test('a photo fades in once loaded, and the place has the photo\'s shape before that', async ({ page }) => {
@@ -147,20 +156,22 @@ test.describe('on a PC', () => {
     await openJuneWide(page)
 
     for (const [index, count] of [[fourteenth, 1], [fifteenth, 2], [sixteenth, 3]] as const) {
-      const row = june(page).nth(index)
-      await expect(row.locator('[data-photo]')).toHaveCount(count)
-      const photos = await places(row)
-      const words = (await row.getByRole('heading').boundingBox())!
-      // The words column is 280 px, then the photos, side by side and level.
-      expect(photos[0]!.x - words.x).toBeGreaterThanOrEqual(280)
-      expect(photos[0]!.x - words.x).toBeLessThan(340)
-      near(photos[0]!.y, words.y, 12)
-      for (const photo of photos) {
-        near(photo.y, photos[0]!.y)
-        near(photo.height, photos[0]!.height)
-        expect(photo.height).toBeLessThanOrEqual(224)
-        expect(photo.height).toBeGreaterThanOrEqual(188)
-      }
+      await settled(async () => {
+        const row = june(page).nth(index)
+        await expect(row.locator('[data-photo]')).toHaveCount(count)
+        const photos = await places(row)
+        const words = (await row.getByRole('heading').boundingBox())!
+        // The words column is 280 px, then the photos, side by side and level.
+        expect(photos[0]!.x - words.x).toBeGreaterThanOrEqual(280)
+        expect(photos[0]!.x - words.x).toBeLessThan(340)
+        near(photos[0]!.y, words.y, 12)
+        for (const photo of photos) {
+          near(photo.y, photos[0]!.y)
+          near(photo.height, photos[0]!.height)
+          expect(photo.height).toBeLessThanOrEqual(224)
+          expect(photo.height).toBeGreaterThanOrEqual(188)
+        }
+      })
     }
     await context.close()
   })
@@ -170,15 +181,17 @@ test.describe('on a PC', () => {
     await openJuneWide(page)
     const album = june(page).nth(twelfth)
 
-    const photos = await places(album)
-    expect(photos.length).toBeGreaterThan(1)
-    expect(photos.length).toBeLessThan(8)
-    await expect(album.getByText(`+${8 - photos.length}`, { exact: true })).toBeVisible()
-    await expect(album.getByText(/^\+\d+$/)).toHaveCount(1)
-    // The last photo ends where the row ends, so the row is full.
-    const last = photos.at(-1)!
-    const row = (await album.getByText('8 photos').boundingBox())!
-    expect(last.x + last.width).toBeGreaterThan(row.x + 280 + 500)
+    await settled(async () => {
+      const photos = await places(album)
+      expect(photos.length).toBeGreaterThan(1)
+      expect(photos.length).toBeLessThan(8)
+      await expect(album.getByText(`+${8 - photos.length}`, { exact: true })).toBeVisible()
+      await expect(album.getByText(/^\+\d+$/)).toHaveCount(1)
+      // The last photo ends where the row ends, so the row is full.
+      const last = photos.at(-1)!
+      const row = (await album.getByText('8 photos').boundingBox())!
+      expect(last.x + last.width).toBeGreaterThan(row.x + 280 + 500)
+    })
     await context.close()
   })
 

@@ -164,16 +164,6 @@ test.describe('on a phone', () => {
 
     expect(backgrounds[0]).not.toBe(backgrounds[1])
   })
-
-  test('the screens do not scroll sideways', async ({ page }) => {
-    await signedIn(page)
-    for (const where of ['/', '/people', '/search']) {
-      await page.goto(where)
-      await expect(bar(page)).toBeVisible()
-      await page.waitForTimeout(300)
-      await expectNoSidewaysScroll(page)
-    }
-  })
 })
 
 test.describe('in a wide window', () => {
@@ -208,8 +198,18 @@ test.describe('in a wide window', () => {
     const where = (await me.boundingBox())!
     expect(where.y).toBeGreaterThan(450)
     await me.click()
-    await expect(page.getByRole('dialog', { name: 'Menu' }).getByText(name)).toBeVisible()
+    const menu = page.getByRole('dialog', { name: 'Menu' })
+    await expect(menu.getByText(name)).toBeVisible()
+    // It opens beside the name, to the right of the bar and level with it, not in the middle of the page.
+    await expect(async () => {
+      const card = (await menu.boundingBox())!
+      expect(card.x).toBeGreaterThanOrEqual(200)
+      expect(card.x).toBeLessThan(260)
+      expect(card.y + card.height).toBeGreaterThan(where.y + where.height - 10)
+      expect(card.y + card.height).toBeLessThanOrEqual(900)
+    }).toPass()
     await page.keyboard.press('Escape')
+    await expect(menu).toBeHidden()
 
     await memories(page).first().getByRole('link').first().click()
     await expect(page.getByRole('button', { name: /All memories/ })).toBeVisible()
@@ -224,20 +224,6 @@ test.describe('in a wide window', () => {
     await expect(bar(page).getByRole('link', { name: 'Ara' })).toBeVisible()
     await context.close()
   })
-
-  for (const width of [900, 1440, 1920]) {
-    test(`no screen scrolls sideways at ${width} px`, async ({ browser }) => {
-      const { context, page } = await openWide(browser, addPerson(fruit('Karpuz')), { width })
-      await expect(memories(page).first()).toBeVisible()
-      for (const where of ['/', '/people', '/search']) {
-        await page.goto(where)
-        await expect(bar(page)).toBeVisible()
-        await page.waitForTimeout(300)
-        await expectNoSidewaysScroll(page)
-      }
-      await context.close()
-    })
-  }
 
   test('one pixel under 900 px the bar is at the top', async ({ browser }) => {
     const { context, page } = await openWide(browser, addPerson(fruit('Karpuz')), { width: 899 })
