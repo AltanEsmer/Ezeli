@@ -128,7 +128,7 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
   }
 
   return (
-    <main className="page search">
+    <div className="page search">
       <header className="top">
         <button className="back hand" onClick={toTimeline}>
           <span aria-hidden="true">← </span>
@@ -190,7 +190,7 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
           </ListName.Provider>
         </div>
       )}
-    </main>
+    </div>
   )
 }
 

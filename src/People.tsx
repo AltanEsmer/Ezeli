@@ -62,7 +62,7 @@ export function PeoplePage({ onSessionLost }: { onSessionLost: () => void }) {
   const link = new Map(people.flatMap((person) => person.photos).map((photo, i) => [photo.thumb, urls[i]] as const))
 
   return (
-    <main className="page">
+    <div className="page">
       <header className="top">
         <button className="back hand" onClick={toTimeline}>
           <span aria-hidden="true">← </span>
@@ -101,7 +101,7 @@ export function PeoplePage({ onSessionLost }: { onSessionLost: () => void }) {
           ))}
         </ul>
       )}
-    </main>
+    </div>
   )
 }
 
@@ -125,11 +125,11 @@ export function PersonPage({ id, onSessionLost }: { id: string; onSessionLost: (
       </button>
     </header>
   )
-  if (state.status === 'loading') return <main className="page" aria-busy="true" aria-label={t.loading} />
-  if (state.status === 'failed') return <main className="page">{back}<Failed reload={reload} /></main>
+  if (state.status === 'loading') return <div className="page" aria-busy="true" aria-label={t.loading} />
+  if (state.status === 'failed') return <div className="page">{back}<Failed reload={reload} /></div>
   if (state.status === 'missing') {
     return (
-      <main className="page centered">
+      <div className="page centered">
         <section className="slip">
           <i className="tape" aria-hidden="true" />
           <h1 className="hand">{t.personMissingTitle}</h1>
@@ -138,13 +138,13 @@ export function PersonPage({ id, onSessionLost }: { id: string; onSessionLost: (
             {t.allMemories}
           </button>
         </section>
-      </main>
+      </div>
     )
   }
   const person = state.value
   const day = (moment: Moment) => formatDate(language, moment.at, moment.timezone)
   return (
-    <main className="page">
+    <div className="page">
       {back}
       <h1 className="mdate hand">{person.name}</h1>
       <dl className="facts slip">
@@ -166,6 +166,6 @@ export function PersonPage({ id, onSessionLost }: { id: string; onSessionLost: (
         </div>
       </dl>
       <Memories onSessionLost={onSessionLost} person={id} listName={person.name} />
-    </main>
+    </div>
   )
 }
