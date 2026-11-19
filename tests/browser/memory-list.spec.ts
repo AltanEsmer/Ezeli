@@ -124,7 +124,9 @@ test.describe('on a phone', () => {
     await openJune(page)
     const heading = page.getByRole('heading', { name: 'June 2016' })
 
-    await page.evaluate(() => scrollBy(0, 900))
+    // Scroll down the month to its third memory. (Not a fixed distance: the rows' heights depend on
+    // the words and on where the jump settled, and a fixed scroll left the third one out of view.)
+    await june(page).nth(fourteenth).scrollIntoViewIfNeeded()
     await expect(june(page).nth(fourteenth)).toBeInViewport()
     await expect(heading).toBeInViewport()
     await settled(async () => {
