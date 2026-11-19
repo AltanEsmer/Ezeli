@@ -40,19 +40,28 @@ test.describe('a friend on a memory', () => {
     await expect(talk.getByText('Document', { exact: true })).toBeVisible()
   })
 
-  test('opens it from the timeline to its own address and sees the date, the chat and all photos large', async ({ page }) => {
+  test('opens it from the timeline to its own address and sees the date, the chat, one photo large and the others as squares', async ({ page }) => {
     await openNewest(page)
 
     await expect(page).toHaveURL(address)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Saturday, September 2, 2023')
     await expect(page.getByText(CHAT, { exact: true })).toBeVisible()
-    const photos = page.getByRole('figure').locator('img')
-    await expect(photos).toHaveCount(2)
-    for (const photo of await photos.all()) {
+    // One photo is on the stage, the large version of the first.
+    const stage = page.getByRole('figure').locator('img')
+    await expect(stage).toHaveCount(1)
+    await expect(stage).toHaveJSProperty('complete', true)
+    expect(await stage.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
+    expect(await stage.getAttribute('src')).toMatch(/-view\.webp\?token=/)
+    expect((await stage.boundingBox())!.width).toBeGreaterThan(280)
+    // Both photos are squares under it, the small versions.
+    const squares = page.getByRole('group', { name: 'Photos' }).getByRole('button')
+    await expect(squares).toHaveCount(2)
+    for (const square of await squares.all()) {
+      const photo = square.locator('img')
       await expect(photo).toHaveJSProperty('complete', true)
-      expect(await photo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
-      expect(await photo.getAttribute('src')).toMatch(/-view\.webp\?token=/)
-      expect((await photo.boundingBox())!.width).toBeGreaterThan(280)
+      expect(await photo.getAttribute('src')).toMatch(/-thumb\.webp\?token=/)
+      const box = (await square.boundingBox())!
+      expect(box.width).toBe(box.height)
     }
   })
 
@@ -263,26 +272,28 @@ test.describe('a friend on a memory', () => {
       return route.abort()
     })
     await openNewest(page)
-    const photos = page.getByRole('figure').locator('img')
-    await expect(photos).toHaveCount(2)
-    for (const photo of await photos.all()) {
-      await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
-    }
+    const stage = page.getByRole('figure').locator('img')
+    await expect.poll(() => stage.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
+    // The second photo comes to the stage and has the same trouble.
+    await page.getByRole('group', { name: 'Photos' }).getByRole('button').nth(1).click()
+    await expect(page.getByText('2 / 2')).toBeVisible()
+    await expect.poll(() => stage.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
     expect(tried.size).toBe(2)
     // The timeline's links, the memory's links, and one request for fresh ones (not one per photo).
     expect(signed.length).toBe(3)
   })
 
-  test('shows a paper placeholder in the photo\'s shape when the fresh link fails too', async ({ page }) => {
+  test('shows a plain placeholder in the photo\'s shape when the fresh link fails too', async ({ page }) => {
     await page.route(/\/object\/sign\/photos\/.+-view\.webp\?token=/, (route) => route.abort())
     await openNewest(page)
 
     const gone = page.getByRole('figure').getByRole('img', { name: 'Photo could not load' })
-    await expect(gone).toHaveCount(2)
+    await expect(gone).toHaveCount(1)
     await expect(page.getByRole('figure').locator('img')).toHaveCount(0)
-    const tall = (await gone.nth(0).boundingBox())!
-    const wide = (await gone.nth(1).boundingBox())!
+    const tall = (await gone.boundingBox())!
     expect(tall.height).toBeGreaterThan(tall.width)
+    await page.getByRole('group', { name: 'Photos' }).getByRole('button').nth(1).click()
+    const wide = (await gone.boundingBox())!
     expect(wide.width).toBeGreaterThan(wide.height)
   })
 
