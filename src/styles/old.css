@@ -1,206 +1,49 @@
-/* The look is "Album" (issue 4): kraft paper, taped prints, handwriting. */
-:root {
-  --backdrop: #c9ac7e;
-  --page: #d8bb8d;
-  --paper: #fffcf4;
-  --ink: #2b1e12;
-  --muted: #574229;
-  --pen: #1d3c8a;
-  --accent: #1e6e68;
-  --on-accent: #fffcf4;
-  --stamp: #8e2414;
-  --tape1: #f2c94c;
-  --tape2: #7fc7bd;
-  --tape3: #f2a0a0;
-  --tape4: #a9bdf0;
-  --tape-ink: #2b1e12;
-  --shadow: 0 2px 3px rgb(43 30 18 / 0.28), 0 8px 18px rgb(43 30 18 / 0.18);
-  --focus: #1d3c8a;
-  --hand: 'Kalam', 'Segoe Print', 'Bradley Hand', cursive;
-  --text: 'Karla', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  color-scheme: light;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --backdrop: #14110e;
-    --page: #1b1714;
-    --ink: #f3eadb;
-    --muted: #b8a994;
-    --accent: #7fd1c7;
-    --stamp: #ff9b88;
-    --focus: #a9bdf0;
-    --shadow: 0 2px 3px rgb(0 0 0 / 0.5), 0 8px 18px rgb(0 0 0 / 0.4);
-    color-scheme: dark;
-  }
-  /* Prints, slips and notes stay light paper on the dark page. */
-  .slip,
-  .print,
-  .mprint,
-  .card,
-  .chat,
-  .pcard,
-  .me {
-    --ink: #2b1e12;
-    --muted: #574229;
-    --accent: #1e6e68;
-    --stamp: #8e2414;
-    --focus: #1d3c8a;
-  }
-  .btn {
-    --on-accent: #fffcf4;
-  }
-  /* Handwriting straight on the dark page is a lighter blue. */
-  .mdate,
-  .links,
-  .back {
-    --pen: #a9bdf0;
-  }
-}
-
-* {
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: var(--backdrop);
-  color: var(--ink);
-  font: 16px/1.45 var(--text);
-  -webkit-text-size-adjust: 100%;
-  -webkit-font-smoothing: antialiased;
-}
-
-h1,
-p,
-figure {
-  margin: 0;
-}
-
-button {
-  font: inherit;
-  color: inherit;
-  background: none;
-  border: 0;
-  padding: 0;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
-}
-
-.hand {
-  font-family: var(--hand);
-}
-
-/* One phone-width column. */
+/* OLD LOOK. The screens of the first build (timeline, memory, people, person, search) still use
+   these styles. Each screen ticket (53 to 57) deletes the rules of the screen it rebuilds; ticket 58
+   deletes this file. Nothing new goes in here. The first block maps the old names onto the new tokens
+   so the old screens sit on the new background. */
 .page {
+  --paper: var(--surface);
+  --pen: var(--ink);
+  --stamp: var(--accent);
+  --hand: var(--ui);
+  --tape1: var(--line);
+  --page: var(--bg);
   position: relative;
   max-width: 430px;
-  min-height: 100vh;
-  min-height: 100dvh;
   margin: 0 auto;
   overflow-x: clip;
   padding: 0 max(16px, env(safe-area-inset-right)) 40px max(16px, env(safe-area-inset-left));
-  background-color: var(--page);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .25 0 0 0 0 .15 0 0 0 0 .06 0 0 0 .28 0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23n)'/%3E%3C/svg%3E");
 }
-
 .page.centered {
   display: grid;
   align-content: center;
   padding-block: 40px;
 }
-
-.tape {
-  position: absolute;
-  top: -13px;
-  left: 50%;
-  width: 92px;
-  height: 26px;
-  margin-left: -46px;
-  background: var(--tape1);
-  opacity: 0.9;
-  transform: rotate(-4deg);
+.hand {
+  font-family: var(--hand);
 }
-
-/* The private page and its variants. */
+.tape {
+  display: none;
+}
 .slip {
-  position: relative;
   display: grid;
   gap: 12px;
-  padding: 36px 24px 28px;
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: var(--shadow);
-  transform: rotate(-1deg);
+  padding: 24px;
+  border: 1px solid var(--line);
+  background: var(--surface);
 }
 .slip h1 {
-  font-size: 34px;
-  line-height: 1.05;
-  text-wrap: balance;
+  font-size: 28px;
+  line-height: 1.1;
 }
 .slip p {
-  font-size: 18px;
   color: var(--muted);
 }
-.slip.red h1 {
-  color: var(--stamp);
-}
-.slip.red .tape {
-  background: #f2a0a0;
-}
-
-.btn {
-  justify-self: start;
-  min-height: 48px;
-  padding: 0 22px;
-  border-radius: 24px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 700;
-}
-
-/* Timeline header. */
 .top {
   display: flex;
-  justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding-top: max(20px, env(safe-area-inset-top));
-}
-.logo {
-  font-size: 34px;
-  font-weight: 700;
-  line-height: 1;
-  padding: 8px 20px 2px;
-  background: var(--tape1);
-  color: var(--tape-ink);
-  transform: rotate(-3deg);
-}
-.me {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 44px;
-  max-width: 55%;
-  padding: 11px 14px 7px;
-  background: var(--paper);
-  color: var(--pen);
-  border-radius: 4px;
-  box-shadow: var(--shadow);
-  font-size: 22px;
-  font-weight: 700;
-  line-height: 1;
-  transform: rotate(2deg);
-}
-.me .name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* The empty timeline: one blank print waiting for photos. */
@@ -231,7 +74,7 @@ button {
 .print .photo {
   aspect-ratio: 4 / 3;
   border: 2px dashed color-mix(in srgb, var(--muted) 55%, transparent);
-  background: #efe3cc;
+  background: var(--line);
 }
 .print figcaption {
   padding: 12px 4px 6px;
@@ -308,7 +151,7 @@ button {
   display: grid;
   place-items: center;
   width: 100%;
-  background: #efe3cc;
+  background: var(--line);
   overflow: hidden;
 }
 .shot.fill {
@@ -496,84 +339,6 @@ button {
   color: var(--ink);
 }
 
-/* The menu: a taped card. */
-.scrim {
-  position: fixed;
-  inset: 0;
-  background: rgb(20 14 8 / 0.5);
-}
-.card {
-  position: fixed;
-  z-index: 1;
-  top: 110px;
-  left: max(24px, calc(50vw - 191px));
-  right: max(24px, calc(50vw - 191px));
-  display: grid;
-  gap: 10px;
-  justify-items: start;
-  padding: 34px 22px 24px;
-  background: var(--paper);
-  color: var(--ink);
-  box-shadow: var(--shadow);
-  transform: rotate(-1.2deg);
-}
-.card small {
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--muted);
-}
-.card .who {
-  font-size: 40px;
-  line-height: 1;
-  color: var(--pen);
-  overflow-wrap: break-word;
-  hyphens: auto;
-}
-.card .btn {
-  margin-top: 8px;
-}
-.card .x {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 44px;
-  height: 44px;
-  font-size: 30px;
-  line-height: 1;
-}
-.lang {
-  display: grid;
-  gap: 2px;
-  margin-top: 4px;
-}
-.lang > div {
-  display: flex;
-  gap: 14px;
-}
-.lang small {
-  font-weight: 700;
-  font-size: 15px;
-  color: var(--muted);
-}
-.lang .failed {
-  margin: 0;
-  font-size: 15px;
-  color: var(--stamp);
-}
-.lang button {
-  min-width: 44px;
-  min-height: 44px;
-  padding: 2px 16px;
-  font-size: 22px;
-  color: var(--pen);
-  border: 2px solid transparent;
-  border-radius: 55% 45% 60% 40% / 50% 60% 40% 55%;
-}
-.lang button.on {
-  color: var(--pen);
-  border-color: var(--pen);
-  transform: rotate(-2deg);
-}
 .stamp {
   border: 2px solid var(--stamp);
   color: var(--stamp);
@@ -581,19 +346,6 @@ button {
   padding: 3px 10px 2px;
   font-weight: 700;
   font-size: 15px;
-  transform: rotate(-1.5deg);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .card {
-    animation: rise 0.18s ease-out;
-  }
-  @keyframes rise {
-    from {
-      opacity: 0;
-      transform: translateY(10px) rotate(-1.2deg);
-    }
-  }
 }
 
 /* A memory in the timeline opens it. */
@@ -710,7 +462,7 @@ button {
 .small {
   display: block;
   padding: 0;
-  background: #efe3cc;
+  background: var(--line);
   box-shadow: 0 1px 2px rgb(43 30 18 / 0.35);
 }
 .small img {
@@ -813,7 +565,7 @@ button {
 /* A photo that could not load: a blank print in the photo's shape. */
 .gone {
   width: 100%;
-  background: #efe3cc;
+  background: var(--line);
   border: 2px dashed color-mix(in srgb, #574229 55%, transparent);
 }
 .slide .gone {
@@ -1093,4 +845,16 @@ button {
   margin: 0;
   font-size: 32px;
   color: var(--ink);
+}
+
+/* The old column sits in the middle of what the bar leaves: the tabs follow it. */
+@media (min-width: 900px) {
+  .tabs {
+    right: max(0px, calc((100vw - var(--side) - 430px) / 2));
+  }
+}
+
+/* Sender names carry an old pen colour of their own: plain ink on the new background. */
+.group .who {
+  color: var(--ink) !important;
 }

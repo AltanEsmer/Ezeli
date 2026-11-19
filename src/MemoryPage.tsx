@@ -21,11 +21,11 @@ export function MemoryPage({ memoryKey, person, onSessionLost }: { memoryKey: st
     if (lost) onSessionLost()
   }, [lost, onSessionLost])
 
-  if (state.status === 'loading' || state.status === 'gone') return <main className="page" aria-busy="true" aria-label={t.loading} />
+  if (state.status === 'loading' || state.status === 'gone') return <div className="page" aria-busy="true" aria-label={t.loading} />
   if (state.status !== 'ready') {
     const missing = state.status === 'missing'
     return (
-      <main className="page centered">
+      <div className="page centered">
         <section className={`slip${missing ? '' : ' red'}`}>
           <i className="tape" aria-hidden="true" />
           <h1 className="hand">{missing ? t.memoryMissingTitle : t.failedTitle}</h1>
@@ -39,7 +39,7 @@ export function MemoryPage({ memoryKey, person, onSessionLost }: { memoryKey: st
             {t.allMemories}
           </button>
         </section>
-      </main>
+      </div>
     )
   }
   return <Memory memory={state.memory} memoryKey={memoryKey} person={person} onSessionLost={onSessionLost} links={state.links} relink={relink} />
@@ -70,7 +70,7 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
   const photoOf = new Map(memory.photos.map((photo, index) => [photo.message, index]))
 
   return (
-    <main className="page memory">
+    <div className="page memory">
       <header className="top">
         <button className="back hand" onClick={() => goBack(from?.path ?? '/')}>
           <span aria-hidden="true">← </span>
@@ -144,7 +144,7 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
       </nav>
 
       {open !== null && <Viewer photos={memory.photos} links={links} relink={relink} start={open} onClose={() => history.back()} />}
-    </main>
+    </div>
   )
 }
 
