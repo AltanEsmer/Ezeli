@@ -4,7 +4,7 @@
 import { type Browser, type Page, expect, test } from '@playwright/test'
 import { rmSync } from 'node:fs'
 import { makeSmallExport } from './large.ts'
-import { addPerson, apiUrl, fruit, ownerCommand, publishableKey } from './support.ts'
+import { addPerson, apiUrl, fruit, ownerCommand, photoCount, publishableKey, sentBy } from './support.ts'
 
 const people = 'tests/fixtures/whatsapp-iphone/people.json'
 const results = (page: Page) => page.getByRole('article')
@@ -91,8 +91,8 @@ test.describe('search', () => {
 
     await expect(results(page)).toHaveCount(1)
     expect(await dates(page)).toEqual([JULY14])
-    await expect(results(page).locator('.by')).toContainText('Sent by')
-    await expect(results(page).locator('.counts')).toContainText('photos')
+    await expect(sentBy(results(page))).toContainText('Sent by')
+    await expect(photoCount(results(page))).toContainText('photos')
   })
 
   test('a word from a comment finds that memory, and not before the comment is written', async ({ page }) => {

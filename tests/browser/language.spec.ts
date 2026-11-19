@@ -1,7 +1,7 @@
 // The language switch, as a friend uses it, on the memories the real import saved (import.setup.ts).
 import { type Browser, type Page, expect, test } from '@playwright/test'
 import { type Language, labels } from '../../src/i18n.ts'
-import { addPerson, apiUrl, fruit, ownerCommand, publishableKey } from './support.ts'
+import { addPerson, apiUrl, fruit, ownerCommand, publishableKey, sentBy } from './support.ts'
 
 const memories = (page: Page) => page.getByRole('article')
 const names = { tr: 'Türkçe', en: 'English' }
@@ -67,7 +67,7 @@ for (const language of ['en', 'tr'] as const) {
       await page.keyboard.press('Escape')
 
       // The timeline.
-      await expect(memories(page).locator('.by').first()).toContainText(language === 'tr' ? 'gönderdi' : 'Sent by')
+      await expect(sentBy(memories(page)).first()).toContainText(language === 'tr' ? 'gönderdi' : 'Sent by')
       await expectOnly(page, language)
       // The menu.
       const menu = await openMenu(page, language)
@@ -84,7 +84,7 @@ for (const language of ['en', 'tr'] as const) {
       await box.fill('güzel')
       await box.press('Enter')
       await expect(memories(page).first()).toBeVisible()
-      await expect(memories(page).locator('.by').first()).toContainText(language === 'tr' ? 'gönderdi' : 'Sent by')
+      await expect(sentBy(memories(page)).first()).toContainText(language === 'tr' ? 'gönderdi' : 'Sent by')
       await expectOnly(page, language)
       await box.fill('zzzyyy')
       await box.press('Enter')
@@ -175,7 +175,7 @@ test.describe('switching', () => {
     await expect(page.getByRole('dialog', { name: 'Menü' }).getByRole('button', { name: 'Bu cihazdan çık' })).toBeVisible()
     await expectOnly(page, 'tr')
     await expect(memories(page).getByRole('heading')).toHaveText(['15 Temmuz 2023 Cumartesi', '14 Temmuz 2023 Cuma', '5 Mart 2023 Pazar', '22 Ocak 2023 Pazar'])
-    await expect(memories(page).locator('.by').first()).toHaveText('Fıstık gönderdi')
+    await expect(sentBy(memories(page)).first()).toHaveText('Fıstık gönderdi')
     expect(await page.evaluate(() => (window as unknown as { stillHere?: boolean }).stillHere)).toBe(true)
 
     await page.getByRole('dialog', { name: 'Menü' }).getByRole('button', { name: 'English' }).click()

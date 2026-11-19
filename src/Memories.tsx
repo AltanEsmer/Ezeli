@@ -288,7 +288,7 @@ const Memory = memo(function Memory({ memory, index }: { memory: MemoryCard; ind
         </div>
         <p className="by">{t.sentBy(formatNames(language, memory.senders))}</p>
         {line && (
-          <p className="line" dir="auto">
+          <p className="line" role="blockquote" dir="auto">
             {`“${line}”`}
           </p>
         )}
@@ -327,7 +327,7 @@ export function Shot({ url, alt = '', ratio }: { url: string | null | undefined;
   const [failed, setFailed] = useState<string | null>(null)
   const broken = url != null && failed === url
   return (
-    <div className={ratio ? 'shot' : 'shot fill'} style={ratio ? { aspectRatio: ratio } : undefined}>
+    <div className={ratio ? 'shot' : 'shot fill'} data-photo="" style={ratio ? { aspectRatio: ratio } : undefined}>
       {url && !broken && <img src={url} alt={alt} decoding="async" onError={() => setFailed(url)} />}
       {broken && alt && <span className="miss">{t.photoGone}</span>}
     </div>
