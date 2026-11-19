@@ -58,16 +58,17 @@ test.describe('the full timeline', () => {
     // The line is set by its own letters, so a right-to-left line reads right.
     await expect(quotedLine(december)).toHaveAttribute('dir', 'auto')
 
-    // (The July memories may carry comments from the comment tests, so only March says "No comments".)
+    // (The July memories may carry comments from the comment tests, so only March is checked for none.)
     await expect(photoCount(fifteenth)).toHaveText('1 photo')
     await expect(photoCount(fourteenth)).toHaveText('2 photos')
-    await expect(counts(march)).toHaveText(['3 photos', 'No comments'])
+    // A memory with no comments says nothing about them.
+    await expect(counts(march)).toHaveText('3 photos')
   })
 
   test('counts the comments of a memory: one after a friend adds one, none after it is deleted', async ({ page }) => {
     const dinner = month(page, '2022-12').getByRole('article')
     await openTimeline(page)
-    await expect(commentCount(dinner)).toHaveText('No comments')
+    await expect(commentCount(dinner)).toHaveCount(0)
 
     await dinner.getByRole('link').click()
     await page.getByRole('textbox').fill('bir not')
@@ -82,7 +83,7 @@ test.describe('the full timeline', () => {
     await note.getByRole('button', { name: 'Yes, delete' }).click()
     await expect(note).toHaveCount(0)
     await page.getByRole('button', { name: 'All memories' }).click()
-    await expect(commentCount(dinner)).toHaveText('No comments')
+    await expect(commentCount(dinner)).toHaveCount(0)
   })
 
   test('takes a photo\'s caption as the line, by the same rule as any text message', async ({ page }) => {
@@ -93,7 +94,7 @@ test.describe('the full timeline', () => {
     await expect(quotedLine(month(page, '2022-11').getByRole('article'))).toHaveText('“Kıyıda akşam altyazısı”')
   })
 
-  test('jumps to a month, or to a year, with the tabs on the right edge', async ({ page }) => {
+  test('jumps to a month, or to a year, with the list of years', async ({ page }) => {
     await openTimeline(page)
 
     // The open tab is the year on screen; its months show under it.
@@ -102,7 +103,7 @@ test.describe('the full timeline', () => {
 
     const march = page.getByRole('heading', { name: 'March 2023' })
     await tabs(page).getByRole('button', { name: 'March 2023' }).click()
-    await expect.poll(async () => (await march.boundingBox())?.y ?? 9999).toBeLessThan(60)
+    await expect.poll(async () => (await march.boundingBox())?.y ?? 9999).toBeLessThan(120)
     await expect(tabs(page).getByRole('button', { name: 'March 2023' })).toHaveAttribute('aria-current', 'true')
 
     await tabs(page).getByRole('button', { name: '2022', exact: true }).click()
@@ -157,7 +158,7 @@ test.describe('the full timeline', () => {
       await expect(page.getByRole('navigation', { name: 'Bir yıla ya da aya git' }).getByRole('button', { name: 'Mart 2023' })).toBeVisible()
       const first = month(page, '2023-07').getByRole('article').first()
       await expect(photoCount(first)).toHaveText('1 fotoğraf')
-      await expect(commentCount(month(page, '2023-03').getByRole('article'))).toHaveText('Yorum yok')
+      await expect(commentCount(month(page, '2023-03').getByRole('article'))).toHaveCount(0)
       await expect(quotedLine(first)).toHaveText('“Şu suyun rengine bak”')
     })
   })
