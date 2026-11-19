@@ -1,22 +1,18 @@
-import { type CSSProperties, type MouseEvent, type RefObject, createContext, memo, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { formatDate, formatMonth, formatNames, language, t } from './i18n.ts'
-import { type Chunk, type MemoryCard, type MonthCount, type Timeline, signedLink, useTimeline } from './memories.ts'
-import { memoryPath, navigate, opened } from './route.ts'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { formatMonth, language, t } from './i18n.ts'
+import { type Chunk, type MemoryCard, type MonthCount, type Timeline, useTimeline } from './memories.ts'
+import { ListName, MemoryItem, useNear } from './MemoryItem.tsx'
 
 type Ready = Extract<Timeline, { status: 'ready' }>
 export type Group = { month: string; memories: MemoryCard[]; heading: boolean }
 
-// The gap between the parts of the timeline (the same as in the stylesheet).
-const GAP = 54
-
-// The memories of the timeline, newest first, under month headings: each a small stack of prints
-// held by tape. The timeline holds a run of the archive and grows at both ends as the friend
-// scrolls; the year tabs open it around a month. Only the part near the screen is in the page:
-// the rest of the run keeps its height as an empty box.
+// The memories of the timeline, newest first, under month headings that stay in view while their
+// month scrolls. The timeline holds a run of the archive and grows at both ends as the friend
+// scrolls; the list of years opens it around a month. Only the part near the screen is in the
+// page: the rest of the run keeps its height as an empty box.
 // With `person` (a lasting id) it holds only the memories that person took part in: the same
 // timeline, filtered by the database.
 // `listName` is what the memory screen calls this list in its back link (none: "All memories").
-export const ListName = createContext<string | undefined>(undefined)
 export function Memories({ onSessionLost, person = null, listName }: { onSessionLost: () => void; person?: string | null; listName?: string }) {
   const { timeline, reload, grow, retry, jump } = useTimeline(onSessionLost, person)
   const [current, setCurrent] = useState<string | null>(null)
@@ -38,7 +34,7 @@ export function Memories({ onSessionLost, person = null, listName }: { onSession
       const belowNow = below && list.current?.querySelector<HTMLElement>(`[data-chunk="${below.id}"]`)?.offsetHeight
       const belowWas = below && heights.current.get(below.id)
       const shrunk = belowNow !== undefined && belowWas !== undefined ? belowNow - belowWas : 0
-      if (added) window.scrollBy(0, added.offsetHeight + GAP + shrunk)
+      if (added) window.scrollBy(0, added.offsetHeight + shrunk)
     } else if (kind === 'open') {
       window.scrollTo(0, 0)
       if (target && 'key' in target) {
@@ -90,11 +86,11 @@ export function Memories({ onSessionLost, person = null, listName }: { onSession
     })
   }, [ready?.chunks])
 
-  if (timeline.status === 'loading') return <div className="memories" aria-busy="true" aria-label={t.loading} />
+  if (timeline.status === 'loading') return <div className="tl" aria-busy="true" aria-label={t.loading} />
   if (timeline.status === 'failed') {
     return (
-      <section className="empty">
-        <h1 className="hand">{t.failedTitle}</h1>
+      <section className="tl-note">
+        <h1>{t.failedTitle}</h1>
         <p>{t.failedBody}</p>
         <button className="btn" onClick={reload}>
           {t.retry}
@@ -102,28 +98,35 @@ export function Memories({ onSessionLost, person = null, listName }: { onSession
       </section>
     )
   }
-  if (timeline.chunks.length === 0) return <EmptyTimeline />
+  if (timeline.chunks.length === 0) {
+    return (
+      <section className="tl-note">
+        <h1>{t.emptyTitle}</h1>
+        <p>{t.emptyBody}</p>
+      </section>
+    )
+  }
 
   return (
     <ListName.Provider value={listName}>
-    <div className="memories" ref={list}>
-      <End side="newer" timeline={timeline} grow={grow} retry={retry} />
-      {rows.map(({ chunk, groups }) => (
-        <ChunkView key={chunk.id} chunk={chunk} groups={groups} heights={heights.current} lang={language} />
-      ))}
-      <End side="older" timeline={timeline} grow={grow} retry={retry} />
-      <YearTabs months={timeline.months} current={current} busy={timeline.busy === 'jump'} onJump={jump} />
-      {(timeline.busy === 'jump' || timeline.failed === 'jump') && (
-        <div className="toast" role={timeline.failed === 'jump' ? 'alert' : 'status'}>
-          <span>{timeline.failed === 'jump' ? t.failedTitle : t.loading}</span>
-          {timeline.failed === 'jump' && (
-            <button className="btn" onClick={retry}>
-              {t.retry}
-            </button>
-          )}
-        </div>
-      )}
-    </div>
+      <div className="tl" ref={list}>
+        <End side="newer" timeline={timeline} grow={grow} retry={retry} />
+        <YearList months={timeline.months} current={current} busy={timeline.busy === 'jump'} onJump={jump} />
+        {rows.map(({ chunk, groups }) => (
+          <ChunkView key={chunk.id} chunk={chunk} groups={groups} heights={heights.current} lang={language} />
+        ))}
+        <End side="older" timeline={timeline} grow={grow} retry={retry} />
+        {(timeline.busy === 'jump' || timeline.failed === 'jump') && (
+          <div className="tl-toast" role={timeline.failed === 'jump' ? 'alert' : 'status'}>
+            <span>{timeline.failed === 'jump' ? t.failedTitle : t.loading}</span>
+            {timeline.failed === 'jump' && (
+              <button className="btn" onClick={retry}>
+                {t.retry}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </ListName.Provider>
   )
 }
@@ -145,20 +148,18 @@ export const ChunkView = memo(function ChunkView({ chunk, groups, heights, lang 
   }, [near, chunk.id, heights])
 
   return (
-    <div ref={box} className="chunk" data-chunk={chunk.id} style={near ? undefined : { height: heights.get(chunk.id) }}>
+    <div ref={box} className="tl-chunk" data-chunk={chunk.id} style={near ? undefined : { height: heights.get(chunk.id) }}>
       {near &&
         groups.map((group) => (
-          <section key={group.memories[0]!.id} className="month" data-month={group.month} aria-label={group.heading ? undefined : formatMonth(language, group.month)}>
+          <section key={group.memories[0]!.id} data-month={group.month} aria-label={group.heading ? undefined : formatMonth(language, group.month)}>
             {group.heading && (
-              <h2 className="monthh hand" tabIndex={-1}>
+              <h2 className="tl-head" tabIndex={-1}>
                 {formatMonth(language, group.month)}
               </h2>
             )}
-            <div className="mlist">
-              {group.memories.map((memory, i) => (
-                <Memory key={memory.id} memory={memory} index={i} lang={lang} />
-              ))}
-            </div>
+            {group.memories.map((memory) => (
+              <MemoryItem key={memory.id} memory={memory} lang={lang} />
+            ))}
           </section>
         ))}
     </div>
@@ -176,7 +177,7 @@ function End(props: { side: 'newer' | 'older'; timeline: Ready; grow: (end: 'old
     if (near && more && !timeline.busy && !timeline.failed) void grow(side)
   }, [near, more, timeline.busy, timeline.failed, timeline.change.n, side, grow])
   return (
-    <div ref={end} className={side === 'newer' ? 'more top' : 'more'}>
+    <div ref={end} className={side === 'newer' ? 'tl-end top' : 'tl-end'}>
       {timeline.busy === side && <p role="status">{t.loading}</p>}
       {timeline.failed === side && (
         <div role="alert">
@@ -190,11 +191,11 @@ function End(props: { side: 'newer' | 'older'; timeline: Ready; grow: (end: 'old
   )
 }
 
-// Index tabs on the right edge: a tab per year, the open year shows its months. The strip
-// scrolls when there are many years; a fade at an end shows that there is more that way.
-function YearTabs(props: { months: MonthCount[]; current: string | null; busy: boolean; onJump: (month: string) => void }) {
+// The years that have memories, the one in view open with its months. Wide: a list down the right
+// edge. Narrow: a strip under the top bar. It scrolls when there are many years. Pressing a year
+// or a month opens the timeline there.
+function YearList(props: { months: MonthCount[]; current: string | null; busy: boolean; onJump: (month: string) => void }) {
   const nav = useRef<HTMLElement>(null)
-  const [more, setMore] = useState({ up: false, down: false })
   const years = useMemo(() => {
     const out = new Map<string, string[]>()
     for (const { month } of props.months) out.set(month.slice(0, 4), [...(out.get(month.slice(0, 4)) ?? []), month])
@@ -202,46 +203,32 @@ function YearTabs(props: { months: MonthCount[]; current: string | null; busy: b
   }, [props.months])
   const openYear = props.current?.slice(0, 4)
 
-  const measure = () => {
-    const strip = nav.current
-    if (strip) setMore({ up: strip.scrollTop > 2, down: strip.scrollTop + strip.clientHeight < strip.scrollHeight - 2 })
-  }
-  // The open year comes to the top of the strip, so its months are in reach.
+  // The open year comes to the start of the list, so its months are in reach.
   useLayoutEffect(() => {
-    const strip = nav.current
-    const open = strip?.querySelector<HTMLElement>('.tab.on')
-    if (strip && open) strip.scrollTop = open.offsetTop - 4
-    measure()
+    const list = nav.current
+    const open = list?.querySelector<HTMLElement>('[data-open]')
+    if (list && open) {
+      list.scrollTop = open.offsetTop - 4
+      list.scrollLeft = open.offsetLeft - 8
+    }
   }, [openYear, years])
-  useEffect(() => {
-    window.addEventListener('resize', measure)
-    return () => window.removeEventListener('resize', measure)
-  }, [])
 
   const jump = (month: string) => {
     if (!props.busy) props.onJump(month)
   }
-  const fade = { '--fu': more.up ? '32px' : '0px', '--fd': more.down ? '32px' : '0px' } as CSSProperties
 
   return (
-    <nav ref={nav} className="tabs" aria-label={t.jumpTo} aria-busy={props.busy} data-more-up={more.up} data-more-down={more.down} style={fade} onScroll={measure}>
-      {years.map(([year, months], i) => {
+    <nav ref={nav} className="tl-years" aria-label={t.jumpTo} aria-busy={props.busy}>
+      {years.map(([year, months]) => {
         const open = year === openYear
         return (
-          <div key={year} className={open ? 'tab on' : 'tab'} style={{ '--c': `var(--tape${(i % 4) + 1})` } as CSSProperties}>
-            <button className="yr" aria-current={open ? 'true' : undefined} aria-disabled={props.busy} onClick={() => jump(months[0]!)}>
+          <div key={year} data-open={open || undefined}>
+            <button aria-current={open ? 'true' : undefined} aria-disabled={props.busy} onClick={() => jump(months[0]!)}>
               {year}
             </button>
             {open &&
               months.map((month) => (
-                <button
-                  key={month}
-                  className="mo hand"
-                  aria-current={month === props.current ? 'true' : undefined}
-                  aria-label={formatMonth(language, month)}
-                  aria-disabled={props.busy}
-                  onClick={() => jump(month)}
-                >
+                <button key={month} className="mo" aria-current={month === props.current ? 'true' : undefined} aria-label={formatMonth(language, month)} aria-disabled={props.busy} onClick={() => jump(month)}>
                   {formatMonth(language, month, true)}
                 </button>
               ))}
@@ -249,153 +236,5 @@ function YearTabs(props: { months: MonthCount[]; current: string | null; busy: b
         )
       })}
     </nav>
-  )
-}
-
-const tilts = [-2.2, 1.6, -1, 2.4]
-const tapes = ['var(--tape2)', 'var(--tape1)', 'var(--tape3)', 'var(--tape4)']
-
-// A memory is one element, the article: it opens the memory. Its shape never depends on whether
-// photos have loaded: every print keeps its place at the photo's real shape, and photos are only
-// held in the page while the memory is near the screen.
-const Memory = memo(function Memory({ memory, index }: { memory: MemoryCard; index: number; lang: string }) {
-  const card = useRef<HTMLElement>(null)
-  const near = useNear(card)
-  const listName = useContext(ListName)
-  const urls = useLinks(near ? memory.photos.map((photo) => photo.thumb) : [])
-  const [front, ...behind] = memory.photos
-  const date = formatDate(language, memory.at, memory.timezone)
-  const line = memory.line ? cutLine(memory.line) : null
-  const style = { '--tilt': `${tilts[index % tilts.length]}deg`, '--tape': tapes[index % tapes.length] } as CSSProperties
-
-  return (
-    <article className="mem" style={style} ref={card} data-key={memory.key}>
-      <a className="open" href={memoryPath(memory.key)} onClick={open(memory.key, listName)}>
-        <div className="stack">
-          {behind
-            .slice()
-            .reverse()
-            .map((photo, i) => (
-              <div key={photo.thumb} className={`mprint back back${behind.length - i}`} aria-hidden="true">
-                <Shot url={urls[memory.photos.indexOf(photo)]} />
-              </div>
-            ))}
-          <div className="mprint front">
-            {front && <Shot url={urls[0]} alt={t.photoBy(front.by)} ratio={Math.min(1.5, Math.max(0.8, front.width / front.height))} />}
-            <h3 className="cap hand">{date}</h3>
-          </div>
-          <i className="tape" aria-hidden="true" />
-        </div>
-        <p className="by">{t.sentBy(formatNames(language, memory.senders))}</p>
-        {line && (
-          <p className="line" role="blockquote" dir="auto">
-            {`“${line}”`}
-          </p>
-        )}
-        <p className="counts">
-          <span>
-            <Icon d="M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4M15 9.5h.01" />
-            {t.photoCount(String(memory.photo_count))}
-          </span>
-          <span>
-            <Icon d="M4 4h16v12H9l-5 4z" />
-            {t.commentCount(String(memory.comment_count))}
-          </span>
-        </p>
-      </a>
-    </article>
-  )
-})
-
-const open = (key: string, listName?: string) => (event: MouseEvent) => {
-  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-  event.preventDefault()
-  opened(key)
-  navigate(memoryPath(key), { from: { path: location.pathname, name: listName } })
-}
-
-function Icon({ d }: { d: string }) {
-  return (
-    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" aria-hidden="true">
-      <path d={d} />
-    </svg>
-  )
-}
-
-// The place of one photo: it holds its shape while the photo loads, and when it fails to load.
-export function Shot({ url, alt = '', ratio }: { url: string | null | undefined; alt?: string; ratio?: number }) {
-  const [failed, setFailed] = useState<string | null>(null)
-  const broken = url != null && failed === url
-  return (
-    <div className={ratio ? 'shot' : 'shot fill'} data-photo="" style={ratio ? { aspectRatio: ratio } : undefined}>
-      {url && !broken && <img src={url} alt={alt} decoding="async" onError={() => setFailed(url)} />}
-      {broken && alt && <span className="miss">{t.photoGone}</span>}
-    </div>
-  )
-}
-
-// Links for the given small photos, once they are signed. An empty list lets the photos go.
-export function useLinks(paths: string[]): (string | null | undefined)[] {
-  const key = paths.join('\n')
-  const [urls, setUrls] = useState<{ key: string; urls: (string | null)[] }>({ key: '', urls: [] })
-  useEffect(() => {
-    if (!key) return setUrls({ key: '', urls: [] })
-    let stale = false
-    void Promise.all(key.split('\n').map(signedLink)).then((signed) => {
-      if (!stale) setUrls({ key, urls: signed })
-    })
-    return () => {
-      stale = true
-    }
-  }, [key])
-  return urls.key === key ? urls.urls : []
-}
-
-// True while the element is within a screen or two of the visible part of the page.
-let observer: IntersectionObserver | undefined
-const listeners = new WeakMap<Element, (near: boolean) => void>()
-export function useNear(ref: RefObject<Element | null>, initial = false): boolean {
-  const [near, setNear] = useState(initial)
-  useEffect(() => {
-    const element = ref.current
-    if (!element) return
-    observer ??= new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) listeners.get(entry.target)?.(entry.isIntersecting)
-      },
-      { rootMargin: '1500px 0px' },
-    )
-    listeners.set(element, setNear)
-    observer.observe(element)
-    return () => {
-      observer?.unobserve(element)
-      listeners.delete(element)
-    }
-  }, [ref])
-  return near
-}
-
-// The friend's own words, cut at a word when long, never in the middle of a letter or an emoji.
-export function cutLine(text: string, max = 90): string {
-  const flat = text.replace(/\s+/g, ' ').trim()
-  const letters = [...new Intl.Segmenter().segment(flat)].map((part) => part.segment)
-  if (letters.length <= max) return flat
-  const head = letters.slice(0, max).join('')
-  const space = head.lastIndexOf(' ')
-  return `${(space > max / 2 ? head.slice(0, space) : head).replace(/[\s,.;:!?-]+$/, '')}…`
-}
-
-function EmptyTimeline() {
-  return (
-    <section className="empty" aria-labelledby="empty-title">
-      <figure className="print">
-        <i className="tape" aria-hidden="true" />
-        <div className="photo" aria-hidden="true" />
-        <figcaption className="hand" id="empty-title">
-          {t.emptyTitle}
-        </figcaption>
-      </figure>
-      <p>{t.emptyBody}</p>
-    </section>
   )
 }

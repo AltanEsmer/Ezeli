@@ -7,5 +7,7 @@ import { App } from './App.tsx'
 import './styles/tokens.css'
 import './styles/shell.css'
 import './styles/old.css'
+import './styles/memoryitem.css'
+import './styles/timeline.css'
 
 createRoot(document.getElementById('root')!).render(<App />)

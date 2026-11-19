@@ -1,6 +1,7 @@
 import { type CSSProperties, useCallback, useEffect, useState } from 'react'
 import { formatDate, language, t } from './i18n.ts'
-import { Memories, Shot, useLinks } from './Memories.tsx'
+import { Memories } from './Memories.tsx'
+import { Shot, useLinks } from './MemoryItem.tsx'
 import { follow, goBack, personPath, toTimeline } from './route.ts'
 import { supabase } from './supabase.ts'
 
@@ -144,7 +145,7 @@ export function PersonPage({ id, onSessionLost }: { id: string; onSessionLost: (
   const person = state.value
   const day = (moment: Moment) => formatDate(language, moment.at, moment.timezone)
   return (
-    <div className="page">
+    <div className="page listed">
       {back}
       <h1 className="mdate hand">{person.name}</h1>
       <dl className="facts slip">

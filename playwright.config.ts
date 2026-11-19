@@ -31,6 +31,9 @@ export default defineConfig({
     { name: 'large-clean', testMatch: 'large.teardown.ts' },
     // Hides things of a chat of its own, last: it adds a chat, and the tests above count memories.
     { name: 'hiding', testMatch: 'hiding.spec.ts', dependencies: ['large'] },
+    // A made-up album of June 2021, for the memory on a list: it adds a chat, so it runs last.
+    { name: 'memory-list-import', testMatch: 'memory-list.setup.ts', dependencies: ['hiding'] },
+    { name: 'memory-list', testMatch: 'memory-list.spec.ts', dependencies: ['memory-list-import'] },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',

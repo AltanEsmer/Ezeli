@@ -1,0 +1,52 @@
+/* A memory on a list (the timeline, a person's page, search results) and the place of a photo.
+   Narrow: a block of photos with the words under it. Wide: a row, the words in a column of 280px
+   on the left, the photos on the right at one height. */
+.mi { margin-bottom: 38px; padding: 0 var(--space-4); }
+/* The words come first in the page, so they are read first; narrow shows the photos above them. */
+.mi-link { display: flex; flex-direction: column-reverse; color: inherit; text-decoration: none; }
+
+/* Narrow: one photo wide; two halves; three one large and two stacked; four or more two by two. */
+.mi-block { display: grid; gap: var(--gap); border-radius: var(--radius); overflow: hidden; }
+.mi-block.n2, .mi-block.n4 { grid-template-columns: 1fr 1fr; }
+.mi-block.n3 { grid-template-columns: 2fr 1fr; }
+.mi-block.n3, .mi-block.n4 { grid-template-rows: 1fr 1fr; }
+.mi-block.n3 .mi-cell:first-child { grid-row: span 2; }
+.mi-cell { position: relative; min-width: 0; min-height: 0; background: var(--line); }
+.mi-more {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: rgb(8 9 10 / 0.6); color: #fff;
+  font-size: var(--text-lg); font-weight: 600; font-variant-numeric: tabular-nums;
+}
+
+.mi-words { min-width: 0; padding-top: var(--space-3); }
+.mi-date { font-size: var(--text-md); font-weight: 600; }
+.mi-line {
+  margin-top: 3px; font-family: var(--serif); font-style: italic; font-size: var(--text-lg); line-height: 1.3;
+  overflow: hidden; overflow-wrap: anywhere; text-wrap: pretty;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+}
+.mi-by, .mi-counts { font-size: var(--text-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.mi-by { margin-top: 6px; }
+.mi-counts { display: flex; gap: 14px; }
+.mi-has { color: var(--accent); }
+
+/* The place of one photo: it holds its shape while the photo loads and when it fails, and the
+   photo fades in once it has loaded. */
+.shot { position: relative; display: grid; place-items: center; width: 100%; background: var(--line); overflow: hidden; }
+.shot.fill { position: absolute; inset: 0; width: auto; }
+.shot img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity var(--fade) ease-out; }
+.shot img.on { opacity: 1; }
+.miss { padding: var(--space-2); font-size: var(--text-sm); text-align: center; color: var(--muted); }
+
+@media (min-width: 900px) {
+  .mi { margin-bottom: 46px; padding: 0; }
+  .mi-link { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+  .mi-words { padding: 0; }
+  .mi-link:hover .mi-date { text-decoration: underline; text-underline-offset: 3px; }
+  .mi-line { margin-top: 6px; font-size: calc(var(--text-lg) + 3px); line-height: 1.28; -webkit-line-clamp: 4; }
+  .mi-by { margin-top: 10px; }
+  /* The photos at one height, each at its own shape; the last fills what is left of the row. */
+  .mi-strip { display: inline-flex; gap: var(--gap); max-width: 100%; border-radius: var(--radius); overflow: hidden; vertical-align: top; }
+  .mi-strip .mi-cell { flex: 0 0 auto; height: 100%; }
+  .mi-strip .mi-cell.fill { flex: 1 1 0; }
+}

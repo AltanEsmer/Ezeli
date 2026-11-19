@@ -70,3 +70,22 @@ A dialog (`role="dialog"`, `aria-modal`) card of 360px at most, centred under th
 ## The small pages
 
 The private page, the bad-link page and the failed page (`.notice`, a `<main>` with no bar): the name Ezeli in muted 18px, a heading (`--text-xxl`), one short paragraph in muted text (36 characters wide at most), all centred in the window, both sizes the same. One `.btn` under it where there is something to do (the failed page: Try again). No card, no decoration. A loading screen is an empty `<main aria-busy>` on the page background.
+
+## A memory on a list, and the timeline (ticket 53)
+
+One part draws a memory wherever a list of memories is shown: `MemoryItem` (`src/MemoryItem.tsx`, styles `memoryitem.css`). The timeline, a person's page and search results all use it; nothing else draws a memory. The timeline's own frame (month headings, list of years, ends, notes) is `src/Memories.tsx` with `timeline.css`.
+
+**A memory (`article`, one link to the memory's address).** Date as a heading (15px, 600), the line of conversation (Newsreader italic, 18px narrow and 21px wide, 2 lines narrow and 4 wide, left out when the memory has no text), "Sent by" with the names, and the counts (13px, muted). The comment count is in the accent and is not there at all when there are none. Names and the line carry `lang="tr"`.
+
+- Narrow: the block of photos, then the words, 38px between memories, about two to a screen. The block has 2px gaps and a 6px corner. One photo: as wide as the block, in its own shape from 1 to 1.6 (wide, never tall). Two: halves, 1.6 to 1. Three: one large on the left (2/3), two stacked. Four or more: two by two, 1.4 to 1; with more than four, the fourth carries "+N" (the photos not shown).
+- Wide: one row, 46px apart. The words in a column of 280px, 40px gap, the photos on the right in a box 224px high, each at its own shape (0.4 to 3), 2px gaps. When all photos nearly fit, the row gives up height to show all, down to 188px. Otherwise as many as fit at 224px, then one more cut to what is left of the row (when at least 96px), and the last carries "+N". A memory carries at most six photos from the database; "+N" counts from the full count.
+- A photo's place (`Shot`) holds its shape while loading and when failed (muted "Photo could not load"), on `--line`. The photo fades in (`--fade`) once loaded; with less motion it simply shows.
+- The part reads the 900px rule with `matchMedia` (the same query as the CSS), because wide shows a different number of photos, not only a different layout.
+
+**Month headings** (`h2`) are sticky: under the bar and the strip of years when narrow (`--bar-h` + 44px), at the top when wide. A jump scrolls the heading to exactly that place and focuses it. A month split across two loaded pages shows its heading once, with the first page.
+
+**The list of years** (`navigation` named "Jump to a year or month", the year in view is `aria-current`, its months follow it as buttons named "March 2023"). Wide: fixed down the right edge, `--rail` (64px) wide, years and months 13px, vertical, centred, scrolls when long. Narrow: a sticky strip 44px high under the top bar, years and months in one row that scrolls along; the open year is scrolled to the start. The year in view is the last month heading above the top of the screen. Pressing a year opens its newest month, pressing a month opens it; both load around it in both directions and say "Loading" or "Could not load, Try again" near the bottom edge while a jump runs or after it failed.
+
+**Wide frame.** The page is the content area right of the bar: 40px left, `--rail` + 24px right for the list of years, months at most 1180px wide. Narrow: 16px gutter on each memory and heading, the strip of years edge to edge.
+
+**Empty and failed** timeline: a centred heading (24px), one muted sentence, and Try again where it helps (`.tl-note`).
