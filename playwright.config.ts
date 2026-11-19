@@ -13,7 +13,7 @@ export default defineConfig({
   projects: [
     { name: 'sign-in', testMatch: ['sign-in.spec.ts', 'replace-link.spec.ts'] },
     { name: 'import', testMatch: 'import.setup.ts', dependencies: ['sign-in'] },
-    { name: 'memories', testMatch: ['timeline.spec.ts', 'language.spec.ts'], dependencies: ['import'] },
+    { name: 'memories', testMatch: ['timeline.spec.ts', 'language.spec.ts', 'shell.spec.ts'], dependencies: ['import'] },
     // Imports more chats of its own, so it runs after the timeline tests have counted.
     { name: 'memory-import', testMatch: 'memory.setup.ts', dependencies: ['memories'] },
     { name: 'memory', testMatch: ['memory.spec.ts', 'comments.spec.ts'], dependencies: ['memory-import'] },

@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import type { Locator } from '@playwright/test'
+import { type Browser, type BrowserContextOptions, type Locator, type Page, expect } from '@playwright/test'
 import { localStack } from '../stack.ts'
 
 const stack = localStack()
@@ -58,3 +58,19 @@ export const quotedLine = (card: Locator) => card.getByRole('blockquote')
 export const photoCount = (card: Locator) => card.getByText(/^(\d+ photos?|\d+ fotoğraf)$/)
 export const commentCount = (card: Locator) => card.getByText(/^(No comments|\d+ comments?|Yorum yok|\d+ yorum)$/)
 export const counts = (card: Locator) => card.getByText(/^(\d+ photos?|\d+ fotoğraf|No comments|\d+ comments?|Yorum yok|\d+ yorum)$/)
+
+// A window of its own at PC size (1440 px by default), signed in through the personal link as the phone
+// tests are. Close the context when done. `options` are the usual context options (locale, colorScheme).
+export async function openWide(browser: Browser, link: string, options: BrowserContextOptions & { width?: number } = {}) {
+  const { width = 1440, ...rest } = options
+  const context = await browser.newContext({ viewport: { width, height: 900 }, baseURL: appUrl, locale: 'en-US', ...rest })
+  const page = await context.newPage()
+  await page.goto(link)
+  return { context, page }
+}
+
+// The page runs off the side when it can be scrolled sideways.
+export async function expectNoSidewaysScroll(page: Page) {
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+  expect(overflow).toBeLessThanOrEqual(0)
+}
