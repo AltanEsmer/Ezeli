@@ -3,7 +3,7 @@ import { language, t } from './i18n.ts'
 import { type Group, ChunkView } from './Memories.tsx'
 import { ListName, useNear } from './MemoryItem.tsx'
 import type { Chunk, MemoryCard } from './memories.ts'
-import { takeReturnKeys, toTimeline } from './route.ts'
+import { takeReturnKeys } from './route.ts'
 import { supabase } from './supabase.ts'
 
 const PAGE = 20
@@ -129,58 +129,47 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
   }
 
   return (
-    <div className="page search listed">
-      <header className="top">
-        <button className="back hand" onClick={toTimeline}>
-          <span aria-hidden="true">← </span>
-          {t.allMemories}
-        </button>
-      </header>
-      <h1 className="mdate hand">{t.search}</h1>
+    <div className="sr">
+      <div className="sr-head">
+        <h1>{t.search}</h1>
+        <form
+          role="search"
+          onSubmit={(event) => {
+            event.preventDefault()
+            clearTimeout(timer.current)
+            void run(text)
+          }}
+        >
+          <input
+            type="search"
+            aria-label={t.searchLabel}
+            value={text}
+            autoFocus={!back}
+            autoComplete="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            enterKeyHint="search"
+            maxLength={200}
+            onChange={(event) => type(event.target.value)}
+          />
+        </form>
+        {state.status === 'idle' && <p>{t.searchHint}</p>}
+        {state.status === 'searching' && <p role="status">{t.searching}</p>}
+        {ready?.cut && <p>{t.searchCut}</p>}
+      </div>
 
-      <form
-        className="find"
-        role="search"
-        onSubmit={(event) => {
-          event.preventDefault()
-          clearTimeout(timer.current)
-          void run(text)
-        }}
-      >
-        <input
-          type="search"
-          className="hand"
-          aria-label={t.searchLabel}
-          value={text}
-          autoFocus={!back}
-          autoComplete="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          enterKeyHint="search"
-          maxLength={200}
-          onChange={(event) => type(event.target.value)}
-        />
-      </form>
-
-      {state.status === 'idle' && <p className="hint">{t.searchHint}</p>}
-      {state.status === 'searching' && (
-        <p className="hint" role="status">
-          {t.searching}
-        </p>
-      )}
       {state.status === 'failed' && (
-        <section className="empty" role="alert">
-          <h2 className="hand">{t.failedTitle}</h2>
+        <section className="tl-note" role="alert">
+          <h2>{t.failedTitle}</h2>
           <p>{t.failedBody}</p>
           <button className="btn" onClick={() => void run(text, true)}>
             {t.retry}
           </button>
         </section>
       )}
-      {ready?.cut && <p className="hint">{t.searchCut}</p>}
       {ready && ready.chunks.length === 0 && (
-        <section className="empty">
-          <h2 className="hand">{t.nothingFound}</h2>
+        <section className="tl-note">
+          <h2>{t.nothingFound}</h2>
           <p>{t.nothingFoundBody}</p>
         </section>
       )}

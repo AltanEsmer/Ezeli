@@ -41,13 +41,9 @@
 
 /* An empty or failed timeline: a heading, a sentence and, when it helps, a button. */
 .tl-note { display: grid; justify-items: center; gap: var(--space-3); max-width: 36ch; margin: var(--space-7) auto 0; padding: 0 var(--space-4); text-align: center; }
-.tl-note h1 { font-size: var(--text-xl); font-weight: 600; line-height: 1.15; }
+.tl-note h1, .tl-note h2 { font-size: var(--text-xl); font-weight: 600; line-height: 1.15; }
 .tl-note p { color: var(--muted); }
-
-/* The search screen holds the same list until it is rebuilt (ticket 57): the list takes the whole
-   width, and what is above it keeps its gutter. */
-.page.listed { max-width: none; padding-inline: 0; }
-.page.listed > :not(.tl) { max-width: 640px; padding-inline: var(--space-4); }
+.tl-note .btn { justify-self: center; }
 
 @media (min-width: 900px) {
   .tl { --lift: 0px; padding: 0 calc(var(--rail) + var(--space-5)) var(--space-7) var(--space-6); }

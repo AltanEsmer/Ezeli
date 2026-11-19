@@ -4,7 +4,7 @@
 import { type Browser, type Page, expect, test } from '@playwright/test'
 import { rmSync } from 'node:fs'
 import { makeSmallExport } from './large.ts'
-import { addPerson, apiUrl, fruit, ownerCommand, photoCount, publishableKey, sentBy } from './support.ts'
+import { addPerson, apiUrl, expectNoSidewaysScroll, fruit, openWide, ownerCommand, photoCount, publishableKey, sentBy } from './support.ts'
 
 const people = 'tests/fixtures/whatsapp-iphone/people.json'
 const results = (page: Page) => page.getByRole('article')
@@ -285,6 +285,46 @@ test.describe('search', () => {
     expect(new Set(keys).size).toBe(130)
     expect(ats).toEqual(ats.slice().sort().reverse())
     expect(held).toBeLessThan(100)
+  })
+
+  test('the box sits above the hint, and the screen does not scroll sideways at any width', async ({ browser }) => {
+    for (const width of [390, 900, 1440, 1920]) {
+      const { context, page } = await openWide(browser, addPerson(fruit('Karpuz')), { width })
+      await expect(results(page).first()).toBeVisible()
+      await page.goto('/search')
+      const hint = page.getByText(/Type a word from the messages or comments, or a name\./)
+      await expect(hint).toBeVisible()
+      const [at, under] = [await box(page).boundingBox(), await hint.boundingBox()]
+      expect(at!.y, `${width}`).toBeLessThan(200)
+      expect(under!.y, `${width}`).toBeGreaterThan(at!.y + at!.height - 1)
+      await expectNoSidewaysScroll(page)
+      await find(page, 'deniz')
+      await expect(results(page).first()).toBeVisible()
+      await expectNoSidewaysScroll(page)
+      await find(page, 'zzzyyy')
+      await expect(nothing(page)).toBeVisible()
+      await expectNoSidewaysScroll(page)
+      await context.close()
+    }
+  })
+
+  test('on a wide window the results sit beside the bar as rows, and the states are in Turkish with Turkish labels', async ({ browser }) => {
+    const { context, page } = await openWide(browser, addPerson(fruit('Karpuz')), { locale: 'tr-TR' })
+    await expect(results(page).first()).toBeVisible()
+    await page.getByRole('navigation', { name: 'Sayfalar' }).getByRole('link', { name: 'Ara', exact: true }).click()
+    await expect(page.getByText(/Mesajlardan ya da yorumlardan/)).toBeVisible()
+    await page.getByRole('searchbox').fill('tekneye')
+    await expect(results(page)).toHaveCount(1)
+    const [card, bar] = [await results(page).boundingBox(), await page.getByRole('navigation', { name: 'Sayfalar' }).boundingBox()]
+    expect(card!.x).toBeGreaterThanOrEqual(bar!.x + bar!.width)
+    expect(card!.height).toBeLessThan(400)
+    await page.getByRole('searchbox').fill('zzzyyy')
+    await expect(page.getByRole('heading', { name: 'Hiçbir şey bulunamadı' })).toBeVisible()
+    await page.route(/\/rpc\/search_memories/, (route) => route.fulfill({ status: 500, json: { message: 'no' } }))
+    await page.getByRole('searchbox').fill('tekneye')
+    await page.getByRole('searchbox').press('Enter')
+    await expect(page.getByRole('alert').getByRole('button', { name: 'Tekrar dene' })).toBeVisible()
+    await context.close()
   })
 
   test('has a main heading', async ({ page }) => {
