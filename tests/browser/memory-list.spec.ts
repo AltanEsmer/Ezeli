@@ -124,12 +124,13 @@ test.describe('on a phone', () => {
     await openJune(page)
     const heading = page.getByRole('heading', { name: 'June 2016' })
 
-    // Scroll down the month to its third memory. (Not a fixed distance: the rows' heights depend on
-    // the words and on where the jump settled, and a fixed scroll left the third one out of view.)
-    await june(page).nth(fourteenth).scrollIntoViewIfNeeded()
-    await expect(june(page).nth(fourteenth)).toBeInViewport()
-    await expect(heading).toBeInViewport()
+    // Scroll down the month to its third memory, then look at the headings. Not a fixed distance, and
+    // all of it asked again until it holds: right after a jump the list is still loading around the
+    // month, and rows are drawn again while it does, so a memory can be gone or moved between two steps.
     await settled(async () => {
+      await june(page).nth(fourteenth).scrollIntoViewIfNeeded({ timeout: 2000 })
+      await expect(june(page).nth(fourteenth)).toBeInViewport({ timeout: 2000 })
+      await expect(heading).toBeInViewport({ timeout: 2000 })
       const bar = (await page.getByRole('navigation', { name: 'Pages' }).boundingBox())!
       const strip = (await years(page).boundingBox())!
       near(strip.y, bar.y + bar.height, 2)
