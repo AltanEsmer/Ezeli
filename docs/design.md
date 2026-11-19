@@ -11,6 +11,7 @@ All in `src/styles/`, loaded in this order by `src/main.tsx`.
 | `tokens.css` | the tokens below, the base (reset, body, focus, `.btn`, the fade) | anyone adding a token |
 | `shell.css` | the bar, the menu, the small pages | the shell only |
 | `memory.css` | the memory screen and the full-screen photo (ticket 54) | the memory screen |
+| `people.css` | the people page and a person's page (ticket 56) | the people screens |
 | `old.css` | the styles of the first build's screens. It maps the old names onto the tokens, so old screens sit on the new background | tickets 53 to 57 delete the rules of the screen they rebuild; ticket 58 deletes the file. Nothing new goes in |
 
 A rebuilt screen gets its own file (for example `timeline.css`), imported in `main.tsx`, named for the screen and using only tokens. Class names of a screen are its own; shared names are only those in `tokens.css` and `shell.css` (`.btn`, `.bar`, `.sheet`, `.notice`, `.fade-in`).
@@ -117,3 +118,14 @@ One part draws a memory wherever a list of memories is shown: `MemoryItem` (`src
 - Writing: a label "Add your note", one plain field (Newsreader 18px, `--surface`, 1px `--line`, 6px corners, 3 rows) and one `.btn` "Add comment" on the right, off until there is text. A new comment appears at once below the others and the field empties. A failed save shows a line in accent text under the button.
 - Same at both sizes: the section fills the column (the page column narrow, the 420px column wide). No tilt, no shadow, no tape.
 - Contrast: accent text on the tint is 4.87 to 1 in dark and 5.36 in light; the date 7.4 and 6.36.
+
+## People and a person (ticket 56)
+
+`src/People.tsx` (`PeoplePage`, `PersonPage`) with `people.css` (classes `pp pp-head pp-strip pp-note`; do not reuse). No back header on either: the bar's People link is the way back. Both fill `<main class="content">` directly.
+
+- **People.** A page with the heading "People" (`--text-xxl`), then a list (`ul`, label People) of persons. A person is one link (accessible name: the name) holding the name as `h2` (32px, 600, `lang="tr"`) and a strip of up to four photos they sent, most recent first. A 1px `--line` rule above each person, 16px of room around.
+- **The strip.** All photos at one height (112px narrow, 144px wide), each as wide as its shape (shape kept between 0.8 and 1.5, cropped to fill), 2px apart, 6px corners on the strip. Photos fade in (`Shot`); a photo that cannot load is a `--line` box. Four wide photos shrink together to fit the card. A person with no photos has the name and one muted line "No photos yet". No profile photo, no initials, no circles.
+- **Columns.** Narrow: one column, 16px gutter. Wide (900 px up): two columns, three from 1300 px, 40px between columns, 40px gutter, the page 1280px at most (left aligned next to the bar). Order is by name, as before.
+- **A person.** The name as `h1` (32px, 600, `lang="tr"`), under it one muted line in a `dl`: "First memory <date>", "Latest memory <date>" and "6 photos sent" ("No photos yet" when none), wrapping on a phone. Then the memories: `Memories` with `person`, the same part, the same list of years and month headings as the timeline (the `.tl` frame carries its own gutters, so the header aligns with them: 16px narrow, `--space-6` wide).
+- **Loading, empty, failed.** Loading is an empty `<div aria-busy>`. Empty ("Nobody here yet") and failed ("Could not load" with "Try again") are `pp-note`: a heading, a muted sentence, a button where it helps, centred 64px below the heading.
+- **A person who is not there** is a `.notice` page (name Ezeli, heading "This person is not here", one paragraph, "All memories"), like the memory-missing page. Inside the bar it is as high as the window below the bar on a phone and as the window on a PC.

@@ -44,8 +44,8 @@
 .tl-note h1 { font-size: var(--text-xl); font-weight: 600; line-height: 1.15; }
 .tl-note p { color: var(--muted); }
 
-/* A person's page and the search screen hold the same list until they are rebuilt (tickets 56
-   and 57): the list takes the whole width, and what is above it keeps its gutter. */
+/* The search screen holds the same list until it is rebuilt (ticket 57): the list takes the whole
+   width, and what is above it keeps its gutter. */
 .page.listed { max-width: none; padding-inline: 0; }
 .page.listed > :not(.tl) { max-width: 640px; padding-inline: var(--space-4); }
 
