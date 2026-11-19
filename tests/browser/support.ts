@@ -56,8 +56,8 @@ export const appUrl = stack.appUrl
 export const sentBy = (card: Locator) => card.getByText(/^Sent by |gönderdi$/)
 export const quotedLine = (card: Locator) => card.getByRole('blockquote')
 export const photoCount = (card: Locator) => card.getByText(/^(\d+ photos?|\d+ fotoğraf)$/)
-export const commentCount = (card: Locator) => card.getByText(/^(No comments|\d+ comments?|Yorum yok|\d+ yorum)$/)
-export const counts = (card: Locator) => card.getByText(/^(\d+ photos?|\d+ fotoğraf|No comments|\d+ comments?|Yorum yok|\d+ yorum)$/)
+export const commentCount = (card: Locator) => card.getByText(/^(\d+ comments?|\d+ yorum)$/)
+export const counts = (card: Locator) => card.getByText(/^(\d+ photos?|\d+ fotoğraf|\d+ comments?|\d+ yorum)$/)
 
 // A window of its own at PC size (1440 px by default), signed in through the personal link as the phone
 // tests are. Close the context when done. `options` are the usual context options (locale, colorScheme).

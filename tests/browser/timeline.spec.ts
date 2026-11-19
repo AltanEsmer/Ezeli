@@ -43,7 +43,7 @@ test.describe('a friend on the timeline', () => {
       'Sent by Karpuz, Limon, and Fıstık',
       'Sent by Limon',
     ])
-    // One photo, two, three: the main photos are stacked behind the first.
+    // One photo, two, three: every photo of the memory is in its block.
     await expect(memories(page).nth(0).locator('img')).toHaveCount(1)
     await expect(memories(page).nth(1).locator('img')).toHaveCount(2)
     await expect(memories(page).nth(2).locator('img')).toHaveCount(3)

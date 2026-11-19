@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { language, t } from './i18n.ts'
-import { type Group, ChunkView, ListName, useNear } from './Memories.tsx'
+import { type Group, ChunkView } from './Memories.tsx'
+import { ListName, useNear } from './MemoryItem.tsx'
 import type { Chunk, MemoryCard } from './memories.ts'
 import { takeReturnKeys, toTimeline } from './route.ts'
 import { supabase } from './supabase.ts'
@@ -128,7 +129,7 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
   }
 
   return (
-    <div className="page search">
+    <div className="page search listed">
       <header className="top">
         <button className="back hand" onClick={toTimeline}>
           <span aria-hidden="true">← </span>
@@ -184,7 +185,7 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
         </section>
       )}
       {ready && ready.chunks.length > 0 && (
-        <div className="memories" ref={list}>
+        <div className="tl" ref={list}>
           <ListName.Provider value={t.search}>
             <Results chunks={ready.chunks} more={ready.more} busy={ready.busy} failed={ready.pageFailed} onMore={() => void more()} />
           </ListName.Provider>
@@ -224,7 +225,7 @@ function Results(props: { chunks: Chunk[]; more: boolean; busy: boolean; failed:
       {rows.map(({ chunk, groups }) => (
         <ChunkView key={chunk.id} chunk={chunk} groups={groups} heights={heights.current} lang={language} />
       ))}
-      <div ref={end} className="more">
+      <div ref={end} className="tl-end">
         {busy && <p role="status">{t.loading}</p>}
         {failed && (
           <div role="alert">

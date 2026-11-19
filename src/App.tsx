@@ -62,9 +62,7 @@ function Signed({ person, onSignOut, onSessionLost }: { person: Person; onSignOu
       ) : route.name === 'person' ? (
         <PersonPage id={route.id} onSessionLost={onSessionLost} />
       ) : (
-        <div className="page">
-          <Memories onSessionLost={onSessionLost} />
-        </div>
+        <Memories onSessionLost={onSessionLost} />
       )}
     </Shell>
   )

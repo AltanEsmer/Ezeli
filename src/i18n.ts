@@ -25,7 +25,7 @@ const en = {
   photoBy: (name: string) => `Photo sent by ${name}`,
   photoGone: 'Photo could not load',
   photoCount: (n: string) => (n === '1' ? '1 photo' : `${n} photos`),
-  commentCount: (n: string) => (n === '0' ? 'No comments' : n === '1' ? '1 comment' : `${n} comments`),
+  commentCount: (n: string) => (n === '1' ? '1 comment' : `${n} comments`),
   jumpTo: 'Jump to a year or month',
   allMemories: 'All memories',
   conversation: 'Conversation',
@@ -97,7 +97,7 @@ const tr: Labels = {
   photoBy: (name: string) => `${name} gönderdi`,
   photoGone: 'Fotoğraf yüklenemedi',
   photoCount: (n: string) => `${n} fotoğraf`,
-  commentCount: (n: string) => (n === '0' ? 'Yorum yok' : `${n} yorum`),
+  commentCount: (n: string) => `${n} yorum`,
   jumpTo: 'Bir yıla ya da aya git',
   allMemories: 'Tüm anılar',
   conversation: 'Konuşma',
@@ -182,9 +182,10 @@ export function formatDateTime(lang: Language, moment: string | number | Date): 
   return new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(moment))
 }
 
-// "Karpuz, Limon and Fıstık" / "Karpuz, Limon ve Fıstık".
-export function formatNames(lang: Language, names: string[]): string {
-  return new Intl.ListFormat(lang, { style: 'long', type: 'conjunction' }).format(names)
+// "Karpuz, Limon and Fıstık" / "Karpuz, Limon ve Fıstık", in parts: the names are the chats' own
+// words (marked Turkish by the screen), the commas and the "and" are the labels'.
+export function formatNameParts(lang: Language, names: string[]): { text: string; name: boolean }[] {
+  return new Intl.ListFormat(lang, { style: 'long', type: 'conjunction' }).formatToParts(names).map((part) => ({ text: part.value, name: part.type === 'element' }))
 }
 
 // "July 2023" / "Temmuz 2023" for a month key such as 2023-07; the short form is "Jul" / "Tem".
