@@ -12,7 +12,7 @@ All in `src/styles/`, loaded in this order by `src/main.tsx`.
 | `shell.css` | the bar, the menu, the small pages | the shell only |
 | `memory.css` | the memory screen and the full-screen photo (ticket 54) | the memory screen |
 | `people.css` | the people page and a person's page (ticket 56) | the people screens |
-| `old.css` | the styles of the first build's screens. It maps the old names onto the tokens, so old screens sit on the new background | tickets 53 to 57 delete the rules of the screen they rebuild; ticket 58 deletes the file. Nothing new goes in |
+| `search.css` | the search screen's header (ticket 57) | the search screen |
 
 A rebuilt screen gets its own file (for example `timeline.css`), imported in `main.tsx`, named for the screen and using only tokens. Class names of a screen are its own; shared names are only those in `tokens.css` and `shell.css` (`.btn`, `.bar`, `.sheet`, `.notice`, `.fade-in`).
 
@@ -129,3 +129,12 @@ One part draws a memory wherever a list of memories is shown: `MemoryItem` (`src
 - **A person.** The name as `h1` (32px, 600, `lang="tr"`), under it one muted line in a `dl`: "First memory <date>", "Latest memory <date>" and "6 photos sent" ("No photos yet" when none), wrapping on a phone. Then the memories: `Memories` with `person`, the same part, the same list of years and month headings as the timeline (the `.tl` frame carries its own gutters, so the header aligns with them: 16px narrow, `--space-6` wide).
 - **Loading, empty, failed.** Loading is an empty `<div aria-busy>`. Empty ("Nobody here yet") and failed ("Could not load" with "Try again") are `pp-note`: a heading, a muted sentence, a button where it helps, centred 64px below the heading.
 - **A person who is not there** is a `.notice` page (name Ezeli, heading "This person is not here", one paragraph, "All memories"), like the memory-missing page. Inside the bar it is as high as the window below the bar on a phone and as the window on a PC.
+
+## Search (ticket 57)
+
+`src/Search.tsx` with `search.css` (classes `sr sr-head`; do not reuse). `old.css` is gone: nothing used it after this screen.
+
+- **Top.** The heading "Search" (`h1`, `--text-xxl`), then one large box (`searchbox`, 56px high narrow and 64px wide, text `--text-xl` narrow and `--text-xxl` wide, `--surface` with a `--line` border; the focus border is the accent), then the hint under it in muted text (60 characters wide at most). The same line holds "Searching" while a search runs and "Only the first 8 words were searched." when words were left out. No back link: the bar leads away.
+- **Results.** The timeline's own part and frame (`MemoryItem`, `.tl`, month headings, ends), newest first; no list of years. Narrow: 16px gutter, one block per memory. Wide: the header is 840px at most and lines up with the rows (`--space-6` from the bar), rows as on the timeline.
+- **Nothing found, failed.** `tl-note` (heading, muted sentence, a "Try again" button for a failed search): centred on a phone, left aligned with the box on a PC. A failed next page keeps the results and says so at their end with "Try again".
+- Matching, the 350 ms pause, Enter for short words, paging and coming back to the same results are unchanged.
