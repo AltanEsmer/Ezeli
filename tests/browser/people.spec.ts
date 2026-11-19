@@ -61,8 +61,8 @@ test.describe("a person's page", () => {
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Limon')
     await expect(page.getByText('6 photos sent')).toBeVisible()
-    await expect(page.locator('.facts')).toContainText('Saturday, August 3, 2019')
-    await expect(page.locator('.facts')).toContainText('Saturday, January 20, 2024')
+    await expect(page.getByRole('definition').filter({ hasText: 'Saturday, August 3, 2019' })).toBeVisible()
+    await expect(page.getByRole('definition').filter({ hasText: 'Saturday, January 20, 2024' })).toBeVisible()
   })
 
   test('shows a person who sent no photo, with the memories they wrote in', async ({ page }) => {
@@ -70,7 +70,7 @@ test.describe("a person's page", () => {
     await page.goto('/p/cilek')
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Çilek')
-    await expect(page.locator('.facts')).toContainText('No photos yet')
+    await expect(page.getByRole('definition').filter({ hasText: 'No photos yet' })).toBeVisible()
     await expect(articles(page)).toHaveCount(1)
     await expect(articles(page).getByRole('heading')).toHaveText('Saturday, August 3, 2019')
   })
@@ -123,7 +123,7 @@ test.describe("a person's page", () => {
     await page.goto('/p/karpuz')
 
     // 04:30 UTC on 21 January in New York is the 20th; 22:30 UTC on the 13th in Istanbul is the 14th.
-    await expect(page.locator('.facts')).toContainText('Saturday, January 20, 2024')
+    await expect(page.getByRole('definition').filter({ hasText: 'Saturday, January 20, 2024' })).toBeVisible()
     await expect(articles(page).getByRole('heading').nth(0)).toHaveText('Saturday, January 20, 2024')
     await expect(articles(page).getByRole('heading').nth(2)).toHaveText('Sunday, January 14, 2024')
     await context.close()
@@ -156,14 +156,14 @@ test.describe('a name in a memory', () => {
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Saturday, January 20, 2024')
 
     // A name is a target big enough to tap.
-    const name = page.locator('.talk .who').getByRole('link', { name: 'Limon' }).first()
+    const name = page.getByRole('region', { name: 'Conversation' }).getByRole('link', { name: 'Limon' }).first()
     expect((await name.boundingBox())!.height).toBeGreaterThanOrEqual(44)
     await name.click()
     await expect(page).toHaveURL(/\/p\/limon$/)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Limon')
 
     await page.goBack()
-    await page.locator('.prints .cap').getByRole('link', { name: 'Karpuz' }).first().click()
+    await page.getByRole('figure').getByRole('link', { name: 'Karpuz' }).first().click()
     await expect(page).toHaveURL(/\/p\/karpuz$/)
   })
 })

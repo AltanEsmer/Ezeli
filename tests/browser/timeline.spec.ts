@@ -2,7 +2,7 @@
 // exports (import.setup.ts): 15 July and 14 July 2023 from one WhatsApp chat, 5 March 2023 from
 // another, and 22 January 2023 from a Discord chat.
 import { type Page, expect, test } from '@playwright/test'
-import { addPerson, apiUrl, fruit, publishableKey } from './support.ts'
+import { addPerson, apiUrl, fruit, publishableKey, sentBy } from './support.ts'
 
 const memories = (page: Page) => page.getByRole('article')
 
@@ -37,7 +37,7 @@ test.describe('a friend on the timeline', () => {
 
     await expect(memories(page)).toHaveCount(4)
     await expect(memories(page).getByRole('heading')).toHaveText(['Saturday, July 15, 2023', 'Friday, July 14, 2023', 'Sunday, March 5, 2023', 'Sunday, January 22, 2023'])
-    await expect(memories(page).locator('.by')).toHaveText([
+    await expect(sentBy(memories(page))).toHaveText([
       'Sent by Fıstık',
       'Sent by Limon and Karpuz',
       'Sent by Karpuz, Limon, and Fıstık',
@@ -57,7 +57,7 @@ test.describe('a friend on the timeline', () => {
     // and Limon is one person on both chats (the people file joins the Discord id to the WhatsApp names).
     const discord = memories(page).filter({ hasText: 'Sunday, January 22, 2023' })
     await expect(discord).toHaveCount(1)
-    await expect(discord.locator('.by')).toHaveText('Sent by Limon')
+    await expect(sentBy(discord)).toHaveText('Sent by Limon')
     await expect(memories(page).filter({ hasText: 'Sent by Limon and Karpuz' })).toHaveCount(1)
     for (const picture of await discord.locator('img').all()) {
       await expect(picture).toHaveJSProperty('complete', true)
@@ -95,7 +95,7 @@ test.describe('a friend on the timeline', () => {
       await openTimeline(page)
 
       await expect(memories(page).getByRole('heading')).toHaveText(['15 Temmuz 2023 Cumartesi', '14 Temmuz 2023 Cuma', '5 Mart 2023 Pazar', '22 Ocak 2023 Pazar'])
-      await expect(memories(page).locator('.by')).toHaveText([
+      await expect(sentBy(memories(page))).toHaveText([
         'Fıstık gönderdi',
         'Limon ve Karpuz gönderdi',
         'Karpuz, Limon ve Fıstık gönderdi',

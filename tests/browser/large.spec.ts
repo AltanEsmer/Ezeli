@@ -69,7 +69,7 @@ async function sweep(page: Page, direction: 'down' | 'up') {
         await frames()
         await pause(10)
         const now = document.querySelectorAll('article').length
-        calm = now === held && !document.querySelector('.more [role="status"]') ? calm + 1 : 0
+        calm = now === held && !document.querySelector('[role="status"]') ? calm + 1 : 0
         held = now
       }
     }

@@ -76,6 +76,8 @@ export function Viewer(props: { photos: MemoryDetail['photos']; links: Map<strin
       <div
         ref={strip}
         className="strip"
+        role="list"
+        aria-label={t.photos}
         onScroll={(event) => {
           const box = event.currentTarget
           // While the width has changed and the strip is not yet put back, this is not a move.
@@ -85,7 +87,7 @@ export function Viewer(props: { photos: MemoryDetail['photos']; links: Map<strin
         }}
       >
         {photos.map((photo, i) => (
-          <div className="slide" key={photo.view}>
+          <div className="slide" role="listitem" key={photo.view}>
             <Pic src={props.links.get(photo.view)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={props.relink} loading={Math.abs(i - start) < 2 ? 'eager' : 'lazy'} />
           </div>
         ))}

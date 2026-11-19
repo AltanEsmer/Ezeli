@@ -97,8 +97,8 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
         <i className="tape" aria-hidden="true" />
         {groups(memory).map((group) => (
           <div className="group" key={group.messages[0]!.id}>
-            {group.day && <p className="day hand">{formatDate(language, group.day, memory.timezone)}</p>}
-            <div className="who hand" style={{ color: pen(group.messages[0]!.by_id ?? group.by) }}>
+            {group.day && <p className="day hand" role="heading" aria-level={3}>{formatDate(language, group.day, memory.timezone)}</p>}
+            <div className="who hand" role="heading" aria-level={4} style={{ color: pen(group.messages[0]!.by_id ?? group.by) }}>
               {named(group.by, group.messages[0]!.by_id)}
             </div>
             {group.messages.map((message) => {
