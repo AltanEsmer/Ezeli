@@ -46,10 +46,10 @@ test.describe('comments', () => {
 
     const added = note(page, 'İlk satır')
     await expect(added).toHaveCount(1)
-    await expect(added.locator('.by')).toHaveText(name)
+    await expect(added.getByText(name, { exact: true })).toHaveText(name)
     await expect(added.locator('time')).toHaveText(/\d{4}.*\d{1,2}:\d{2}/)
     // Written text is text: the line breaks are kept, the angle brackets are not markup.
-    expect(await added.locator('.text').evaluate((el: HTMLElement) => el.innerText)).toBe('İlk satır\n\nüçüncü <b>satır</b> & &amp;')
+    expect(await added.getByRole('paragraph').evaluate((el: HTMLElement) => el.innerText)).toBe('İlk satır\n\nüçüncü <b>satır</b> & &amp;')
     await expect(added.locator('b')).toHaveCount(0)
     await expect(page.getByRole('textbox')).toHaveValue('')
     // The comment sits below the conversation and is not part of it.
@@ -59,7 +59,27 @@ test.describe('comments', () => {
 
     await page.reload()
     await expect(note(page, 'İlk satır')).toHaveCount(1)
-    await expect(note(page, 'İlk satır').locator('.by')).toHaveText(name)
+    await expect(note(page, 'İlk satır').getByText(name, { exact: true })).toHaveText(name)
+    await context.close()
+  })
+
+  test('comments sit under their own heading, and the name, the text and the field are marked as Turkish', async ({ browser }) => {
+    const { context, page } = await device(browser, 'en-US')
+    const name = fruit('Limon')
+    await open(page, addPerson(name))
+    await write(page, 'Çok güzel bir gündü')
+
+    await expect(notes(page).getByRole('heading', { level: 2, name: 'Comments' })).toBeVisible()
+    const added = note(page, 'Çok güzel')
+    await expect(added.getByText(name, { exact: true })).toHaveAttribute('lang', 'tr')
+    await expect(added.getByText('Çok güzel bir gündü')).toHaveAttribute('lang', 'tr')
+    // The comments come after the conversation, and the field after the comments.
+    const talk = (await page.getByRole('region', { name: 'Conversation' }).boundingBox())!
+    const heading = (await notes(page).getByRole('heading', { level: 2 }).boundingBox())!
+    expect(heading.y).toBeGreaterThan(talk.y + talk.height)
+    expect((await page.getByRole('textbox').boundingBox())!.y).toBeGreaterThan((await added.boundingBox())!.y)
+    await expect(page.getByRole('textbox', { name: 'Add your note' })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
     await context.close()
   })
 

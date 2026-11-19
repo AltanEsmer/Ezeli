@@ -5,7 +5,7 @@
 // photo has a caption. Nothing here counts the memories of the others, so a new fixture elsewhere
 // changes nothing.
 import { type Page, expect, test } from '@playwright/test'
-import { addPerson, fruit, ownerCommand } from './support.ts'
+import { addPerson, commentCount, counts, fruit, ownerCommand, photoCount, quotedLine } from './support.ts'
 
 const fixtures = 'tests/fixtures/whatsapp-iphone'
 const memories = (page: Page) => page.getByRole('article')
@@ -43,31 +43,32 @@ test.describe('the full timeline', () => {
     const december = month(page, '2022-12').getByRole('article')
 
     // The first text message at or after the first photo...
-    await expect(fifteenth.locator('.line')).toHaveText('“Şu suyun rengine bak”')
-    await expect(fourteenth.locator('.line')).toHaveText('“Çok güzel çıkmış! Işık şahane”')
+    await expect(quotedLine(fifteenth)).toHaveText('“Şu suyun rengine bak”')
+    await expect(quotedLine(fourteenth)).toHaveText('“Çok güzel çıkmış! Işık şahane”')
     // ...no line when the memory has no text message...
-    await expect(march.locator('.line')).toHaveCount(0)
+    await expect(quotedLine(march)).toHaveCount(0)
     // ...and the last one before the photo when none comes after it, cut at a word when long.
     const full = 'Akşam yemeği için sofrayı kurduk, herkes geldi, çorba çıktı, ardından balık geldi ve tatlıya kadar kimse kalkmadı çünkü sohbet çok güzeldi 🍉🍉🍉 ve bir de çay içtik'
-    const shown = (await december.locator('.line').innerText()).slice(1, -1)
+    const shown = (await quotedLine(december).innerText()).slice(1, -1)
     expect(shown.endsWith('…')).toBe(true)
     expect(shown).not.toContain('en eski')
     expect(full.startsWith(shown.slice(0, -1))).toBe(true)
     expect(shown.slice(0, -1)).not.toMatch(/\s$|[,.]$/)
     expect(shown.length).toBeLessThan(full.length / 1.5)
     // The line is set by its own letters, so a right-to-left line reads right.
-    await expect(december.locator('.line')).toHaveAttribute('dir', 'auto')
+    await expect(quotedLine(december)).toHaveAttribute('dir', 'auto')
 
-    // (The July memories may carry comments from the comment tests, so only March says "No comments".)
-    await expect(fifteenth.locator('.counts span').first()).toHaveText('1 photo')
-    await expect(fourteenth.locator('.counts span').first()).toHaveText('2 photos')
-    await expect(march.locator('.counts span')).toHaveText(['3 photos', 'No comments'])
+    // (The July memories may carry comments from the comment tests, so only March is checked for none.)
+    await expect(photoCount(fifteenth)).toHaveText('1 photo')
+    await expect(photoCount(fourteenth)).toHaveText('2 photos')
+    // A memory with no comments says nothing about them.
+    await expect(counts(march)).toHaveText('3 photos')
   })
 
   test('counts the comments of a memory: one after a friend adds one, none after it is deleted', async ({ page }) => {
     const dinner = month(page, '2022-12').getByRole('article')
     await openTimeline(page)
-    await expect(dinner.locator('.counts span').nth(1)).toHaveText('No comments')
+    await expect(commentCount(dinner)).toHaveCount(0)
 
     await dinner.getByRole('link').click()
     await page.getByRole('textbox').fill('bir not')
@@ -75,14 +76,14 @@ test.describe('the full timeline', () => {
     const note = page.getByRole('article').filter({ hasText: 'bir not' })
     await expect(note).toBeVisible()
     await page.getByRole('button', { name: 'All memories' }).click()
-    await expect(dinner.locator('.counts span').nth(1)).toHaveText('1 comment')
+    await expect(commentCount(dinner)).toHaveText('1 comment')
 
     await dinner.getByRole('link').click()
     await note.getByRole('button', { name: 'Delete' }).click()
     await note.getByRole('button', { name: 'Yes, delete' }).click()
     await expect(note).toHaveCount(0)
     await page.getByRole('button', { name: 'All memories' }).click()
-    await expect(dinner.locator('.counts span').nth(1)).toHaveText('No comments')
+    await expect(commentCount(dinner)).toHaveCount(0)
   })
 
   test('takes a photo\'s caption as the line, by the same rule as any text message', async ({ page }) => {
@@ -90,10 +91,10 @@ test.describe('the full timeline', () => {
 
     // The caption is sent with the first photo, so it comes before the text that follows it, and
     // the text that came before the photo is not chosen.
-    await expect(month(page, '2022-11').getByRole('article').locator('.line')).toHaveText('“Kıyıda akşam altyazısı”')
+    await expect(quotedLine(month(page, '2022-11').getByRole('article'))).toHaveText('“Kıyıda akşam altyazısı”')
   })
 
-  test('jumps to a month, or to a year, with the tabs on the right edge', async ({ page }) => {
+  test('jumps to a month, or to a year, with the list of years', async ({ page }) => {
     await openTimeline(page)
 
     // The open tab is the year on screen; its months show under it.
@@ -102,7 +103,7 @@ test.describe('the full timeline', () => {
 
     const march = page.getByRole('heading', { name: 'March 2023' })
     await tabs(page).getByRole('button', { name: 'March 2023' }).click()
-    await expect.poll(async () => (await march.boundingBox())?.y ?? 9999).toBeLessThan(60)
+    await expect.poll(async () => (await march.boundingBox())?.y ?? 9999).toBeLessThan(120)
     await expect(tabs(page).getByRole('button', { name: 'March 2023' })).toHaveAttribute('aria-current', 'true')
 
     await tabs(page).getByRole('button', { name: '2022', exact: true }).click()
@@ -112,11 +113,11 @@ test.describe('the full timeline', () => {
   })
 
   test('a photo holds its place at its real shape while it loads and when it fails', async ({ browser, page }) => {
-    const heights = (on: Page) => memories(on).locator('.mprint.front').evaluateAll((prints) => prints.map((print) => Math.round(print.getBoundingClientRect().height)))
+    const heights = (on: Page) => memories(on).locator('[data-photo]').evaluateAll((boxes) => boxes.map((box) => Math.round(box.getBoundingClientRect().height)))
     await openTimeline(page)
     await expect(memories(page).locator('img').first()).toHaveJSProperty('complete', true)
     const loaded = await heights(page)
-    const count = loaded.length
+    const count = await memories(page).count()
 
     // Loading: the photo files are held back.
     const phone = { viewport: { width: 390, height: 844 }, storageState: await page.context().storageState() }
@@ -156,9 +157,9 @@ test.describe('the full timeline', () => {
       await expect(month(page, '2022-12').getByRole('heading', { level: 2 })).toHaveText('Aralık 2022')
       await expect(page.getByRole('navigation', { name: 'Bir yıla ya da aya git' }).getByRole('button', { name: 'Mart 2023' })).toBeVisible()
       const first = month(page, '2023-07').getByRole('article').first()
-      await expect(first.locator('.counts span').first()).toHaveText('1 fotoğraf')
-      await expect(month(page, '2023-03').getByRole('article').locator('.counts span').nth(1)).toHaveText('Yorum yok')
-      await expect(first.locator('.line')).toHaveText('“Şu suyun rengine bak”')
+      await expect(photoCount(first)).toHaveText('1 fotoğraf')
+      await expect(commentCount(month(page, '2023-03').getByRole('article'))).toHaveCount(0)
+      await expect(quotedLine(first)).toHaveText('“Şu suyun rengine bak”')
     })
   })
 })

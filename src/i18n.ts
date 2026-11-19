@@ -11,6 +11,8 @@ const en = {
   retry: 'Try again',
   loading: 'Loading',
   menu: 'Menu',
+  places: 'Pages',
+  memories: 'Memories',
   close: 'Close',
   signedInAs: 'Signed in as',
   owner: 'Owner',
@@ -23,7 +25,7 @@ const en = {
   photoBy: (name: string) => `Photo sent by ${name}`,
   photoGone: 'Photo could not load',
   photoCount: (n: string) => (n === '1' ? '1 photo' : `${n} photos`),
-  commentCount: (n: string) => (n === '0' ? 'No comments' : n === '1' ? '1 comment' : `${n} comments`),
+  commentCount: (n: string) => (n === '1' ? '1 comment' : `${n} comments`),
   jumpTo: 'Jump to a year or month',
   allMemories: 'All memories',
   conversation: 'Conversation',
@@ -32,9 +34,12 @@ const en = {
   memoryMissingTitle: 'This memory is not here',
   memoryMissingBody: 'The address may be wrong, or the memory is not there any more.',
   photo: 'Photo',
+  photos: 'Photos',
   previousPhoto: 'Previous photo',
   nextPhoto: 'Next photo',
   openPhoto: (n: string) => `Open photo ${n}`,
+  earlierMessages: (n: string) => (n === '1' ? 'Show 1 earlier message' : `Show ${n} earlier messages`),
+  laterMessages: (n: string) => (n === '1' ? 'Show 1 later message' : `Show ${n} later messages`),
   video: 'Video',
   voice: 'Voice message',
   document: 'Document',
@@ -58,7 +63,6 @@ const en = {
   nothingFoundBody: 'Try another word, or fewer words.',
   people: 'People',
   noPeople: 'Nobody here yet',
-  back: 'Back',
   noPhotos: 'No photos yet',
   photosSent: (n: string) => (n === '1' ? '1 photo sent' : `${n} photos sent`),
   firstMemory: 'First memory',
@@ -80,6 +84,8 @@ const tr: Labels = {
   retry: 'Tekrar dene',
   loading: 'Yükleniyor',
   menu: 'Menü',
+  places: 'Sayfalar',
+  memories: 'Anılar',
   close: 'Kapat',
   signedInAs: 'Giriş yapan',
   owner: 'Sahip',
@@ -92,7 +98,7 @@ const tr: Labels = {
   photoBy: (name: string) => `${name} gönderdi`,
   photoGone: 'Fotoğraf yüklenemedi',
   photoCount: (n: string) => `${n} fotoğraf`,
-  commentCount: (n: string) => (n === '0' ? 'Yorum yok' : `${n} yorum`),
+  commentCount: (n: string) => `${n} yorum`,
   jumpTo: 'Bir yıla ya da aya git',
   allMemories: 'Tüm anılar',
   conversation: 'Konuşma',
@@ -101,9 +107,12 @@ const tr: Labels = {
   memoryMissingTitle: 'Bu anı burada yok',
   memoryMissingBody: 'Adres yanlış olabilir ya da anı artık yerinde değil.',
   photo: 'Fotoğraf',
+  photos: 'Fotoğraflar',
   previousPhoto: 'Önceki fotoğraf',
   nextPhoto: 'Sonraki fotoğraf',
   openPhoto: (n: string) => `${n}. fotoğrafı aç`,
+  earlierMessages: (n: string) => `${n} önceki mesajı göster`,
+  laterMessages: (n: string) => `${n} sonraki mesajı göster`,
   video: 'Video',
   voice: 'Sesli mesaj',
   document: 'Belge',
@@ -127,7 +136,6 @@ const tr: Labels = {
   nothingFoundBody: 'Başka bir kelime dene, ya da daha az kelime.',
   people: 'Kişiler',
   noPeople: 'Henüz kimse yok',
-  back: 'Geri',
   noPhotos: 'Henüz fotoğraf yok',
   photosSent: (n: string) => `${n} fotoğraf gönderdi`,
   firstMemory: 'İlk anı',
@@ -176,9 +184,10 @@ export function formatDateTime(lang: Language, moment: string | number | Date): 
   return new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(moment))
 }
 
-// "Karpuz, Limon and Fıstık" / "Karpuz, Limon ve Fıstık".
-export function formatNames(lang: Language, names: string[]): string {
-  return new Intl.ListFormat(lang, { style: 'long', type: 'conjunction' }).format(names)
+// "Karpuz, Limon and Fıstık" / "Karpuz, Limon ve Fıstık", in parts: the names are the chats' own
+// words (marked Turkish by the screen), the commas and the "and" are the labels'.
+export function formatNameParts(lang: Language, names: string[]): { text: string; name: boolean }[] {
+  return new Intl.ListFormat(lang, { style: 'long', type: 'conjunction' }).formatToParts(names).map((part) => ({ text: part.value, name: part.type === 'element' }))
 }
 
 // "July 2023" / "Temmuz 2023" for a month key such as 2023-07; the short form is "Jul" / "Tem".

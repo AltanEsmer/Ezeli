@@ -1,7 +1,8 @@
 import { type CSSProperties, useCallback, useEffect, useState } from 'react'
 import { formatDate, language, t } from './i18n.ts'
-import { Memories, Shot, useLinks } from './Memories.tsx'
-import { follow, goBack, personPath, toTimeline } from './route.ts'
+import { Memories } from './Memories.tsx'
+import { Shot, useLinks } from './MemoryItem.tsx'
+import { follow, personPath, toTimeline } from './route.ts'
 import { supabase } from './supabase.ts'
 
 // What `people_page` and `person_page` return, each in one request. Nothing but the display name,
@@ -33,13 +34,10 @@ function useLoad<T>(fetch: () => PromiseLike<{ data: unknown; error: unknown }>,
   return { state, reload }
 }
 
-const tilts = [-2.4, 1.8, -1.2, 2.6]
-const tapes = ['var(--tape2)', 'var(--tape1)', 'var(--tape3)', 'var(--tape4)']
-
 function Failed({ reload }: { reload: () => void }) {
   return (
-    <section className="empty">
-      <h1 className="hand">{t.failedTitle}</h1>
+    <section className="pp-note" role="alert">
+      <h2>{t.failedTitle}</h2>
       <p>{t.failedBody}</p>
       <button className="btn" onClick={reload}>
         {t.retry}
@@ -48,8 +46,7 @@ function Failed({ reload }: { reload: () => void }) {
   )
 }
 
-// Everyone of the group: a taped slip each with the name and a few of the photos they sent, most
-// recent first, laid out like prints dropped on a table.
+// Everyone of the group: the name set large and a strip of the photos they sent, all at one height.
 export function PeoplePage({ onSessionLost }: { onSessionLost: () => void }) {
   const { state, reload } = useLoad<Listed[]>(
     () => supabase.rpc('people_page'),
@@ -61,39 +58,35 @@ export function PeoplePage({ onSessionLost }: { onSessionLost: () => void }) {
   const urls = useLinks(people.flatMap((person) => person.photos.map((photo) => photo.thumb)))
   const link = new Map(people.flatMap((person) => person.photos).map((photo, i) => [photo.thumb, urls[i]] as const))
 
+  if (state.status === 'loading') return <div aria-busy="true" aria-label={t.loading} />
   return (
-    <main className="page">
-      <header className="top">
-        <button className="back hand" onClick={toTimeline}>
-          <span aria-hidden="true">← </span>
-          {t.allMemories}
-        </button>
-      </header>
-      <h1 className="mdate hand">{t.people}</h1>
-      {state.status === 'loading' && <div aria-busy="true" aria-label={t.loading} />}
+    <div className="pp">
+      <h1>{t.people}</h1>
       {state.status === 'failed' && <Failed reload={reload} />}
       {state.status === 'ready' && people.length === 0 && (
-        <section className="empty">
-          <h2 className="hand">{t.noPeople}</h2>
+        <section className="pp-note">
+          <h2>{t.noPeople}</h2>
           <p>{t.emptyBody}</p>
         </section>
       )}
       {state.status === 'ready' && people.length > 0 && (
-        <ul className="people" aria-label={t.people}>
-          {people.map((person, i) => (
-            <li key={person.id} style={{ '--tilt': `${tilts[i % tilts.length]}deg`, '--tape': tapes[i % tapes.length] } as CSSProperties}>
-              <a className="pcard" aria-label={person.name} href={personPath(person.id)} onClick={follow(personPath(person.id))}>
-                <i className="tape" aria-hidden="true" />
-                <h2 className="hand">{person.name}</h2>
+        <ul aria-label={t.people}>
+          {people.map((person) => (
+            <li key={person.id}>
+              <a lang="tr" aria-label={person.name} href={personPath(person.id)} onClick={follow(personPath(person.id))}>
+                <h2>{person.name}</h2>
                 {person.photos.length === 0 ? (
-                  <p className="none">{t.noPhotos}</p>
+                  <p lang={language}>{t.noPhotos}</p>
                 ) : (
-                  <div className="fan">
-                    {person.photos.map((photo, n) => (
-                      <div key={photo.thumb} className={`mprint fan${n}`}>
-                        <Shot url={link.get(photo.thumb)} ratio={Math.min(1.5, Math.max(0.8, photo.width / photo.height))} />
-                      </div>
-                    ))}
+                  <div className="pp-strip">
+                    {person.photos.map((photo) => {
+                      const ratio = Math.min(1.5, Math.max(0.8, photo.width / photo.height))
+                      return (
+                        <div key={photo.thumb} style={{ '--ratio': ratio } as CSSProperties}>
+                          <Shot url={link.get(photo.thumb)} />
+                        </div>
+                      )
+                    })}
                   </div>
                 )}
               </a>
@@ -101,7 +94,7 @@ export function PeoplePage({ onSessionLost }: { onSessionLost: () => void }) {
           ))}
         </ul>
       )}
-    </main>
+    </div>
   )
 }
 
@@ -117,55 +110,45 @@ export function PersonPage({ id, onSessionLost }: { id: string; onSessionLost: (
     window.scrollTo(0, 0)
   }, [id])
 
-  const back = (
-    <header className="top">
-      <button className="back hand" onClick={() => goBack('/people')}>
-        <span aria-hidden="true">← </span>
-        {t.back}
-      </button>
-    </header>
-  )
-  if (state.status === 'loading') return <main className="page" aria-busy="true" aria-label={t.loading} />
-  if (state.status === 'failed') return <main className="page">{back}<Failed reload={reload} /></main>
+  if (state.status === 'loading') return <div aria-busy="true" aria-label={t.loading} />
+  if (state.status === 'failed') return <div className="pp"><Failed reload={reload} /></div>
   if (state.status === 'missing') {
     return (
-      <main className="page centered">
-        <section className="slip">
-          <i className="tape" aria-hidden="true" />
-          <h1 className="hand">{t.personMissingTitle}</h1>
-          <p>{t.personMissingBody}</p>
-          <button className="btn" onClick={toTimeline}>
-            {t.allMemories}
-          </button>
-        </section>
-      </main>
+      <div className="notice">
+        <p className="brand">Ezeli</p>
+        <h1>{t.personMissingTitle}</h1>
+        <p>{t.personMissingBody}</p>
+        <button className="btn" onClick={toTimeline}>
+          {t.allMemories}
+        </button>
+      </div>
     )
   }
   const person = state.value
   const day = (moment: Moment) => formatDate(language, moment.at, moment.timezone)
   return (
-    <main className="page">
-      {back}
-      <h1 className="mdate hand">{person.name}</h1>
-      <dl className="facts slip">
-        <i className="tape" aria-hidden="true" />
-        {person.first && person.last && (
-          <>
-            <div>
-              <dt>{t.firstMemory}</dt>
-              <dd className="hand">{day(person.first)}</dd>
-            </div>
-            <div>
-              <dt>{t.latestMemory}</dt>
-              <dd className="hand">{day(person.last)}</dd>
-            </div>
-          </>
-        )}
-        <div>
-          <dd className="hand">{person.photo_count === 0 ? t.noPhotos : t.photosSent(String(person.photo_count))}</dd>
-        </div>
-      </dl>
+    <>
+      <header className="pp pp-head">
+        <h1 lang="tr">{person.name}</h1>
+        <dl>
+          {person.first && person.last && (
+            <>
+              <div>
+                <dt>{t.firstMemory}</dt>
+                <dd>{day(person.first)}</dd>
+              </div>
+              <div>
+                <dt>{t.latestMemory}</dt>
+                <dd>{day(person.last)}</dd>
+              </div>
+            </>
+          )}
+          <div>
+            <dd>{person.photo_count === 0 ? t.noPhotos : t.photosSent(String(person.photo_count))}</dd>
+          </div>
+        </dl>
+      </header>
       <Memories onSessionLost={onSessionLost} person={id} listName={person.name} />
-    </main>
+    </>
   )
 }

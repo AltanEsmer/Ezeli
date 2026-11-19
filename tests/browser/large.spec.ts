@@ -69,7 +69,7 @@ async function sweep(page: Page, direction: 'down' | 'up') {
         await frames()
         await pause(10)
         const now = document.querySelectorAll('article').length
-        calm = now === held && !document.querySelector('.more [role="status"]') ? calm + 1 : 0
+        calm = now === held && !document.querySelector('[role="status"]') ? calm + 1 : 0
         held = now
       }
     }
@@ -119,23 +119,21 @@ test('a jump opens around the month, and scrolling back up reaches the newest me
   expect(mostMemories).toBeLessThan(MOST_MEMORIES)
 })
 
-test('the year tabs reach every year of eleven on a small screen, and show that the strip scrolls', async ({ page }) => {
+test('the list of years reaches every year of eleven on a small screen, though the strip must scroll', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 600 })
   await open(page)
 
   const strip = tabs(page)
   const years = await strip.getByRole('button', { name: /^\d{4}$/ }).count()
   expect(years).toBeGreaterThanOrEqual(large.years)
-  // The strip is taller than its box, so it scrolls, and it says so with a fade at the end.
-  expect(await strip.evaluate((nav) => nav.scrollHeight > nav.clientHeight)).toBe(true)
-  await expect(strip).toHaveAttribute('data-more-down', 'true')
+  // The strip is longer than the screen, so it scrolls along.
+  expect(await strip.evaluate((nav) => nav.scrollWidth > nav.clientWidth)).toBe(true)
 
   // The oldest year is reached from the newest, and so is its oldest month, though the strip must scroll.
   await strip.getByRole('button', { name: '2017', exact: true }).click()
   await expect(strip.getByRole('button', { name: '2017', exact: true })).toHaveAttribute('aria-current', 'true')
   await strip.getByRole('button', { name: 'January 2017' }).click()
   await expect(page.getByRole('heading', { name: 'January 2017' })).toBeInViewport()
-  await expect(strip).toHaveAttribute('data-more-up', 'true')
 })
 
 test('coming back from a memory returns to it, though it is far from the newest', async ({ page }) => {

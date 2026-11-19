@@ -8,10 +8,10 @@ importers:
 
   .:
     dependencies:
-      '@fontsource/kalam':
+      '@fontsource/inter-tight':
         specifier: ^5.3.0
         version: 5.3.0
-      '@fontsource/karla':
+      '@fontsource/newsreader':
         specifier: ^5.3.0
         version: 5.3.0
       '@supabase/supabase-js':
@@ -78,11 +78,11 @@ packages:
   '@emnapi/wasi-threads@2.2.0':
     resolution: {integrity: sha512-JP7OYH38Q7+pyTAe14raZHLQIK7BDKbdwji+Xi3pcd/6QkJYQH3SX4wu6EplGrGJWRepoNzedfm0G3B9Z4e9Rw==}
 
-  '@fontsource/kalam@5.3.0':
-    resolution: {integrity: sha512-FDkVoDfPDCSN/eO81FOYtUI67eMgpVBJmjBtAqSL0PmEhJyeFY2biC+CR+yEttksgXR9+swpFdYmQTyjwBq80Q==}
+  '@fontsource/inter-tight@5.3.0':
+    resolution: {integrity: sha512-uRwIrjKSUcCKIFeO2qm3yECA9phwge6Y1qQZvUmwqFgiIVWUELwwuq7pFlmlpPtO33ZtFQVOXQGNuvna1JPs6A==}
 
-  '@fontsource/karla@5.3.0':
-    resolution: {integrity: sha512-zHBkxMumwFE+K4RgHQAv2xH0O2lAX9y4zPun5JEFZyNQQclZ5Oz/XvByE3CB5+rnxKEV5BXlZShIEfz0VILDmQ==}
+  '@fontsource/newsreader@5.3.0':
+    resolution: {integrity: sha512-AFR6ZKY89GNL+9qBI2P2+66NhD5bhOj/v6fsLnFYLM4E0JnMB1yKb+Ro8cA64i1hwAWoBfTq5CHJGWH1toLDkw==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -985,9 +985,9 @@ snapshots:
       tslib: 2.9.1
     optional: true
 
-  '@fontsource/kalam@5.3.0': {}
+  '@fontsource/inter-tight@5.3.0': {}
 
-  '@fontsource/karla@5.3.0': {}
+  '@fontsource/newsreader@5.3.0': {}
 
   '@img/colour@1.1.0': {}
 

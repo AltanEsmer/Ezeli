@@ -40,19 +40,28 @@ test.describe('a friend on a memory', () => {
     await expect(talk.getByText('Document', { exact: true })).toBeVisible()
   })
 
-  test('opens it from the timeline to its own address and sees the date, the chat and all photos large', async ({ page }) => {
+  test('opens it from the timeline to its own address and sees the date, the chat, one photo large and the others as squares', async ({ page }) => {
     await openNewest(page)
 
     await expect(page).toHaveURL(address)
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Saturday, September 2, 2023')
     await expect(page.getByText(CHAT, { exact: true })).toBeVisible()
-    const photos = page.locator('.prints img')
-    await expect(photos).toHaveCount(2)
-    for (const photo of await photos.all()) {
+    // One photo is on the stage, the large version of the first.
+    const stage = page.getByRole('figure').locator('img')
+    await expect(stage).toHaveCount(1)
+    await expect(stage).toHaveJSProperty('complete', true)
+    expect(await stage.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
+    expect(await stage.getAttribute('src')).toMatch(/-view\.webp\?token=/)
+    expect((await stage.boundingBox())!.width).toBeGreaterThan(280)
+    // Both photos are squares under it, the small versions.
+    const squares = page.getByRole('group', { name: 'Photos' }).getByRole('button')
+    await expect(squares).toHaveCount(2)
+    for (const square of await squares.all()) {
+      const photo = square.locator('img')
       await expect(photo).toHaveJSProperty('complete', true)
-      expect(await photo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0)
-      expect(await photo.getAttribute('src')).toMatch(/-view\.webp\?token=/)
-      expect((await photo.boundingBox())!.width).toBeGreaterThan(280)
+      expect(await photo.getAttribute('src')).toMatch(/-thumb\.webp\?token=/)
+      const box = (await square.boundingBox())!
+      expect(box.width).toBe(box.height)
     }
   })
 
@@ -63,7 +72,7 @@ test.describe('a friend on a memory', () => {
 
     const talk = page.getByRole('region', { name: 'Conversation' })
     // Messages of one sender in a row sit under one name.
-    await expect(talk.locator('.who')).toHaveText(['Limon', 'Karpuz', 'Fıstık', 'Limon', 'Karpuz', 'Fıstık'])
+    await expect(talk.getByRole('heading', { level: 4 })).toHaveText(['Limon', 'Karpuz', 'Fıstık', 'Limon', 'Karpuz', 'Fıstık'])
     await expect(talk.getByText('17:55', { exact: true })).toBeVisible()
     await expect(talk.getByText('18:20', { exact: true })).toBeVisible()
     await expect(talk.getByText('Rota burada')).toBeVisible()
@@ -83,7 +92,7 @@ test.describe('a friend on a memory', () => {
     await openNewest(page)
 
     // The words of the messages; the names above them are links to the people.
-    const links = page.getByRole('region', { name: 'Conversation' }).locator('.body').getByRole('link')
+    const links = page.getByRole('region', { name: 'Conversation' }).getByRole('paragraph').getByRole('link')
     await expect(links).toHaveCount(3)
     await expect(links).toHaveText(['https://example.com/rota?gun=2', 'www.example.org/kas', 'https://example.com/yer'])
     expect(await links.evaluateAll((all) => all.map((a) => (a as HTMLAnchorElement).href))).toEqual([
@@ -101,7 +110,7 @@ test.describe('a friend on a memory', () => {
   test('opens a photo full screen, moves between photos with buttons, keys and a swipe, and closes it', async ({ page }) => {
     await openNewest(page)
 
-    await page.locator('.prints img').first().click()
+    await page.getByRole('figure').locator('img').first().click()
     const viewer = page.getByRole('dialog', { name: 'Photo' })
     await expect(viewer).toBeVisible()
     await expect(viewer.getByText('1 / 2')).toBeVisible()
@@ -114,7 +123,7 @@ test.describe('a friend on a memory', () => {
     await expect(viewer.getByText('1 / 2')).toBeVisible()
 
     // The strip has stopped sliding back, then a real swipe with a finger, from right to left: the next photo.
-    await expect.poll(() => viewer.locator('.strip').evaluate((box) => box.scrollLeft)).toBe(0)
+    await expect.poll(() => viewer.getByRole('list', { name: 'Photos' }).evaluate((box) => box.scrollLeft)).toBe(0)
     const cdp = await page.context().newCDPSession(page)
     const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y: 400 }] })
     await touch('touchStart', 330)
@@ -204,11 +213,11 @@ test.describe('a friend on a memory', () => {
   test('shows every photo whole on the full-screen view, tall or wide, upright or sideways', async ({ page }) => {
     await openNewest(page)
 
-    await page.locator('.prints img').first().click()
+    await page.getByRole('figure').locator('img').first().click()
     const viewer = page.getByRole('dialog', { name: 'Photo' })
     const whole = async (index: number) => {
       const view = page.viewportSize()!
-      const image = viewer.locator('.slide img').nth(index)
+      const image = viewer.locator('img').nth(index)
       await expect(image).toHaveJSProperty('complete', true)
       // The strip may still be sliding to this photo.
       await expect.poll(async () => Math.abs((await image.boundingBox())!.x)).toBeLessThan(2)
@@ -235,7 +244,7 @@ test.describe('a friend on a memory', () => {
     await openNewest(page)
     const memoryAddress = page.url()
 
-    await page.locator('.prints img').first().click()
+    await page.getByRole('figure').locator('img').first().click()
     const viewer = page.getByRole('dialog', { name: 'Photo' })
     await expect(viewer).toBeVisible()
     await page.goBack()
@@ -244,7 +253,7 @@ test.describe('a friend on a memory', () => {
     await expect(heading(page)).toHaveText('Saturday, September 2, 2023')
 
     // Closing with the button leaves no extra step behind: one Back leads to the timeline.
-    await page.locator('.prints img').first().click()
+    await page.getByRole('figure').locator('img').first().click()
     await viewer.getByRole('button', { name: 'Close' }).click()
     await expect(viewer).toHaveCount(0)
     await page.goBack()
@@ -263,26 +272,28 @@ test.describe('a friend on a memory', () => {
       return route.abort()
     })
     await openNewest(page)
-    const photos = page.locator('.prints img')
-    await expect(photos).toHaveCount(2)
-    for (const photo of await photos.all()) {
-      await expect.poll(() => photo.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
-    }
+    const stage = page.getByRole('figure').locator('img')
+    await expect.poll(() => stage.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
+    // The second photo comes to the stage and has the same trouble.
+    await page.getByRole('group', { name: 'Photos' }).getByRole('button').nth(1).click()
+    await expect(page.getByText('2 / 2')).toBeVisible()
+    await expect.poll(() => stage.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth)).toBeGreaterThan(0)
     expect(tried.size).toBe(2)
     // The timeline's links, the memory's links, and one request for fresh ones (not one per photo).
     expect(signed.length).toBe(3)
   })
 
-  test('shows a paper placeholder in the photo\'s shape when the fresh link fails too', async ({ page }) => {
+  test('shows a plain placeholder in the photo\'s shape when the fresh link fails too', async ({ page }) => {
     await page.route(/\/object\/sign\/photos\/.+-view\.webp\?token=/, (route) => route.abort())
     await openNewest(page)
 
-    const gone = page.locator('.prints .gone')
-    await expect(gone).toHaveCount(2)
-    await expect(page.locator('.prints img')).toHaveCount(0)
-    const tall = (await gone.nth(0).boundingBox())!
-    const wide = (await gone.nth(1).boundingBox())!
+    const gone = page.getByRole('figure').getByRole('img', { name: 'Photo could not load' })
+    await expect(gone).toHaveCount(1)
+    await expect(page.getByRole('figure').locator('img')).toHaveCount(0)
+    const tall = (await gone.boundingBox())!
     expect(tall.height).toBeGreaterThan(tall.width)
+    await page.getByRole('group', { name: 'Photos' }).getByRole('button').nth(1).click()
+    const wide = (await gone.boundingBox())!
     expect(wide.width).toBeGreaterThan(wide.height)
   })
 
@@ -293,7 +304,7 @@ test.describe('a friend on a memory', () => {
     await expect(heading(page)).toHaveText('Tuesday, January 10, 2023')
     const talk = page.getByRole('region', { name: 'Conversation' })
     await expect(talk.getByText('Wednesday, January 11, 2023')).toBeVisible()
-    await expect(talk.locator('.day')).toHaveCount(1)
+    await expect(talk.getByRole('heading', { level: 3 })).toHaveCount(1)
     await expect(talk.getByText('00:10', { exact: true })).toBeVisible()
   })
 
@@ -402,7 +413,7 @@ test.describe('a friend on a memory', () => {
       await expect(talk.getByText('Belge', { exact: true })).toBeVisible()
       await expect(talk.getByText('Gece yarısına az kaldı')).toBeVisible()
 
-      await page.locator('.prints img').first().click()
+      await page.getByRole('figure').locator('img').first().click()
       const viewer = page.getByRole('dialog', { name: 'Fotoğraf' })
       await expect(viewer.getByRole('button', { name: 'Sonraki fotoğraf' })).toBeVisible()
       await expect(viewer.getByRole('button', { name: 'Kapat' })).toBeVisible()

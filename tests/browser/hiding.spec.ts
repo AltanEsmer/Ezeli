@@ -62,9 +62,9 @@ const talk = (page: Page) => page.getByRole('region', { name: 'Conversation' })
 test('a hidden photo and a hidden message are gone from the memory, and the link to the photo stops working', async ({ page, request }) => {
   await signIn(page)
   await page.goto(`/m/${july14}`)
-  await expect(page.locator('.prints img')).toHaveCount(2)
+  await expect(page.getByRole('group', { name: 'Photos' }).getByRole('button')).toHaveCount(2)
   await expect(talk(page).getByText('Yarın tekneye gidiyoruz')).toBeVisible()
-  const held = await page.locator('.prints img').first().getAttribute('src')
+  const held = await page.getByRole('figure').locator('img').first().getAttribute('src')
   expect((await request.get(held!)).ok()).toBe(true)
 
   const photo = ownerCommand(['hide', july14, numberOf(july14, /\[Photo\]/)])
@@ -78,7 +78,8 @@ test('a hidden photo and a hidden message are gone from the memory, and the link
   await page.goto(`/m/${july14}`)
   await expect(page.getByRole('heading', { name: 'This memory is not here' })).toBeVisible()
   await page.goto(`/m/${await addressOf(ids[0]!)}`)
-  await expect(page.locator('.prints img')).toHaveCount(1)
+  await expect(page.getByRole('figure').locator('img')).toHaveCount(1)
+  await expect(page.getByRole('group', { name: 'Photos' })).toHaveCount(0)
   await expect(talk(page).locator('img')).toHaveCount(1)
   await expect(talk(page).getByText('Yarın tekneye gidiyoruz')).toHaveCount(0)
   // A link a friend already held opens nothing: the files are gone.
@@ -166,7 +167,7 @@ test('a memory whose address moved still opens from the search results, with its
 
   // The photo that is left opens full screen, and the phone's Back closes it and stays here.
   await expect(page.getByRole('button', { name: /Search$/ })).toBeVisible()
-  await page.locator('.prints img').first().click()
+  await page.getByRole('figure').locator('img').first().click()
   const viewer = page.getByRole('dialog', { name: 'Photo' })
   await expect(viewer.getByText('1 / 1')).toBeVisible()
   await page.goBack()

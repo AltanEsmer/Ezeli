@@ -1,0 +1,231 @@
+/* The shell: the bar, the page it frames, the menu and the small pages. Wide is 900 px and more. */
+.shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* The bar. Narrow: a strip at the top. Wide: a column fixed on the left. */
+.bar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  height: var(--bar-h);
+  padding: 0 max(var(--space-4), env(safe-area-inset-right)) 0 max(var(--space-4), env(safe-area-inset-left));
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-md);
+}
+.bar a,
+.bar button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius);
+  color: var(--muted);
+  text-decoration: none;
+  font-weight: 400;
+}
+.bar a[aria-current='page'] {
+  color: var(--ink);
+  font-weight: 600;
+  border-radius: 0;
+  box-shadow: inset 0 -2px 0 var(--mark);
+}
+.bar .brand {
+  margin-right: auto;
+  padding-left: 0;
+  color: var(--ink);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+.bar .home {
+  display: none;
+}
+.bar .menu {
+  color: var(--ink);
+}
+.bar .menu .name {
+  display: none;
+}
+
+/* A memory on a phone has only its back link: the bar is for wide windows there. */
+.shell.bare .bar {
+  display: none;
+}
+
+.content {
+  min-width: 0;
+}
+
+@media (min-width: 900px) {
+  .shell {
+    padding-left: var(--side);
+  }
+  .shell.bare .bar {
+    display: flex;
+  }
+  .bar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: var(--side);
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: var(--space-5) var(--space-4);
+    border-bottom: 0;
+    border-right: 1px solid var(--line);
+  }
+  .bar .brand {
+    margin: 0 0 var(--space-5);
+  }
+  .bar a[aria-current='page'] {
+    box-shadow: inset 2px 0 0 var(--mark);
+    background: var(--surface);
+  }
+  .bar .home {
+    display: inline-flex;
+  }
+  .bar .menu {
+    margin-top: auto;
+    justify-content: flex-start;
+    overflow: hidden;
+  }
+  .bar .menu .name {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .bar .menu .word {
+    display: none;
+  }
+}
+
+/* The menu: one card in the middle of a dimmed page. */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: rgb(0 0 0 / 0.55);
+}
+.sheet {
+  position: fixed;
+  z-index: 11;
+  top: 72px;
+  left: 50%;
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  width: min(360px, calc(100vw - 2 * var(--space-4)));
+  max-height: calc(100dvh - 96px);
+  overflow-y: auto;
+  padding: var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  translate: -50% 0;
+}
+.sheet small,
+.lang small {
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.sheet .who {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.sheet .x {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 44px;
+  height: 44px;
+  font-size: var(--text-xl);
+  line-height: 1;
+  text-align: center;
+}
+.sheet .owner {
+  padding: 1px var(--space-2);
+  border: 1px solid var(--mark);
+  border-radius: var(--radius);
+  color: var(--accent);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.lang {
+  display: grid;
+  gap: var(--space-1);
+}
+.lang > div {
+  display: flex;
+  gap: var(--space-2);
+}
+.lang button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.lang button[aria-pressed='true'] {
+  border-color: var(--mark);
+  font-weight: 600;
+}
+.lang .failed {
+  font-size: var(--text-sm);
+  color: var(--accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .scrim,
+  .sheet {
+    animation: fade-in var(--fade) ease-out;
+  }
+}
+
+/* The private page, the bad-link page and the failed page: the name, a heading, one short
+   paragraph, centred, and a button where there is something to do. */
+.notice {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: var(--space-3);
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: var(--space-6) var(--space-4);
+  text-align: center;
+}
+.content > .notice {
+  min-height: calc(100dvh - var(--bar-h));
+}
+.notice .brand {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--muted);
+}
+.notice h1 {
+  font-size: var(--text-xxl);
+  font-weight: 600;
+  line-height: 1.1;
+  text-wrap: balance;
+}
+.notice p {
+  max-width: 36ch;
+  color: var(--muted);
+}
+.notice .btn {
+  justify-self: center;
+  margin-top: var(--space-2);
+}
+
+@media (min-width: 900px) {
+  .content > .notice {
+    min-height: 100dvh;
+  }
+}

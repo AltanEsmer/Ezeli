@@ -1,13 +1,14 @@
-import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from 'react'
-import { type Language, formatDate, language, t } from './i18n.ts'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type Language, formatDate, formatNameParts, language, t } from './i18n.ts'
 import { Comments } from './Comments.tsx'
+import { useWide } from './MemoryItem.tsx'
 import { type MemoryDetail, useMemory } from './memory.ts'
 import type { Person } from './session.ts'
 import { cameFrom, follow, goBack, memoryPath, navigate, personPath, pushLayer, viewed } from './route.ts'
 import { Pic, Viewer } from './Viewer.tsx'
 
-// One memory: the date as a heading, the chat it came from as a stamp, every photo as a large
-// print, and the conversation as a taped slip, with the comments under it.
+// One memory: the stage with one photo and the others as small squares, and beside or under it a
+// column with the date, the conversation as plain lines, the comments and earlier and later memory.
 export function MemoryPage({ memoryKey, person, onSessionLost }: { memoryKey: string; person: Person; onSessionLost: () => void }) {
   const { state, reload, relink } = useMemory(memoryKey)
   useEffect(() => {
@@ -21,137 +22,215 @@ export function MemoryPage({ memoryKey, person, onSessionLost }: { memoryKey: st
     if (lost) onSessionLost()
   }, [lost, onSessionLost])
 
-  if (state.status === 'loading' || state.status === 'gone') return <main className="page" aria-busy="true" aria-label={t.loading} />
+  if (state.status === 'loading' || state.status === 'gone') return <div aria-busy="true" aria-label={t.loading} />
   if (state.status !== 'ready') {
     const missing = state.status === 'missing'
     return (
-      <main className="page centered">
-        <section className={`slip${missing ? '' : ' red'}`}>
-          <i className="tape" aria-hidden="true" />
-          <h1 className="hand">{missing ? t.memoryMissingTitle : t.failedTitle}</h1>
-          <p>{missing ? t.memoryMissingBody : t.failedBody}</p>
-          {!missing && (
-            <button className="btn" onClick={reload}>
-              {t.retry}
-            </button>
-          )}
-          <button className="btn" onClick={() => goBack('/')}>
-            {t.allMemories}
+      <div className="notice">
+        <p className="brand">Ezeli</p>
+        <h1>{missing ? t.memoryMissingTitle : t.failedTitle}</h1>
+        <p>{missing ? t.memoryMissingBody : t.failedBody}</p>
+        {!missing && (
+          <button className="btn" onClick={reload}>
+            {t.retry}
           </button>
-        </section>
-      </main>
+        )}
+        <button className="btn" onClick={() => goBack('/')}>
+          {t.allMemories}
+        </button>
+      </div>
     )
   }
   return <Memory memory={state.memory} memoryKey={memoryKey} person={person} onSessionLost={onSessionLost} links={state.links} relink={relink} />
 }
 
-const tilts = [-1.6, 1.3, -0.8, 1.8]
-const tapes = ['var(--tape2)', 'var(--tape1)', 'var(--tape3)', 'var(--tape4)']
-// Names are written in a pen colour of their own; all stay dark enough on the paper.
-const pens = ['#1d3c8a', '#8e2414', '#1e6e68', '#6b3fa0', '#8a5a00']
-const pen = (name: string) => pens[[...name].reduce((sum, ch) => sum + ch.codePointAt(0)!, 0) % pens.length]
-
 function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { memory: MemoryDetail; memoryKey: string; person: Person; onSessionLost: () => void; links: Map<string, string>; relink: () => Promise<boolean> }) {
+  const wide = useWide()
+  const [selected, setSelected] = useState(0)
   const [open, setOpen] = useState<number | null>(null)
+  const [leaving, setLeaving] = useState(false)
+  const timer = useRef<number>(undefined)
+  const count = memory.photos.length
+  const photo = memory.photos[selected]!
+  const sentAt = (memory.messages.find((m) => m.id === photo.message)?.at ?? memory.at)
+
   // The full-screen view is a step in the history, so the phone's Back closes it and stays here.
+  // It fades out before it goes.
   const show = (index: number) => {
     pushLayer()
+    clearTimeout(timer.current)
+    setLeaving(false)
     setOpen(index)
   }
   useEffect(() => {
     const closed = () => {
-      if (!(history.state as { layer?: boolean } | null)?.layer) setOpen(null)
+      if ((history.state as { layer?: boolean } | null)?.layer) return
+      setLeaving(true)
+      timer.current = window.setTimeout(() => setOpen(null), 160)
     }
     window.addEventListener('popstate', closed)
-    return () => window.removeEventListener('popstate', closed)
+    return () => {
+      window.removeEventListener('popstate', closed)
+      clearTimeout(timer.current)
+    }
   }, [])
+
+  // The arrow keys move between the photos on the stage.
+  useEffect(() => {
+    const move = (event: KeyboardEvent) => {
+      if (open !== null || (event.target as Element).closest('input, textarea')) return
+      if (event.key === 'ArrowRight') setSelected((now) => Math.min(count - 1, now + 1))
+      if (event.key === 'ArrowLeft') setSelected((now) => Math.max(0, now - 1))
+    }
+    window.addEventListener('keydown', move)
+    return () => window.removeEventListener('keydown', move)
+  }, [open, count])
+
   // Back goes to the list this memory was opened from, and says so.
   const from = cameFrom()
-  const photoOf = new Map(memory.photos.map((photo, index) => [photo.message, index]))
+  const senders = new Map(memory.photos.map((each) => [each.by, each.by_id]))
+  const [before, after] = t.sentBy('\0').split('\0')
+  // The stage keeps the shape of the first photo, so nothing below it moves when the photo changes.
+  const shape = Math.min(1.5, Math.max(0.8, memory.photos[0]!.width / memory.photos[0]!.height))
 
   return (
-    <main className="page memory">
-      <header className="top">
-        <button className="back hand" onClick={() => goBack(from?.path ?? '/')}>
+    <div className="mem">
+      <div className="mem-left">
+        <button className="mem-back" onClick={() => goBack(from?.path ?? '/')}>
           <span aria-hidden="true">← </span>
           {from?.name ?? t.allMemories}
         </button>
-      </header>
-
-      <h1 className="mdate hand">{formatDate(language, memory.at, memory.timezone)}</h1>
-      <p className="stamp chat">{memory.chat_name}</p>
-
-      <div className="prints">
-        {memory.photos.map((photo, index) => (
-          <figure key={photo.view} className="mprint big" style={{ '--tilt': `${tilts[index % tilts.length]}deg`, '--tape': tapes[index % tapes.length] } as CSSProperties}>
-            <i className="tape" aria-hidden="true" />
-            <button aria-label={t.openPhoto(String(index + 1))} onClick={() => show(index)}>
-              <Pic src={links.get(photo.view)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={relink} loading={index === 0 ? 'eager' : 'lazy'} />
-            </button>
-            <figcaption className="cap hand">{named(photo.by, photo.by_id)}</figcaption>
-          </figure>
-        ))}
+        <figure className="mem-stage">
+          <button className="mem-shot" style={wide ? undefined : { aspectRatio: shape }} aria-label={t.openPhoto(String(selected + 1))} onClick={() => show(selected)}>
+            <Pic key={photo.view} src={links.get(photo.view)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={relink} loading="eager" />
+          </button>
+          <figcaption className="mem-under">
+            <span>
+              <span lang="tr">{named(photo.by, photo.by_id)}</span>, {formatTime(language, sentAt, memory.timezone)}
+            </span>
+            {count > 1 && (
+              <span>
+                {selected + 1} / {count}
+              </span>
+            )}
+          </figcaption>
+        </figure>
+        {count > 1 && (
+          <div className="mem-thumbs" role="group" aria-label={t.photos}>
+            {memory.photos.map((each, index) => (
+              <button key={each.view} aria-pressed={index === selected} aria-label={t.openPhoto(String(index + 1))} onClick={() => setSelected(index)}>
+                <Pic src={links.get(each.thumb)} alt={t.photoBy(each.by)} width={each.width} height={each.height} relink={relink} loading="lazy" />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
-      <section className="slip talk" aria-label={t.conversation}>
-        <i className="tape" aria-hidden="true" />
-        {groups(memory).map((group) => (
-          <div className="group" key={group.messages[0]!.id}>
-            {group.day && <p className="day hand">{formatDate(language, group.day, memory.timezone)}</p>}
-            <div className="who hand" style={{ color: pen(group.messages[0]!.by_id ?? group.by) }}>
+      <div className="mem-col">
+        <header>
+          <h1>{formatDate(language, memory.at, memory.timezone)}</h1>
+          <p className="mem-sub" lang="tr">
+            {memory.chat_name}
+          </p>
+          <p className="mem-sub">{t.photoCount(String(count))}</p>
+          <p className="mem-sub">
+            {before}
+            {formatNameParts(language, [...senders.keys()]).map((part, i) => (part.name ? <span key={i} lang="tr">{named(part.text, senders.get(part.text)!)}</span> : part.text))}
+            {after}
+          </p>
+        </header>
+
+        <Talk memory={memory} links={links} relink={relink} onPhoto={(index) => (wide ? setSelected(index) : show(index))} />
+
+        <Comments memoryKey={memoryKey} person={person} onSessionLost={onSessionLost} />
+
+        <nav className="mem-pn">
+          {memory.before ? (
+            <a href={memoryPath(memory.before)} onClick={go(memory.before)}>
+              <span aria-hidden="true">← </span>
+              {t.earlierMemory}
+            </a>
+          ) : (
+            <span />
+          )}
+          {memory.after && (
+            <a href={memoryPath(memory.after)} onClick={go(memory.after)}>
+              {t.laterMemory}
+              <span aria-hidden="true"> →</span>
+            </a>
+          )}
+        </nav>
+      </div>
+
+      {open !== null && <Viewer photos={memory.photos} links={links} relink={relink} start={open} leaving={leaving} onClose={() => history.back()} />}
+    </div>
+  )
+}
+
+// A long conversation opens on the messages around the first photo: three before it and the ones
+// after, nine in all. The rest is one press away in each direction.
+function Talk({ memory, links, relink, onPhoto }: { memory: MemoryDetail; links: Map<string, string>; relink: () => Promise<boolean>; onPhoto: (index: number) => void }) {
+  const photoOf = new Map(memory.photos.map((photo, index) => [photo.message, index]))
+  const total = memory.messages.length
+  const first = Math.max(0, memory.messages.findIndex((m) => photoOf.has(m.id)))
+  const from = Math.max(0, first - 3)
+  const [range, setRange] = useState(total <= 12 ? { from: 0, to: total } : { from, to: Math.min(total, from + 9) })
+
+  return (
+    <section className="mem-talk" aria-label={t.conversation}>
+      {range.from > 0 && (
+        <button className="mem-more" onClick={() => setRange({ ...range, from: 0 })}>
+          {t.earlierMessages(String(range.from))}
+        </button>
+      )}
+      {groups(memory, range.from, range.to).map((group) => (
+        <div className="mem-grp" key={group.messages[0]!.id}>
+          {group.day && (
+            <p className="mem-day" role="heading" aria-level={3}>
+              {formatDate(language, group.day, memory.timezone)}
+            </p>
+          )}
+          <div className="mem-who">
+            <span role="heading" aria-level={4} lang="tr">
               {named(group.by, group.messages[0]!.by_id)}
-            </div>
-            {group.messages.map((message) => {
-              const index = photoOf.get(message.id)
-              const photo = index === undefined ? undefined : memory.photos[index]
-              return (
-                <div className="msg" key={message.id}>
-                  <div className="body">
-                    {photo && (
-                      <button className="small" aria-label={t.openPhoto(String(index! + 1))} onClick={() => show(index!)}>
-                        <Pic src={links.get(photo.thumb)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={relink} loading="lazy" />
-                      </button>
-                    )}
-                    {message.text ? <p dir="auto">{linkify(message.text)}</p> : !photo && <em className="ph">{placeholder(message.kind)}</em>}
-                  </div>
-                  <time className="at" dateTime={message.at}>
-                    {formatTime(language, message.at, memory.timezone)}
-                  </time>
-                </div>
-              )
-            })}
+            </span>
+            <time dateTime={group.messages[0]!.at}>{formatTime(language, group.messages[0]!.at, memory.timezone)}</time>
           </div>
-        ))}
-      </section>
-
-      <Comments memoryKey={memoryKey} person={person} onSessionLost={onSessionLost} />
-
-      <nav className="pn">
-        {memory.before ? (
-          <a className="btn" href={memoryPath(memory.before)} onClick={go(memory.before)}>
-            <span aria-hidden="true">← </span>
-            {t.earlierMemory}
-          </a>
-        ) : (
-          <span />
-        )}
-        {memory.after && (
-          <a className="btn" href={memoryPath(memory.after)} onClick={go(memory.after)}>
-            {t.laterMemory}
-            <span aria-hidden="true"> →</span>
-          </a>
-        )}
-      </nav>
-
-      {open !== null && <Viewer photos={memory.photos} links={links} relink={relink} start={open} onClose={() => history.back()} />}
-    </main>
+          {group.messages.map((message) => {
+            const index = photoOf.get(message.id)
+            const photo = index === undefined ? undefined : memory.photos[index]
+            return (
+              <div className={photo && !message.text ? 'mem-msg solo' : 'mem-msg'} key={message.id}>
+                {photo && (
+                  <button className="mem-mini" aria-label={t.openPhoto(String(index! + 1))} onClick={() => onPhoto(index!)}>
+                    <Pic src={links.get(photo.thumb)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={relink} loading="lazy" />
+                  </button>
+                )}
+                {message.text ? (
+                  <p dir="auto" lang="tr">
+                    {linkify(message.text)}
+                  </p>
+                ) : (
+                  !photo && <p className="mem-gone">{placeholder(message.kind)}</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      ))}
+      {range.to < total && (
+        <button className="mem-more" onClick={() => setRange({ ...range, to: total })}>
+          {t.laterMessages(String(total - range.to))}
+        </button>
+      )}
+    </section>
   )
 }
 
 // A name opens that person's page, when the owners gave the person a lasting id.
 const named = (name: string, id: string | null) =>
   id ? (
-    <a href={personPath(id)} onClick={follow(personPath(id))}>
+    <a className="nm" href={personPath(id)} onClick={follow(personPath(id))}>
       {name}
     </a>
   ) : (
@@ -169,11 +248,11 @@ type Group = { by: string; day: string | null; messages: MemoryDetail['messages'
 
 // Messages of one sender in a row sit together; a group also starts where the day changes (in the
 // chat's time zone), and says which day it is.
-function groups(memory: MemoryDetail): Group[] {
+function groups(memory: MemoryDetail, from: number, to: number): Group[] {
   const dayOf = (moment: string) => new Intl.DateTimeFormat('en-CA', { timeZone: memory.timezone }).format(new Date(moment))
   const result: Group[] = []
   let today = dayOf(memory.at)
-  for (const message of memory.messages) {
+  for (const message of memory.messages.slice(from, to)) {
     const day = dayOf(message.at)
     const changed = day !== today
     today = day

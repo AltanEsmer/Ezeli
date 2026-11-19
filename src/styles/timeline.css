@@ -1,0 +1,61 @@
+/* The timeline's own frame: the month headings, the list of years, the ends and the notes. The
+   memories in it are drawn by memoryitem.css. */
+.tl { --strip: 44px; --lift: var(--strip); position: relative; padding-bottom: var(--space-6); overflow-anchor: none; }
+/* A page of memories. Far from the screen it is an empty box of the same height. */
+.tl-chunk { display: flow-root; }
+
+/* A month heading stays in view while its month scrolls: under the top bar and the strip of years
+   when narrow, at the top when wide. A jump puts it exactly there. */
+.tl-head {
+  position: sticky; top: calc(var(--bar-h) + var(--strip)); z-index: 3;
+  padding: 14px var(--space-4) 10px; font-size: var(--text-md); font-weight: 600;
+  background: color-mix(in srgb, var(--bg) 86%, transparent); backdrop-filter: blur(14px);
+  scroll-margin-top: calc(var(--bar-h) + var(--strip));
+}
+
+/* The list of years, narrow: a strip under the top bar that scrolls along. The year in view is
+   open, with its months after it. */
+.tl-years {
+  position: sticky; top: var(--bar-h); z-index: 4; display: flex; height: var(--strip);
+  overflow-x: auto; overscroll-behavior: contain; scrollbar-width: none;
+  background: var(--bg); border-bottom: 1px solid var(--line);
+}
+.tl-years > div { display: flex; flex: none; }
+.tl-years button { min-width: 44px; min-height: 44px; padding: 0 var(--space-3); color: var(--muted); font-size: var(--text-sm); font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+.tl-years button[aria-current='true'] { color: var(--ink); font-weight: 600; }
+.tl-years .mo[aria-current='true'] { box-shadow: inset 0 -2px 0 var(--mark); }
+.tl-years[aria-busy='true'] { opacity: 0.6; }
+
+/* What is said at an end of the list, and while a far jump loads or when it failed. */
+.tl-end, .tl-end > [role='alert'] { display: grid; justify-items: center; gap: var(--space-3); text-align: center; }
+.tl-end { min-height: 80px; }
+/* The top end takes no room of its own, so nothing moves when it is done; what it says floats. */
+.tl-end.top { position: absolute; inset: 0 0 auto; min-height: 0; height: 1px; }
+.tl-end.top > *, .tl-toast { padding: var(--space-2) var(--space-4); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); font-weight: 600; }
+.tl-end.top > * { position: absolute; top: calc(var(--space-2) + var(--lift)); z-index: 4; }
+.tl-toast {
+  position: fixed; z-index: 6; bottom: max(var(--space-4), env(safe-area-inset-bottom)); left: 50%; translate: -50% 0;
+  display: flex; align-items: center; gap: var(--space-3); max-width: calc(100vw - 2 * var(--space-4));
+}
+.tl-toast .btn { min-height: 44px; }
+
+/* An empty or failed timeline: a heading, a sentence and, when it helps, a button. */
+.tl-note { display: grid; justify-items: center; gap: var(--space-3); max-width: 36ch; margin: var(--space-7) auto 0; padding: 0 var(--space-4); text-align: center; }
+.tl-note h1, .tl-note h2 { font-size: var(--text-xl); font-weight: 600; line-height: 1.15; }
+.tl-note p { color: var(--muted); }
+.tl-note .btn { justify-self: center; }
+
+@media (min-width: 900px) {
+  .tl { --lift: 0px; padding: 0 calc(var(--rail) + var(--space-5)) var(--space-7) var(--space-6); }
+  .tl-chunk > section { max-width: 1180px; }
+  .tl-head { top: 0; padding: 22px 0 16px; font-size: 17px; scroll-margin-top: 0; }
+  /* The list of years, wide: down the right edge, the year in view open with its months. */
+  .tl-years {
+    position: fixed; inset: 0 0 0 auto; width: var(--rail); height: auto;
+    flex-direction: column; align-items: center; justify-content: safe center;
+    overflow: hidden auto; background: none; border: 0;
+  }
+  .tl-years > div { flex-direction: column; align-items: center; }
+  .tl-years button { width: var(--rail); }
+  .tl-toast { left: calc(50% + var(--side) / 2); }
+}

@@ -13,7 +13,7 @@ export default defineConfig({
   projects: [
     { name: 'sign-in', testMatch: ['sign-in.spec.ts', 'replace-link.spec.ts'] },
     { name: 'import', testMatch: 'import.setup.ts', dependencies: ['sign-in'] },
-    { name: 'memories', testMatch: ['timeline.spec.ts', 'language.spec.ts'], dependencies: ['import'] },
+    { name: 'memories', testMatch: ['timeline.spec.ts', 'language.spec.ts', 'shell.spec.ts'], dependencies: ['import'] },
     // Imports more chats of its own, so it runs after the timeline tests have counted.
     { name: 'memory-import', testMatch: 'memory.setup.ts', dependencies: ['memories'] },
     { name: 'memory', testMatch: ['memory.spec.ts', 'comments.spec.ts'], dependencies: ['memory-import'] },
@@ -31,6 +31,12 @@ export default defineConfig({
     { name: 'large-clean', testMatch: 'large.teardown.ts' },
     // Hides things of a chat of its own, last: it adds a chat, and the tests above count memories.
     { name: 'hiding', testMatch: 'hiding.spec.ts', dependencies: ['large'] },
+    // A made-up album of June 2021, for the memory on a list: it adds a chat, so it runs last.
+    { name: 'memory-list-import', testMatch: 'memory-list.setup.ts', dependencies: ['hiding'] },
+    { name: 'memory-list', testMatch: 'memory-list.spec.ts', dependencies: ['memory-list-import'] },
+    // A long chat for the memory screen: it adds a memory, so it runs after everything that counts.
+    { name: 'memory-screen-import', testMatch: 'memory-screen.setup.ts', dependencies: ['memory-list'] },
+    { name: 'memory-screen', testMatch: 'memory-screen.spec.ts', dependencies: ['memory-screen-import'] },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',
