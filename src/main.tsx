@@ -9,5 +9,6 @@ import './styles/shell.css'
 import './styles/old.css'
 import './styles/memoryitem.css'
 import './styles/timeline.css'
+import './styles/memory.css'
 
 createRoot(document.getElementById('root')!).render(<App />)
