@@ -1,0 +1,23 @@
+/* The search screen: one large box at the top with the hint under it, then the results, drawn by
+   the timeline's part inside the timeline's frame (timeline.css). No list of years here. */
+.sr .tl { --strip: 0px; --lift: 0px; }
+.sr-head { padding: var(--space-5) var(--space-4) var(--space-4); }
+.sr-head h1 { font-size: var(--text-xxl); font-weight: 600; line-height: 1.1; }
+.sr-head input {
+  width: 100%; min-height: 56px; margin-top: var(--space-4); padding: 0 var(--space-3);
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink);
+  font-size: var(--text-xl);
+}
+.sr-head input:focus-visible { outline-offset: 0; border-color: var(--accent); }
+.sr-head p { max-width: 60ch; margin-top: var(--space-3); color: var(--muted); }
+
+@media (min-width: 900px) {
+  .sr-head { max-width: 840px; padding: var(--space-6) var(--space-6) var(--space-5); }
+  .sr-head input { min-height: 64px; font-size: var(--text-xxl); }
+}
+
+.sr-head input::-webkit-search-cancel-button { appearance: none; display: none; }
+@media (min-width: 900px) {
+  .sr .tl-note { justify-items: start; margin-left: var(--space-6); padding: 0; text-align: left; }
+}
+@media (min-width: 900px) { .sr .tl-note .btn { justify-self: start; } }

@@ -6,11 +6,11 @@ import { createRoot } from 'react-dom/client'
 import { App } from './App.tsx'
 import './styles/tokens.css'
 import './styles/shell.css'
-import './styles/old.css'
 import './styles/memoryitem.css'
 import './styles/timeline.css'
 import './styles/memory.css'
 import './styles/comments.css'
 import './styles/people.css'
+import './styles/search.css'
 
 createRoot(document.getElementById('root')!).render(<App />)
