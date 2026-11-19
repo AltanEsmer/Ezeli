@@ -102,7 +102,18 @@ One part draws a memory wherever a list of memories is shown: `MemoryItem` (`src
 - Pressing the stage opens the full-screen view on that photo. A small photo in the conversation (a 64px square) opens the full-screen view on a phone and shows the photo on the stage on a PC, where the stage is in sight.
 - The conversation is plain lines: a heading (level 4) per run of one sender with the time beside it (13px, name 600), the lines in 15px, links in the accent, no bubbles. Where the day changes a day line (level 3) with rules on both sides. A video, voice message, document, GIF or media not in the export is a muted italic line with the words used before. A conversation of more than twelve messages opens on nine (three before the first photo and the ones after it); a button above and one below, each naming how many messages it shows, open the rest.
 - Names, the chat's name and messages carry `lang="tr"`; a name is a link of 44px (`.nm`) when the person has a lasting id.
-- Comments (`Comments.tsx`) still have their old look inside the column until ticket 55.
+- Comments (`Comments.tsx`, ticket 55) sit in the column after the conversation; see "Comments" below.
 - A photo fades in when it has loaded (`Pic`); one that cannot load is a plain `--line` box in its shape (on the stage it keeps the shape inside the stage).
 - The full-screen view: black, whatever the theme. A header with "n / N" and a Close button, arrows (a glyph, no circle) on both sides, the photos in a strip that snaps (swipe), Escape and the back button close it, Tab stays inside. It fades in and out (160ms); with less motion it just appears and goes.
 - A memory that is not there, or failed to load: a small page in the `.notice` style (name, heading, one paragraph, buttons "Try again" where it helps and "All memories").
+
+## Comments (ticket 55)
+
+`src/Comments.tsx` with `comments.css` (classes `cm cm-*`). A comment is something written in Ezeli later, so it is set apart from the old chat. Who may add, delete (the writer, or an owner, after one "Delete this comment?" question) and what happens on a failed save or delete is unchanged. Nobody edits.
+
+- A section (region "Comments") under a 1px line, 40px below the conversation: the heading `h2` "Comments" (13px, 600, accent), then one muted line, "Written here in Ezeli, later. Not part of the old chat."
+- Each comment is an `article`: a block on `--tint` with a 2px `--mark` line on the left, 12px by 16px padding, 8px apart, square on the line side. The head is the writer's name (13px, 600, Inter Tight) and the date beside it (13px, muted, mixed 30% toward ink so it keeps 4.5 to 1 on the tint in light); the text is Newsreader 18px, line breaks kept. The name and the text carry `lang="tr"`.
+- Delete is a text button (13px, 600, accent, 44px high) under the text, for the writer and for an owner. Asking: the question, a plain `.btn` "Yes, delete" and a text button "Keep it". A failed delete shows its line in accent text.
+- Writing: a label "Add your note", one plain field (Newsreader 18px, `--surface`, 1px `--line`, 6px corners, 3 rows) and one `.btn` "Add comment" on the right, off until there is text. A new comment appears at once below the others and the field empties. A failed save shows a line in accent text under the button.
+- Same at both sizes: the section fills the column (the page column narrow, the 420px column wide). No tilt, no shadow, no tape.
+- Contrast: accent text on the tint is 4.87 to 1 in dark and 5.36 in light; the date 7.4 and 6.36.

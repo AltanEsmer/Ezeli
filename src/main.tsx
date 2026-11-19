@@ -10,5 +10,6 @@ import './styles/old.css'
 import './styles/memoryitem.css'
 import './styles/timeline.css'
 import './styles/memory.css'
+import './styles/comments.css'
 
 createRoot(document.getElementById('root')!).render(<App />)

@@ -1,15 +1,15 @@
-import { type CSSProperties, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { formatDateTime, language, t } from './i18n.ts'
 import type { Person } from './session.ts'
 import { supabase } from './supabase.ts'
 
-// The comments under a memory's conversation: sticky notes, yellow and pink, with a note of the
-// same kind to write a new one. A comment is plain text, shown exactly as written. Nobody edits.
+// The comments under a memory's conversation: tinted blocks with an accent line, under their own
+// heading, and a plain field to write a new one. A comment is plain text, shown exactly as written.
+// Nobody edits.
 type Comment = { id: string; body: string; created_at: string; person_id: string; people: { display_name: string } | null }
 
 const FIELDS = 'id, body, created_at, person_id, people(display_name)'
 const MAX = 2000
-const tilts = [-1.4, 1.1, -0.7, 1.6]
 
 // True when the database no longer knows this session (signed out, or the link was replaced).
 async function sessionGone(): Promise<boolean> {
@@ -36,25 +36,26 @@ export function Comments({ memoryKey, person, onSessionLost }: { memoryKey: stri
   useEffect(load, [memoryKey])
 
   return (
-    <section className="notes" aria-label={t.comments}>
-      <p className="apart">{t.commentsApart}</p>
+    <section className="cm" aria-label={t.comments}>
+      <h2>{t.comments}</h2>
+      <p className="cm-apart">{t.commentsApart}</p>
       {failed && (
-        <div className="note yellow">
+        <div className="cm-failed">
           <p>{t.failedBody}</p>
           <button className="btn" onClick={load}>
             {t.retry}
           </button>
         </div>
       )}
-      {list?.map((comment, index) => (
-        <Note key={comment.id} comment={comment} index={index} person={person} onSessionLost={onSessionLost} onGone={() => setList((now) => now && now.filter((c) => c.id !== comment.id))} />
+      {list?.map((comment) => (
+        <Note key={comment.id} comment={comment} person={person} onSessionLost={onSessionLost} onGone={() => setList((now) => now && now.filter((c) => c.id !== comment.id))} />
       ))}
       {memory && <Write memory={memory} onSessionLost={onSessionLost} onAdded={(comment) => setList((now) => [...(now ?? []), comment])} />}
     </section>
   )
 }
 
-function Note({ comment, index, person, onSessionLost, onGone }: { comment: Comment; index: number; person: Person; onSessionLost: () => void; onGone: () => void }) {
+function Note({ comment, person, onSessionLost, onGone }: { comment: Comment; person: Person; onSessionLost: () => void; onGone: () => void }) {
   const [asking, setAsking] = useState(false)
   const [failed, setFailed] = useState(false)
   const mine = comment.person_id === person.id
@@ -70,27 +71,27 @@ function Note({ comment, index, person, onSessionLost, onGone }: { comment: Comm
   }
 
   return (
-    <article className={`note ${index % 2 ? 'pink' : 'yellow'}`} style={{ '--tilt': `${tilts[index % tilts.length]}deg` } as CSSProperties}>
-      <p className="text hand" dir="auto">
+    <article className="cm-note">
+      <div className="cm-head">
+        <span lang="tr">{comment.people?.display_name}</span>
+        <time dateTime={comment.created_at}>{formatDateTime(language, comment.created_at)}</time>
+      </div>
+      <p lang="tr" dir="auto">
         {comment.body}
       </p>
-      <footer>
-        <span className="by hand">{comment.people?.display_name}</span>
-        <time dateTime={comment.created_at}>{formatDateTime(language, comment.created_at)}</time>
-      </footer>
       {(mine || person.is_owner) &&
         (asking ? (
-          <div className="ask" role="group" aria-label={t.deleteAsk}>
+          <div className="cm-ask" role="group" aria-label={t.deleteAsk}>
             <span>{t.deleteAsk}</span>
-            <button className="btn danger" onClick={() => void remove()}>
+            <button className="btn" onClick={() => void remove()}>
               {t.deleteYes}
             </button>
-            <button className="btn quiet" onClick={() => setAsking(false)}>
+            <button className="cm-text" onClick={() => setAsking(false)}>
               {t.deleteNo}
             </button>
           </div>
         ) : (
-          <button className="del" onClick={() => setAsking(true)}>
+          <button className="cm-text" onClick={() => setAsking(true)}>
             {t.deleteComment}
           </button>
         ))}
@@ -118,11 +119,11 @@ function Write({ memory, onSessionLost, onAdded }: { memory: string; onSessionLo
   }
 
   return (
-    <form className="note write yellow" onSubmit={(event) => void send(event)} style={{ '--tilt': '0.8deg' } as CSSProperties}>
-      <label className="hand" htmlFor="new-comment">
+    <form className="cm-write" onSubmit={(event) => void send(event)}>
+      <label htmlFor="new-comment">
         {t.writeComment}
       </label>
-      <textarea id="new-comment" className="hand" dir="auto" rows={3} maxLength={MAX} value={text} onChange={(event) => setText(event.target.value)} />
+      <textarea id="new-comment" lang="tr" dir="auto" rows={3} maxLength={MAX} value={text} onChange={(event) => setText(event.target.value)} />
       <button className="btn" disabled={!body || busy}>
         {t.addComment}
       </button>

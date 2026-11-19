@@ -1,0 +1,114 @@
+/* Comments under a memory's conversation (docs/design.md): written in Ezeli later, so they sit under
+   a line and their own heading, as tinted blocks with an accent line, the text in the serif. */
+.cm {
+  margin-top: var(--space-6);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+.cm h2 {
+  margin-bottom: 2px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--accent);
+}
+.cm-apart {
+  margin-bottom: var(--space-4);
+  font-size: var(--text-sm);
+  color: var(--muted);
+}
+.cm-note,
+.cm-failed {
+  display: grid;
+  gap: 3px;
+  margin-bottom: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  background: var(--tint);
+  border-left: 2px solid var(--mark);
+}
+.cm-failed {
+  gap: var(--space-2);
+}
+.cm-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.cm-head time {
+  font-weight: 400;
+  color: color-mix(in srgb, var(--muted) 70%, var(--ink)); /* 4.5 to 1 on the tint in light too */
+}
+.cm-note p {
+  font-family: var(--serif);
+  font-size: var(--text-lg);
+  line-height: 1.4;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.cm-note p[role='alert'] {
+  font-family: var(--ui);
+  font-size: var(--text-sm);
+  color: var(--accent);
+}
+.cm-text {
+  justify-self: start;
+  min-height: 44px;
+  margin-left: calc(var(--space-2) * -1);
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent);
+}
+.cm-text:hover {
+  text-decoration: underline;
+}
+.cm-ask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 var(--space-3);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+.cm-ask span {
+  flex: 1 0 100%;
+}
+.cm-ask .btn {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+.cm-write {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-4);
+}
+.cm-write label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--muted);
+}
+.cm-write textarea {
+  width: 100%;
+  min-height: 88px;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: var(--text-lg);
+  line-height: 1.4;
+  resize: vertical;
+}
+.cm-write .btn {
+  justify-self: end;
+}
+.cm-write p[role='alert'] {
+  font-size: var(--text-sm);
+  color: var(--accent);
+}
