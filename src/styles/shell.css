@@ -32,6 +32,7 @@
 .bar a[aria-current='page'] {
   color: var(--ink);
   font-weight: 600;
+  border-radius: 0;
   box-shadow: inset 0 -2px 0 var(--mark);
 }
 .bar .brand {
