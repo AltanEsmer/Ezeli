@@ -25,10 +25,21 @@ export default async function wipe() {
   const hidden = await db.from('hidden').delete().not('id', 'is', null)
   if (hidden.error) throw hidden.error
 
-  // The people the import made (they have a lasting id) go with them: the people page lists
-  // them, so another test suite's leftovers would show there.
-  const people = await db.from('people').delete().not('slug', 'is', null)
+  // Every person of this local stack goes: the ones the import made and the ones the tests made
+  // with `person add` (no lasting id), or they pile up run after run and the people list is cut off.
+  const people = await db.from('people').delete().not('id', 'is', null)
   if (people.error) throw people.error
+
+  // So do the sign-in users the tests made.
+  for (;;) {
+    const users = await db.auth.admin.listUsers({ page: 1, perPage: 1000 })
+    if (users.error) throw users.error
+    if (users.data.users.length === 0) break
+    for (const user of users.data.users) {
+      const removed = await db.auth.admin.deleteUser(user.id)
+      if (removed.error) throw removed.error
+    }
+  }
 
   // Photos are in one folder per chat, so look inside the folders too.
   const bucket = db.storage.from('photos')

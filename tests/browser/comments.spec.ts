@@ -40,7 +40,7 @@ test.describe('comments', () => {
     const { context, page } = await device(browser, 'en-US')
     const name = fruit('Limon')
     await open(page, addPerson(name))
-    const slip = page.getByRole('region', { name: 'Conversation' })
+    const talk = page.getByRole('region', { name: 'Conversation' })
 
     await write(page, '  İlk satır\n\nüçüncü <b>satır</b> & &amp;  ')
 
@@ -53,8 +53,8 @@ test.describe('comments', () => {
     await expect(added.locator('b')).toHaveCount(0)
     await expect(page.getByRole('textbox')).toHaveValue('')
     // The comment sits below the conversation and is not part of it.
-    expect((await added.boundingBox())!.y).toBeGreaterThan((await slip.boundingBox())!.y + (await slip.boundingBox())!.height)
-    await expect(slip.getByText('İlk satır')).toHaveCount(0)
+    expect((await added.boundingBox())!.y).toBeGreaterThan((await talk.boundingBox())!.y + (await talk.boundingBox())!.height)
+    await expect(talk.getByText('İlk satır')).toHaveCount(0)
     await expect(notes(page).getByText('Written here in Ezeli, later. Not part of the old chat.')).toBeVisible()
 
     await page.reload()

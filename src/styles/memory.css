@@ -71,6 +71,5 @@
 .viewer .prev { left: var(--space-1); }
 .viewer .next { right: var(--space-1); }
 @media (prefers-reduced-motion: no-preference) {
-  .viewer.out { animation: viewer-out var(--fade) ease-in forwards; }
-  @keyframes viewer-out { to { opacity: 0; } }
+  .viewer.out { animation: fade-out var(--fade) ease-in forwards; }
 }
