@@ -87,10 +87,12 @@ export function Memories({ onSessionLost, person = null, listName }: { onSession
   }, [ready?.chunks])
 
   if (timeline.status === 'loading') return <div className="tl" aria-busy="true" aria-label={t.loading} />
+  // On a person's page the name is the one main heading.
+  const Title = person ? 'h2' : 'h1'
   if (timeline.status === 'failed') {
     return (
       <section className="tl-note">
-        <h1>{t.failedTitle}</h1>
+        <Title>{t.failedTitle}</Title>
         <p>{t.failedBody}</p>
         <button className="btn" onClick={reload}>
           {t.retry}
@@ -101,7 +103,7 @@ export function Memories({ onSessionLost, person = null, listName }: { onSession
   if (timeline.chunks.length === 0) {
     return (
       <section className="tl-note">
-        <h1>{t.emptyTitle}</h1>
+        <Title>{t.emptyTitle}</Title>
         <p>{t.emptyBody}</p>
       </section>
     )

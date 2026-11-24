@@ -20,6 +20,7 @@
 .pp-head dl { display: grid; margin: var(--space-2) 0 0; color: var(--muted); }
 .pp-head dl div { display: flex; gap: var(--space-2); }
 .pp-head dt, .pp-head dd { margin: 0; }
+.pp-head p { color: var(--muted); }
 
 @media (min-width: 900px) {
   .pp { max-width: 1280px; padding: var(--space-6) var(--space-6) var(--space-7); }

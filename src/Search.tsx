@@ -54,6 +54,8 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
   const generation = useRef(0)
   const request = useRef<AbortController | null>(null)
   const searched = useRef(back ? wordsOf(back.text).slice(0, MOST_WORDS).join(' ') : '')
+  // The text that was typed when the results were last searched: what the box says may have moved on.
+  const searchedText = useRef(back?.text ?? '')
   const ready = state.status === 'ready' ? state : null
 
   useLayoutEffect(() => {
@@ -87,6 +89,7 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
       const words = all.slice(0, MOST_WORDS).join(' ')
       if (!force && words === searched.current) return
       searched.current = words
+      searchedText.current = typed
       const mine = (generation.current += 1)
       request.current?.abort()
       const controller = (request.current = new AbortController())
@@ -116,9 +119,9 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
     if (mine !== generation.current) return
     if (!page) return setState({ ...ready, busy: false, pageFailed: true })
     const chunks = page.length ? [...ready.chunks, { id: (ids.current += 1), memories: page }] : ready.chunks
-    saved = { text, chunks, more: page.length === PAGE, cut: ready.cut }
+    saved = { text: searchedText.current, chunks, more: page.length === PAGE, cut: ready.cut }
     setState({ ...ready, chunks, more: page.length === PAGE, busy: false, pageFailed: false })
-  }, [ready, text])
+  }, [ready])
 
   const type = (value: string) => {
     setText(value)

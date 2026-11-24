@@ -261,6 +261,25 @@ test.describe('search', () => {
     await expect(results(page).filter({ hasText: 'Saturday, May 1, 2021' })).toBeInViewport()
   })
 
+  test('coming back after the next page loaded shows the words that were searched, not what was typed since', async ({ page }) => {
+    await openSearch(page)
+    await find(page, 'deniz')
+    await expect(results(page)).toHaveCount(20)
+
+    // Too short to search without Enter, so the results stay those of "deniz".
+    await box(page).fill('ab')
+    await page.mouse.wheel(0, 100000)
+    const last = results(page).filter({ hasText: 'Saturday, May 1, 2021' })
+    await expect(last).toBeVisible()
+    await last.scrollIntoViewIfNeeded()
+    await last.getByRole('link').click()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Saturday, May 1, 2021')
+    await page.goBack()
+
+    await expect(box(page)).toHaveValue('deniz')
+    await expect(results(page).filter({ hasText: 'Saturday, May 1, 2021' })).toBeInViewport()
+  })
+
   test('goes on past a hundred matches: each once, newest first, and the page holds only the cards near the screen', async ({ page }) => {
     await openSearch(page)
     const keys: string[] = []

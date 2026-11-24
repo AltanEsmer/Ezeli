@@ -19,7 +19,7 @@ async function visitAll(page: Page, check: () => Promise<void>) {
   await expect(page.getByRole('heading', { name: 'People', level: 1 })).toBeVisible()
   await check()
 
-  await page.locator('a[href^="/p/"]').first().click()
+  await page.getByRole('list', { name: 'People' }).getByRole('link').first().click()
   await expect(page.getByRole('definition').first()).toBeVisible()
   await check()
 

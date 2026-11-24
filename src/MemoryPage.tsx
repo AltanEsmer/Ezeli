@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { type Language, formatDate, formatNameParts, language, t } from './i18n.ts'
 import { Comments } from './Comments.tsx'
+import { fadeMs } from './fade.ts'
 import { useWide } from './MemoryItem.tsx'
 import { type MemoryDetail, useMemory } from './memory.ts'
 import type { Person } from './session.ts'
@@ -66,7 +67,7 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
     const closed = () => {
       if ((history.state as { layer?: boolean } | null)?.layer) return
       setLeaving(true)
-      timer.current = window.setTimeout(() => setOpen(null), 160)
+      timer.current = window.setTimeout(() => setOpen(null), fadeMs())
     }
     window.addEventListener('popstate', closed)
     return () => {
@@ -75,10 +76,11 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
     }
   }, [])
 
-  // The arrow keys move between the photos on the stage.
+  // The arrow keys move between the photos on the stage, unless a key like Alt (the browser's Back) is
+  // held, a box has the focus or a dialog (the full-screen photo, the menu) is open.
   useEffect(() => {
     const move = (event: KeyboardEvent) => {
-      if (open !== null || (event.target as Element).closest('input, textarea')) return
+      if (open !== null || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || (event.target as Element).closest('input, textarea') || document.querySelector('[role="dialog"]')) return
       if (event.key === 'ArrowRight') setSelected((now) => Math.min(count - 1, now + 1))
       if (event.key === 'ArrowLeft') setSelected((now) => Math.max(0, now - 1))
     }

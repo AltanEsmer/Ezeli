@@ -66,6 +66,10 @@ export function pushLayer() {
   history.pushState({ depth: depth() + 1, layer: true, from: cameFrom() }, '')
 }
 
+// A page that was loaded fresh has no layer open, but the history step of one survives a reload: take
+// that step back, so the first Back leaves the screen instead of seeming to do nothing.
+if ((history.state as { layer?: boolean } | null)?.layer) history.back()
+
 // Back to the timeline: the browser's own back when this app has a screen behind, else forward to it.
 // A tap on a link of the app goes there without a reload; a modified tap is left to the browser.
 export const follow = (path: string) => (event: MouseEvent) => {

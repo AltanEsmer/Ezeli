@@ -64,6 +64,20 @@ test.describe('on a phone', () => {
     await expect(viewer).toHaveCount(0)
   })
 
+  test('reloading with a photo full screen leaves no step in the history that does nothing', async ({ page }) => {
+    await openAlbum(page)
+    await stage(page).locator('img').click()
+    await expect(page.getByRole('dialog', { name: 'Photo' })).toBeVisible()
+
+    await page.reload()
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await page.goBack()
+
+    // One Back leaves the memory, for the search it was opened from.
+    await expect(page).toHaveURL(/\/search$/)
+  })
+
   test('the column holds the date, the chat, the photo count and who sent the photos, in that order', async ({ page }) => {
     await openAlbum(page)
 
@@ -226,6 +240,24 @@ test.describe('on a PC', () => {
     await context.close()
   })
 
+  test('an arrow key with alt, ctrl, meta or shift held, or while the menu is open, leaves the photo alone', async ({ browser }) => {
+    const { context, page } = await openWide(browser, addPerson(fruit('Karpuz')))
+    await openFoundHere(page, 'hepsi', /June 12, 2016/)
+    await expect(stage(page).getByText('1 / 8')).toBeVisible()
+
+    for (const modifier of ['Alt', 'Control', 'Meta', 'Shift']) await page.keyboard.press(`${modifier}+ArrowRight`)
+    await page.getByRole('button', { name: /^Menu/ }).click()
+    await expect(page.getByRole('dialog', { name: 'Menu' })).toBeVisible()
+    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog', { name: 'Menu' })).toBeHidden()
+
+    // Still on the first photo: the next press is the second.
+    await page.keyboard.press('ArrowRight')
+    await expect(stage(page).getByText('2 / 8')).toBeVisible()
+    await context.close()
+  })
+
   test('a photo in the conversation shows on the stage; the stage opens full screen', async ({ browser }) => {
     const { context, page } = await openWide(browser, addPerson(fruit('Karpuz')))
     await openFoundHere(page, 'hepsi', /June 12, 2016/)
@@ -239,6 +271,20 @@ test.describe('on a PC', () => {
     await expect(page.getByRole('dialog', { name: 'Photo' }).getByText('6 / 8')).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog')).toHaveCount(0)
+    await context.close()
+  })
+
+  test('with the device set to less motion the full-screen photo is gone at once', async ({ browser }) => {
+    const { context, page } = await openWide(browser, addPerson(fruit('Karpuz')), { reducedMotion: 'reduce' })
+    await openFoundHere(page, 'hepsi', /June 12, 2016/)
+    await stage(page).locator('img').click()
+    const viewer = page.getByRole('dialog', { name: 'Photo' })
+    await expect(viewer).toBeVisible()
+
+    await viewer.getByRole('button', { name: 'Close' }).click()
+
+    // Well under the 160 ms of the fade.
+    await expect(viewer).toHaveCount(0, { timeout: 100 })
     await context.close()
   })
 
