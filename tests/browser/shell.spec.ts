@@ -73,6 +73,24 @@ test.describe('on a phone', () => {
     await expect(page.getByRole('button', { name: /^Menu/ })).toBeFocused()
   })
 
+  test('closing the menu twice in a row does not close it again when it is opened right after', async ({ page }) => {
+    await signedIn(page)
+    const menu = page.getByRole('dialog', { name: 'Menu' })
+    await page.getByRole('button', { name: /^Menu/ }).click()
+    await expect(menu).toBeVisible()
+
+    // The second Escape comes while the menu is still fading out.
+    await page.keyboard.press('Escape')
+    await page.waitForTimeout(100)
+    await page.keyboard.press('Escape')
+    await expect.poll(() => menu.count(), { intervals: [10] }).toBe(0)
+    await page.getByRole('button', { name: /^Menu/ }).click()
+
+    // Past the moment the second Escape would have closed it.
+    await page.waitForTimeout(300)
+    await expect(menu).toBeVisible()
+  })
+
   test('the private page, the bad-link page and the failed page are a name, a heading and a short paragraph', async ({ page }) => {
     await page.goto('/')
     await expect(page.getByRole('heading', { name: 'Ezeli is private' })).toBeVisible()
