@@ -2,6 +2,7 @@ import { useEffect, useSyncExternalStore } from 'react'
 import { getLanguage, subscribeLanguage, t } from './i18n.ts'
 import { Memories } from './Memories.tsx'
 import { MemoryPage } from './MemoryPage.tsx'
+import { PhotoImport } from './PhotoImport.tsx'
 import { Search } from './Search.tsx'
 import { PeoplePage, PersonPage } from './People.tsx'
 import { navigate, useRoute } from './route.ts'
@@ -49,12 +50,14 @@ function Signed({ person, onSignOut, onSessionLost }: { person: Person; onSignOu
   useEffect(() => {
     if (unknown) navigate('/', { replace: true })
   }, [unknown])
-  const place = route.name === 'search' ? 'search' : route.name === 'people' || route.name === 'person' ? 'people' : 'timeline'
+  const place = route.name === 'photo-import' || route.name === 'search' ? route.name : route.name === 'people' || route.name === 'person' ? 'people' : 'timeline'
   const screen = route.name === 'memory' ? `m/${route.key}` : route.name === 'person' ? `p/${route.id}` : route.name
   return (
     <Shell person={person} onSignOut={onSignOut} place={place} screen={screen} bare={route.name === 'memory'}>
       {route.name === 'memory' ? (
         <MemoryPage memoryKey={route.key} person={person} onSessionLost={onSessionLost} />
+      ) : route.name === 'photo-import' ? (
+        <PhotoImport person={person} onSessionLost={onSessionLost} />
       ) : route.name === 'search' ? (
         <Search onSessionLost={onSessionLost} />
       ) : route.name === 'people' ? (

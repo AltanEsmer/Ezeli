@@ -185,3 +185,12 @@ No phone number is stored or printed, with one exception: the list of senders wh
 ## Not handled yet
 
 - Discord: a symbolic link inside the export folder is followed (the exporter never writes one), and forwarded messages and exported threads are not read.
+
+## Importing standalone photos in the app
+
+Signed-in friends can open **Import photos** to select files and enter each photo's
+capture date, time, optional place, and optional comment. Each saved photo becomes a
+memory on the timeline. The capture time uses the device's time zone when entered.
+The upload form links to the saved memory. Comments appear with the memory's other
+comments. The browser prepares viewing and thumbnail WebP files for the private photos
+bucket and strips original metadata.

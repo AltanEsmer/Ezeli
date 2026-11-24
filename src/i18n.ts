@@ -64,6 +64,16 @@ const en = {
   people: 'People',
   noPeople: 'Nobody here yet',
   noPhotos: 'No photos yet',
+  importPhotos: 'Import photos',
+  choosePhotos: 'Choose photos',
+  takenAt: 'Date and time taken',
+  photoPlace: 'Place',
+  photoCaption: 'Comment',
+  cancelPhoto: 'Cancel',
+  savePhoto: 'Save photo',
+  savingPhoto: 'Saving…',
+  photoSaved: 'Photo saved.',
+  photoFormat: 'This photo could not be read. Try a JPG, PNG or WebP file.',
   photosSent: (n: string) => (n === '1' ? '1 photo sent' : `${n} photos sent`),
   firstMemory: 'First memory',
   latestMemory: 'Latest memory',
@@ -137,6 +147,16 @@ const tr: Labels = {
   people: 'Kişiler',
   noPeople: 'Henüz kimse yok',
   noPhotos: 'Henüz fotoğraf yok',
+  importPhotos: 'Fotoğraf aktar',
+  choosePhotos: 'Fotoğraf seç',
+  takenAt: 'Çekildiği tarih ve saat',
+  photoPlace: 'Yer',
+  photoCaption: 'Yorum',
+  cancelPhoto: 'Vazgeç',
+  savePhoto: 'Fotoğrafı kaydet',
+  savingPhoto: 'Kaydediliyor…',
+  photoSaved: 'Fotoğraf kaydedildi.',
+  photoFormat: 'Bu fotoğraf okunamadı. JPG, PNG veya WebP dosyası dene.',
   photosSent: (n: string) => `${n} fotoğraf gönderdi`,
   firstMemory: 'İlk anı',
   latestMemory: 'Son anı',
@@ -179,9 +199,9 @@ export function formatDate(lang: Language, moment: string | number | Date, zone:
   return new Intl.DateTimeFormat(lang, options).format(new Date(moment))
 }
 
-// A date with its time of day, as the reader's own clock says (no chat time zone), in the app's language.
-export function formatDateTime(lang: Language, moment: string | number | Date): string {
-  return new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(moment))
+// A date and time in the app's language, using the supplied zone or the reader's device zone.
+export function formatDateTime(lang: Language, moment: string | number | Date, zone?: string): string {
+  return new Intl.DateTimeFormat(lang, { dateStyle: 'medium', timeStyle: 'short', timeZone: zone }).format(new Date(moment))
 }
 
 // "Karpuz, Limon and Fıstık" / "Karpuz, Limon ve Fıstık", in parts: the names are the chats' own

@@ -12,5 +12,6 @@ import './styles/memory.css'
 import './styles/comments.css'
 import './styles/people.css'
 import './styles/search.css'
+import './styles/photo-import.css'
 
 createRoot(document.getElementById('root')!).render(<App />)

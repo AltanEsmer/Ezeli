@@ -6,7 +6,7 @@ import { type MouseEvent, useSyncExternalStore } from 'react'
 // part of the address), `/people`, and `/p/<id>` for one person by
 // their lasting id (the slug of the people file). Hosting must answer every path with
 // index.html (vercel.json); the dev server does it already.
-export type Route = { name: 'timeline' } | { name: 'memory'; key: string } | { name: 'people' } | { name: 'person'; id: string } | { name: 'search' }
+export type Route = { name: 'timeline' } | { name: 'memory'; key: string } | { name: 'people' } | { name: 'person'; id: string } | { name: 'search' } | { name: 'photo-import' }
 
 export const memoryPath = (key: string) => `/m/${encodeURIComponent(key)}`
 export const personPath = (id: string) => `/p/${encodeURIComponent(id)}`
@@ -14,6 +14,7 @@ export const personPath = (id: string) => `/p/${encodeURIComponent(id)}`
 export function parse(pathname: string): Route {
   if (/^\/people\/?$/.test(pathname)) return { name: 'people' }
   if (/^\/search\/?$/.test(pathname)) return { name: 'search' }
+  if (/^\/import\/?$/.test(pathname)) return { name: 'photo-import' }
   const person = pathname.match(/^\/p\/([^/]+)\/?$/)
   if (person) {
     try {
@@ -72,10 +73,10 @@ if ((history.state as { layer?: boolean } | null)?.layer) history.back()
 
 // Back to the timeline: the browser's own back when this app has a screen behind, else forward to it.
 // A tap on a link of the app goes there without a reload; a modified tap is left to the browser.
-export const follow = (path: string) => (event: MouseEvent) => {
+export const follow = (path: string, from?: From) => (event: MouseEvent) => {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
   event.preventDefault()
-  navigate(path)
+  navigate(path, { from })
 }
 
 export function goBack(fallback: string) {

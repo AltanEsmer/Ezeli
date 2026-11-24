@@ -5,7 +5,7 @@ import { follow } from './route.ts'
 import type { Person } from './session.ts'
 import { supabase } from './supabase.ts'
 
-type Place = 'timeline' | 'people' | 'search'
+type Place = 'timeline' | 'people' | 'search' | 'photo-import'
 
 // The shell of a signed-in person: the bar (left on a PC, top on a phone), the menu and the page it
 // frames. `bare` is a memory on a phone: only its own back link, so the photo gets the room.
@@ -27,6 +27,7 @@ export function Shell(props: { person: Person; onSignOut: () => void; place: Pla
         {link('timeline', '/', t.memories, 'home')}
         {link('people', '/people', t.people)}
         {link('search', '/search', t.search)}
+        {link('photo-import', '/import', t.importPhotos)}
         <button className="menu" aria-label={`${t.menu}: ${person.display_name}`} aria-haspopup="dialog" onClick={() => setMenuOpen(true)}>
           <span className="word">{t.menu}</span>
           <span className="name" lang="tr">
