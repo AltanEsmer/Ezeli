@@ -84,7 +84,8 @@ const blockShape = (memory: MemoryCard) => (memory.photos.length === 1 ? Math.mi
 
 // Wide: the photos in one row at a set height, each at its own shape. When all of them nearly fit,
 // the row gives up some height to show them all (down to LOWEST); otherwise it shows as many as
-// fit and one more cut to what is left of the row, and the last carries "+N".
+// fit and one more cut to what is left of the row (or, when little is left, the last one grows to
+// fill it), so the row is always full, and the last carries "+N".
 const ROW = 224
 const LOWEST = 188
 const GAP = 2
@@ -102,8 +103,9 @@ function strip(memory: MemoryCard, width: number): { photos: Photo[]; height: nu
     used = next
     fits++
   }
-  const fill = fits < photos.length && width - used - GAP >= LEAST
-  return { photos: photos.slice(0, Math.max(1, fits + (fill ? 1 : 0))), height: ROW, fill }
+  const fill = fits < photos.length
+  const extra = fill && width - used - GAP >= LEAST
+  return { photos: photos.slice(0, Math.max(1, fits + (extra ? 1 : 0))), height: ROW, fill }
 }
 
 // The place of one photo: it holds its shape while the photo loads, and when it fails to load. The

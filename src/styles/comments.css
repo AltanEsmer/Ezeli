@@ -39,7 +39,7 @@
 }
 .cm-head time {
   font-weight: 400;
-  color: color-mix(in srgb, var(--muted) 70%, var(--ink)); /* 4.5 to 1 on the tint in light too */
+  color: var(--muted);
 }
 .cm-note p {
   font-family: var(--serif);

@@ -36,7 +36,7 @@ function useLoad<T>(fetch: () => PromiseLike<{ data: unknown; error: unknown }>,
 
 function Failed({ reload }: { reload: () => void }) {
   return (
-    <section className="pp-note" role="alert">
+    <section className="tl-note" role="alert">
       <h2>{t.failedTitle}</h2>
       <p>{t.failedBody}</p>
       <button className="btn" onClick={reload}>
@@ -64,7 +64,7 @@ export function PeoplePage({ onSessionLost }: { onSessionLost: () => void }) {
       <h1>{t.people}</h1>
       {state.status === 'failed' && <Failed reload={reload} />}
       {state.status === 'ready' && people.length === 0 && (
-        <section className="pp-note">
+        <section className="tl-note">
           <h2>{t.noPeople}</h2>
           <p>{t.emptyBody}</p>
         </section>

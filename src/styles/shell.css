@@ -106,7 +106,8 @@
   }
 }
 
-/* The menu: one card in the middle of a dimmed page. */
+/* The menu: one card on a dimmed page. Narrow: in the middle under the top. Wide: beside the name
+   at the bottom of the bar that opens it. */
 .scrim {
   position: fixed;
   inset: 0;
@@ -182,10 +183,28 @@
   font-size: var(--text-sm);
   color: var(--accent);
 }
+@media (min-width: 900px) {
+  .sheet {
+    top: auto;
+    bottom: var(--space-4);
+    left: calc(var(--side) + var(--space-2));
+    translate: none;
+    max-height: calc(100dvh - 2 * var(--space-4));
+  }
+}
 @media (prefers-reduced-motion: no-preference) {
   .scrim,
   .sheet {
     animation: fade-in var(--fade) ease-out;
+  }
+  .leaving .scrim,
+  .leaving .sheet {
+    animation: fade-out var(--fade) ease-in forwards;
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
   }
 }
 

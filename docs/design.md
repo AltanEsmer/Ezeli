@@ -1,6 +1,6 @@
 # Design
 
-The Quiet Gallery look: neutral surfaces, the photos as the only colour, one terracotta accent. Dark is the first theme and light gets equal care. The theme follows the device; there is no switch. Source: spec issue 50. Each screen ticket adds its screen to the end of this file and deletes its old styles.
+The Quiet Gallery look: neutral surfaces, the photos as the only colour, one terracotta accent. Dark is the first theme and light gets equal care. The theme follows the device; there is no switch. Source: spec issue 50. Each screen ticket added its screen to this file; ticket 58 checked the whole.
 
 ## Where the styles live
 
@@ -23,14 +23,14 @@ A rebuilt screen gets its own file (for example `timeline.css`), imported in `ma
 | `--bg` | `#0E0F11` | `#FAFAF8` | page background |
 | `--surface` | `#17181B` | `#FFFFFF` | blocks, the menu |
 | `--ink` | `#ECECEA` | `#16181B` | text |
-| `--muted` | `#9A9EA6` | `#6B7078` | secondary text |
+| `--muted` | `#9A9EA6` | `#636870` | secondary text |
 | `--line` | `#26282C` | `#E6E6E1` | 1 px lines |
 | `--accent` | `#E0734F` | `#A83E1C` | accent for text |
 | `--mark` | `#E0734F` | `#C8502D` | accent for rules and marks |
 | `--tint` | `--mark` 12% into `--surface` | `--mark` 8% into `--bg` | the block behind a comment |
 | `--stage` | `#08090A` | `#F0F0EC` | the stage behind a large photo |
 
-Text keeps 4.5 to 1 or more against what it sits on. No shadows, no tilt, no texture. Photos are the only strong colour.
+Text keeps 4.5 to 1 or more against what it sits on, in both themes (the PR of ticket 58 holds the table of every pair; the lowest is muted on the tint in light at 4.84 and accent on the tint in dark at 4.87). Disabled controls are the one exception. No shadows, no tilt, no texture. Photos are the only strong colour.
 
 ## Type
 
@@ -67,7 +67,7 @@ One `<nav class="bar" aria-label="Pages">` and one `<main class="content">` in `
 
 ## The menu
 
-A dialog (`role="dialog"`, `aria-modal`) card of 360px at most, centred under the top, over a dimmed page, opened by the bar's person button (accessible name `Menu: <name>`). It holds, in order: "Signed in as", the name, the owner mark for an owner, the language switch (Türkçe and English, each in its own language, `aria-pressed`), and the sign-out button. The close button is first; Tab stays inside; Escape and the dimmed page close it and the focus goes back to the button. It fades in; it does not fade out.
+A dialog (`role="dialog"`, `aria-modal`) card of 360px at most, over a dimmed page: centred under the top on a phone, and on a PC beside the person's name at the bottom of the bar (its left edge 8px right of the bar, 16px above the window's bottom), opened by the bar's person button (accessible name `Menu: <name>`). It holds, in order: "Signed in as", the name, the owner mark for an owner, the language switch (Türkçe and English, each in its own language, `aria-pressed`), and the sign-out button. The close button is first; Tab stays inside; Escape and the dimmed page close it and the focus goes back to the button. It fades in and out (160 ms); with less motion it just appears and goes.
 
 ## The small pages
 
@@ -80,7 +80,7 @@ One part draws a memory wherever a list of memories is shown: `MemoryItem` (`src
 **A memory (`article`, one link to the memory's address).** Date as a heading (15px, 600), the line of conversation (Newsreader italic, 18px narrow and 21px wide, 2 lines narrow and 4 wide, left out when the memory has no text), "Sent by" with the names, and the counts (13px, muted). The comment count is in the accent and is not there at all when there are none. Names and the line carry `lang="tr"`.
 
 - Narrow: the block of photos, then the words, 38px between memories, about two to a screen. The block has 2px gaps and a 6px corner. One photo: as wide as the block, in its own shape from 1 to 1.6 (wide, never tall). Two: halves, 1.6 to 1. Three: one large on the left (2/3), two stacked. Four or more: two by two, 1.4 to 1; with more than four, the fourth carries "+N" (the photos not shown).
-- Wide: one row, 46px apart. The words in a column of 280px, 40px gap, the photos on the right in a box 224px high, each at its own shape (0.4 to 3), 2px gaps. When all photos nearly fit, the row gives up height to show all, down to 188px. Otherwise as many as fit at 224px, then one more cut to what is left of the row (when at least 96px), and the last carries "+N". A memory carries at most six photos from the database; "+N" counts from the full count.
+- Wide: one row, 46px apart. The words in a column of 280px, 40px gap, the photos on the right in a box 224px high, each at its own shape (0.4 to 3), 2px gaps. When all photos nearly fit, the row gives up height to show all, down to 188px. Otherwise as many as fit at 224px, then one more cut to what is left of the row (when at least 96px; when less is left the last photo grows to fill it), so a row is always full, and the last carries "+N". A memory carries at most six photos from the database; "+N" counts from the full count.
 - A photo's place (`Shot`) holds its shape while loading and when failed (muted "Photo could not load"), on `--line`. The photo fades in (`--fade`) once loaded; with less motion it simply shows.
 - The part reads the 900px rule with `matchMedia` (the same query as the CSS), because wide shows a different number of photos, not only a different layout.
 
@@ -90,7 +90,7 @@ One part draws a memory wherever a list of memories is shown: `MemoryItem` (`src
 
 **Wide frame.** The page is the content area right of the bar: 40px left, `--rail` + 24px right for the list of years, months at most 1180px wide. Narrow: 16px gutter on each memory and heading, the strip of years edge to edge.
 
-**Empty and failed** timeline: a centred heading (24px), one muted sentence, and Try again where it helps (`.tl-note`).
+**Empty and failed** timeline: a centred heading (24px), one muted sentence, and Try again where it helps (`.tl-note`; the people screens and search use the same one).
 
 ## The memory screen (ticket 54)
 
@@ -105,7 +105,7 @@ One part draws a memory wherever a list of memories is shown: `MemoryItem` (`src
 - Names, the chat's name and messages carry `lang="tr"`; a name is a link of 44px (`.nm`) when the person has a lasting id.
 - Comments (`Comments.tsx`, ticket 55) sit in the column after the conversation; see "Comments" below.
 - A photo fades in when it has loaded (`Pic`); one that cannot load is a plain `--line` box in its shape (on the stage it keeps the shape inside the stage).
-- The full-screen view: black, whatever the theme. A header with "n / N" and a Close button, arrows (a glyph, no circle) on both sides, the photos in a strip that snaps (swipe), Escape and the back button close it, Tab stays inside. It fades in and out (160ms); with less motion it just appears and goes.
+- The full-screen view: black, whatever the theme (contrast: ink on black 17.8 to 1, accent `#FFB59D` on black 12.4). A header with "n / N" and a Close button, arrows (a glyph, no circle) on both sides, the photos in a strip that snaps (swipe), Escape and the back button close it, Tab stays inside. It fades in and out (160ms); with less motion it just appears and goes.
 - A memory that is not there, or failed to load: a small page in the `.notice` style (name, heading, one paragraph, buttons "Try again" where it helps and "All memories").
 
 ## Comments (ticket 55)
@@ -113,21 +113,21 @@ One part draws a memory wherever a list of memories is shown: `MemoryItem` (`src
 `src/Comments.tsx` with `comments.css` (classes `cm cm-*`). A comment is something written in Ezeli later, so it is set apart from the old chat. Who may add, delete (the writer, or an owner, after one "Delete this comment?" question) and what happens on a failed save or delete is unchanged. Nobody edits.
 
 - A section (region "Comments") under a 1px line, 40px below the conversation: the heading `h2` "Comments" (13px, 600, accent), then one muted line, "Written here in Ezeli, later. Not part of the old chat."
-- Each comment is an `article`: a block on `--tint` with a 2px `--mark` line on the left, 12px by 16px padding, 8px apart, square on the line side. The head is the writer's name (13px, 600, Inter Tight) and the date beside it (13px, muted, mixed 30% toward ink so it keeps 4.5 to 1 on the tint in light); the text is Newsreader 18px, line breaks kept. The name and the text carry `lang="tr"`.
+- Each comment is an `article`: a block on `--tint` with a 2px `--mark` line on the left, 12px by 16px padding, 8px apart, square on the line side. The head is the writer's name (13px, 600, Inter Tight) and the date beside it (13px, muted); the text is Newsreader 18px, line breaks kept. The name and the text carry `lang="tr"`.
 - Delete is a text button (13px, 600, accent, 44px high) under the text, for the writer and for an owner. Asking: the question, a plain `.btn` "Yes, delete" and a text button "Keep it". A failed delete shows its line in accent text.
 - Writing: a label "Add your note", one plain field (Newsreader 18px, `--surface`, 1px `--line`, 6px corners, 3 rows) and one `.btn` "Add comment" on the right, off until there is text. A new comment appears at once below the others and the field empties. A failed save shows a line in accent text under the button.
 - Same at both sizes: the section fills the column (the page column narrow, the 420px column wide). No tilt, no shadow, no tape.
-- Contrast: accent text on the tint is 4.87 to 1 in dark and 5.36 in light; the date 7.4 and 6.36.
+- Contrast: accent text on the tint is 4.87 to 1 in dark and 5.38 in light; the muted date 5.65 and 4.84.
 
 ## People and a person (ticket 56)
 
-`src/People.tsx` (`PeoplePage`, `PersonPage`) with `people.css` (classes `pp pp-head pp-strip pp-note`; do not reuse). No back header on either: the bar's People link is the way back. Both fill `<main class="content">` directly.
+`src/People.tsx` (`PeoplePage`, `PersonPage`) with `people.css` (classes `pp pp-head pp-strip`; do not reuse). No back header on either: the bar's People link is the way back. Both fill `<main class="content">` directly.
 
 - **People.** A page with the heading "People" (`--text-xxl`), then a list (`ul`, label People) of persons. A person is one link (accessible name: the name) holding the name as `h2` (32px, 600, `lang="tr"`) and a strip of up to four photos they sent, most recent first. A 1px `--line` rule above each person, 16px of room around.
-- **The strip.** All photos at one height (112px narrow, 144px wide), each as wide as its shape (shape kept between 0.8 and 1.5, cropped to fill), 2px apart, 6px corners on the strip. Photos fade in (`Shot`); a photo that cannot load is a `--line` box. Four wide photos shrink together to fit the card. A person with no photos has the name and one muted line "No photos yet". No profile photo, no initials, no circles.
+- **The strip.** All photos at one height (112px narrow, 160px wide), each starting as wide as its shape (shape kept between 0.8 and 1.5, cropped to fill), 2px apart, 6px corners on the strip. They grow or shrink together, so the strip always fills the width of the card, on a phone too. Photos fade in (`Shot`); a photo that cannot load is a `--line` box. A person with no photos has the name and one muted line "No photos yet". No profile photo, no initials, no circles.
 - **Columns.** Narrow: one column, 16px gutter. Wide (900 px up): two columns, three from 1300 px, 40px between columns, 40px gutter, the page 1280px at most (left aligned next to the bar). Order is by name, as before.
 - **A person.** The name as `h1` (32px, 600, `lang="tr"`), under it one muted line in a `dl`: "First memory <date>", "Latest memory <date>" and "6 photos sent" ("No photos yet" when none), wrapping on a phone. Then the memories: `Memories` with `person`, the same part, the same list of years and month headings as the timeline (the `.tl` frame carries its own gutters, so the header aligns with them: 16px narrow, `--space-6` wide).
-- **Loading, empty, failed.** Loading is an empty `<div aria-busy>`. Empty ("Nobody here yet") and failed ("Could not load" with "Try again") are `pp-note`: a heading, a muted sentence, a button where it helps, centred 64px below the heading.
+- **Loading, empty, failed.** Loading is an empty `<div aria-busy>`. Empty ("Nobody here yet") and failed ("Could not load" with "Try again") are `tl-note` (the timeline's note, shared): a heading, a muted sentence, a button where it helps, centred 64px below the heading.
 - **A person who is not there** is a `.notice` page (name Ezeli, heading "This person is not here", one paragraph, "All memories"), like the memory-missing page. Inside the bar it is as high as the window below the bar on a phone and as the window on a PC.
 
 ## Search (ticket 57)
@@ -138,3 +138,7 @@ One part draws a memory wherever a list of memories is shown: `MemoryItem` (`src
 - **Results.** The timeline's own part and frame (`MemoryItem`, `.tl`, month headings, ends), newest first; no list of years. Narrow: 16px gutter, one block per memory. Wide: the header is 840px at most and lines up with the rows (`--space-6` from the bar), rows as on the timeline.
 - **Nothing found, failed.** `tl-note` (heading, muted sentence, a "Try again" button for a failed search): centred on a phone, left aligned with the box on a PC. A failed next page keeps the results and says so at their end with "Try again".
 - Matching, the 350 ms pause, Enter for short words, paging and coming back to the same results are unchanged.
+
+## The whole interface (ticket 58)
+
+Nothing of the first look is left: `old.css`, the two old fonts, paper, tape, tilt and handwriting are gone from the styles, the code and the dependencies; no test finds anything by class name. One browser test (`whole-interface.spec.ts`) visits the five screens (timeline, memory, people, a person, search), the private page and the menu at 390, 900, 1440 and 1920 px and checks none scrolls sideways; a second visits them all with the device set to less motion and checks that nothing animates. The pairs of text and surface in both themes were computed from the tokens (not a browser test) and every one is 4.5 to 1 or more.

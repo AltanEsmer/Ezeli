@@ -37,6 +37,8 @@ export default defineConfig({
     // A long chat for the memory screen: it adds a memory, so it runs after everything that counts.
     { name: 'memory-screen-import', testMatch: 'memory-screen.setup.ts', dependencies: ['memory-list'] },
     { name: 'memory-screen', testMatch: 'memory-screen.spec.ts', dependencies: ['memory-screen-import'] },
+    // Last: every screen, the private page and the menu at four widths, and less motion.
+    { name: 'whole-interface', testMatch: 'whole-interface.spec.ts', dependencies: ['memory-screen'] },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',

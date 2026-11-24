@@ -42,7 +42,7 @@
     --bg: #fafaf8;
     --surface: #ffffff;
     --ink: #16181b;
-    --muted: #6b7078;
+    --muted: #636870;
     --line: #e6e6e1;
     --accent: #a83e1c;
     --mark: #c8502d;
@@ -111,7 +111,7 @@ textarea {
   padding: 0 var(--space-4);
   border-radius: var(--radius);
   background: var(--ink);
-  color: var(--on-accent, var(--bg));
+  color: var(--bg);
   font-weight: 600;
   text-decoration: none;
 }

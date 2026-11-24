@@ -45,13 +45,20 @@ export function Shell(props: { person: Person; onSignOut: () => void; place: Pla
 function Menu(props: { person: Person; onClose: () => void; onSignOut: () => void }) {
   const card = useRef<HTMLDivElement>(null)
   const closeButton = useRef<HTMLButtonElement>(null)
+  const [leaving, setLeaving] = useState(false)
   const { onClose } = props
+  // The menu fades out before it goes (at once when the device is set to less motion).
+  const leave = useCallback(() => {
+    setLeaving(true)
+    const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+    setTimeout(onClose, still ? 0 : 160)
+  }, [onClose])
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null
     closeButton.current?.focus()
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') return onClose()
+      if (event.key === 'Escape') return leave()
       if (event.key !== 'Tab' || !card.current) return
       // Keep Tab inside the card while it is open.
       const inside = [...card.current.querySelectorAll<HTMLElement>('button')]
@@ -73,13 +80,13 @@ function Menu(props: { person: Person; onClose: () => void; onSignOut: () => voi
       window.removeEventListener('keydown', onKey)
       opener?.focus()
     }
-  }, [onClose])
+  }, [leave])
 
   return (
-    <>
-      <div className="scrim" onClick={onClose} />
+    <div className={leaving ? 'leaving' : undefined}>
+      <div className="scrim" onClick={leave} />
       <div ref={card} className="sheet" role="dialog" aria-modal="true" aria-label={t.menu}>
-        <button ref={closeButton} className="x" aria-label={t.close} onClick={onClose}>
+        <button ref={closeButton} className="x" aria-label={t.close} onClick={leave}>
           ×
         </button>
         <small>{t.signedInAs}</small>
@@ -92,7 +99,7 @@ function Menu(props: { person: Person; onClose: () => void; onSignOut: () => voi
           {t.signOut}
         </button>
       </div>
-    </>
+    </div>
   )
 }
 
