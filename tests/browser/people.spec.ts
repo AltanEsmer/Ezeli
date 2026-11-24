@@ -70,7 +70,7 @@ test.describe("a person's page", () => {
     await page.goto('/p/cilek')
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Çilek')
-    await expect(page.getByRole('definition').filter({ hasText: 'No photos yet' })).toBeVisible()
+    await expect(page.getByText('No photos yet')).toBeVisible()
     await expect(articles(page)).toHaveCount(1)
     await expect(articles(page).getByRole('heading')).toHaveText('Saturday, August 3, 2019')
   })
