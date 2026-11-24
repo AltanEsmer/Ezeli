@@ -143,10 +143,8 @@ export function PersonPage({ id, onSessionLost }: { id: string; onSessionLost: (
               </div>
             </>
           )}
-          <div>
-            <dd>{person.photo_count === 0 ? t.noPhotos : t.photosSent(String(person.photo_count))}</dd>
-          </div>
         </dl>
+        <p>{person.photo_count === 0 ? t.noPhotos : t.photosSent(String(person.photo_count))}</p>
       </header>
       <Memories onSessionLost={onSessionLost} person={id} listName={person.name} />
     </>

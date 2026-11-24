@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { fadeMs } from './fade.ts'
 import { type Language, getLanguage, setLanguage, subscribeLanguage, t } from './i18n.ts'
 import { follow } from './route.ts'
 import type { Person } from './session.ts'
@@ -46,13 +47,16 @@ function Menu(props: { person: Person; onClose: () => void; onSignOut: () => voi
   const card = useRef<HTMLDivElement>(null)
   const closeButton = useRef<HTMLButtonElement>(null)
   const [leaving, setLeaving] = useState(false)
+  const timer = useRef<number>(undefined)
   const { onClose } = props
-  // The menu fades out before it goes (at once when the device is set to less motion).
+  // The menu fades out before it goes (at once when the device is set to less motion). Leaving twice
+  // is still one close.
   const leave = useCallback(() => {
+    if (timer.current !== undefined) return
     setLeaving(true)
-    const still = matchMedia('(prefers-reduced-motion: reduce)').matches
-    setTimeout(onClose, still ? 0 : 160)
+    timer.current = window.setTimeout(onClose, fadeMs())
   }, [onClose])
+  useEffect(() => () => clearTimeout(timer.current), [])
 
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null

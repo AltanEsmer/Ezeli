@@ -70,7 +70,7 @@ test.describe("a person's page", () => {
     await page.goto('/p/cilek')
 
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Çilek')
-    await expect(page.getByRole('definition').filter({ hasText: 'No photos yet' })).toBeVisible()
+    await expect(page.getByText('No photos yet')).toBeVisible()
     await expect(articles(page)).toHaveCount(1)
     await expect(articles(page).getByRole('heading')).toHaveText('Saturday, August 3, 2019')
   })
@@ -139,6 +139,15 @@ test.describe("a person's page", () => {
     // The memory that names them is there for the person who wrote it.
     await page.goto('/p/limon')
     await expect(articles(page).filter({ hasText: 'January 18, 2024' })).toHaveCount(1)
+  })
+
+  test('has one main heading, the name, also when their memories could not be loaded', async ({ page }) => {
+    await signIn(page)
+    await page.route(/\/rpc\/timeline_page/, (route) => route.fulfill({ status: 500, json: { message: 'no' } }))
+    await page.goto('/p/limon')
+
+    await expect(page.getByRole('heading', { name: 'Could not load' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Limon')
   })
 
   test('says so when the person is not there', async ({ page }) => {
