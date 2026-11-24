@@ -141,6 +141,15 @@ test.describe("a person's page", () => {
     await expect(articles(page).filter({ hasText: 'January 18, 2024' })).toHaveCount(1)
   })
 
+  test('has one main heading, the name, also when their memories could not be loaded', async ({ page }) => {
+    await signIn(page)
+    await page.route(/\/rpc\/timeline_page/, (route) => route.fulfill({ status: 500, json: { message: 'no' } }))
+    await page.goto('/p/limon')
+
+    await expect(page.getByRole('heading', { name: 'Could not load' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Limon')
+  })
+
   test('says so when the person is not there', async ({ page }) => {
     await signIn(page)
     await page.goto('/p/nobody')
