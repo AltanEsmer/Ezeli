@@ -198,6 +198,22 @@ test.describe('on a PC', () => {
     await context.close()
   })
 
+  test('one photo in a narrow window fills its row, cropped around its centre, and is never wider than the row', async ({ browser }) => {
+    // At 900 px the photos have 244 px, less than one 4 to 3 photo at the height of the row.
+    const { context, page } = await openWide(browser, addPerson(fruit('Karpuz')), { width: 900 })
+    await openJuneWide(page)
+
+    await settled(async () => {
+      const row = june(page).nth(fourteenth)
+      await expect(row.locator('[data-photo]')).toHaveCount(1)
+      const [photo] = await places(row)
+      const card = (await row.boundingBox())!
+      expect(photo!.x + photo!.width).toBeLessThanOrEqual(card.x + card.width + 1)
+      expect(photo!.width).toBeGreaterThan(200)
+    })
+    await context.close()
+  })
+
   test('the list of years at the right edge shows the year in view and jumps to a year or month', async ({ browser }) => {
     const { context, page } = await openWide(browser, addPerson(fruit('Karpuz')))
     await expect(page.getByRole('article').first()).toBeVisible()
