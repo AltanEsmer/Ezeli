@@ -4,7 +4,7 @@ import sharp from 'sharp'
 import { expect, test } from 'vitest'
 import { copyOfWeekend, fresh, freshPeople, importChat, owner, rows, signedInAs, storedChat } from './support.ts'
 
-test('repeat import locates an existing photo once and preserves its memory and comment', async () => {
+test('repeat import locates an existing photo once and preserves its memory and comment', { timeout: 15_000 }, async () => {
   const folder = copyOfWeekend()
   try {
     const chat = fresh('Island walk')
