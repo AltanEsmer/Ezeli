@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, useSyncExternalStore } from 'react'
+import { lazy, Suspense, useEffect, useRef, useSyncExternalStore } from 'react'
+import type { GlobeView } from './globeCamera.ts'
 import { GlobeBoundary } from './GlobeUnavailable.tsx'
 import { getLanguage, subscribeLanguage, t } from './i18n.ts'
 import { Memories } from './Memories.tsx'
@@ -41,13 +42,14 @@ export function App() {
         </Notice>
       )
     case 'in':
-      return <Signed person={session.person} onSignOut={signOut} onSessionLost={reload} />
+      return <Signed key={session.person.id} person={session.person} onSignOut={signOut} onSessionLost={reload} />
   }
 }
 
 // The screens of a signed-in person, by address, inside the shell.
 function Signed({ person, onSignOut, onSessionLost }: { person: Person; onSignOut: () => void; onSessionLost: () => void }) {
   const route = useRoute()
+  const globe = useRef<GlobeView>({})
   // A path the app does not know is the timeline, and says so in the address bar.
   const unknown = route.name === 'timeline' && location.pathname !== '/'
   useEffect(() => {
@@ -67,7 +69,7 @@ function Signed({ person, onSignOut, onSessionLost }: { person: Person; onSignOu
       ) : route.name === 'globe' ? (
         <GlobeBoundary>
           <Suspense fallback={<div aria-busy="true" aria-label={t.loading} />}>
-            <Globe onSessionLost={onSessionLost} />
+            <Globe onSessionLost={onSessionLost} view={globe.current} />
           </Suspense>
         </GlobeBoundary>
       ) : route.name === 'search' ? (
