@@ -115,6 +115,14 @@ test('photos at a shared location stay individually reachable and Back returns t
   const path = new URL(page.url()).pathname
   await page.goBack()
   await expect(viewer).toBeHidden()
+
+  // Visiting another globe from the desktop shell must leave the earlier camera alone.
+  await page.setViewportSize({ width: 1100, height: 844 })
+  await page.getByRole('link', { name: 'Globe', exact: true }).click()
+  await globe.press('ArrowRight')
+  await page.goBack()
+  await expect(page).toHaveURL(new RegExp(path + '$'))
+  await page.setViewportSize({ width: 390, height: 844 })
   await page.getByRole('button', { name: 'Globe' }).click()
   await expect(shared).toBeVisible()
   expect(await shared.boundingBox()).toEqual(location)
