@@ -9,7 +9,15 @@ type Place = 'timeline' | 'people' | 'search' | 'photo-import'
 
 // The shell of a signed-in person: the bar (left on a PC, top on a phone), the menu and the page it
 // frames. `bare` is a memory on a phone: only its own back link, so the photo gets the room.
-export function Shell(props: { person: Person; onSignOut: () => void; place: Place; screen: string; bare: boolean; children: React.ReactNode }) {
+export function Shell(props: {
+  person: Person
+  onSignOut: () => void
+  place: Place
+  screen: string
+  bare: boolean
+  photoImport: React.ReactNode
+  children: React.ReactNode
+}) {
   const [menuOpen, setMenuOpen] = useState(false)
   const closeMenu = useCallback(() => setMenuOpen(false), [])
   const { person } = props
@@ -35,10 +43,15 @@ export function Shell(props: { person: Person; onSignOut: () => void; place: Pla
           </span>
         </button>
       </nav>
-      {/* A new screen is a new element: it fades in, and the bar stays. */}
-      <main key={props.screen} className="content fade-in">
-        {props.children}
+      {/* Keep selected files and form values when a friend opens a saved memory. */}
+      <main hidden={props.place !== 'photo-import'} className="content fade-in">
+        {props.photoImport}
       </main>
+      {props.place !== 'photo-import' && (
+        <main key={props.screen} className="content fade-in">
+          {props.children}
+        </main>
+      )}
       {menuOpen && <Menu person={person} onClose={closeMenu} onSignOut={props.onSignOut} />}
     </div>
   )

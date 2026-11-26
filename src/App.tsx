@@ -53,11 +53,14 @@ function Signed({ person, onSignOut, onSessionLost }: { person: Person; onSignOu
   const place = route.name === 'photo-import' || route.name === 'search' ? route.name : route.name === 'people' || route.name === 'person' ? 'people' : 'timeline'
   const screen = route.name === 'memory' ? `m/${route.key}` : route.name === 'person' ? `p/${route.id}` : route.name
   return (
-    <Shell person={person} onSignOut={onSignOut} place={place} screen={screen} bare={route.name === 'memory'}>
+    <Shell
+      person={person} onSignOut={onSignOut} place={place} screen={screen} bare={route.name === 'memory'}
+      photoImport={<PhotoImport key={person.id} person={person} onSessionLost={onSessionLost} />}
+    >
       {route.name === 'memory' ? (
         <MemoryPage memoryKey={route.key} person={person} onSessionLost={onSessionLost} />
       ) : route.name === 'photo-import' ? (
-        <PhotoImport person={person} onSessionLost={onSessionLost} />
+        null
       ) : route.name === 'search' ? (
         <Search onSessionLost={onSessionLost} />
       ) : route.name === 'people' ? (
