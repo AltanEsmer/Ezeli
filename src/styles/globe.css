@@ -1,0 +1,70 @@
+.globe {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  max-width: 840px;
+  margin-inline: auto;
+  padding: var(--space-5) var(--space-4) var(--space-6);
+}
+.globe header { width: 100%; }
+.globe h1 {
+  font: 600 var(--text-xxl) / 1.1 var(--ui);
+}
+.globe header p {
+  margin-top: var(--space-2);
+  color: var(--muted);
+}
+.globe-stage {
+  position: relative;
+  width: min(100%, 580px);
+}
+.globe-stage svg {
+  display: block;
+  width: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+.globe-stage svg:active { cursor: grabbing; }
+.globe-earth { fill: var(--stage); stroke: var(--line); stroke-width: 4; }
+.globe-land { fill: color-mix(in srgb, var(--muted) 52%, var(--surface)); }
+.globe-grid { fill: none; stroke: var(--surface); stroke-opacity: 0.6; stroke-width: 2; }
+.globe-pin {
+  position: absolute;
+  translate: -50% -50%;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+}
+.globe-pin::after {
+  content: '';
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  background: var(--mark);
+}
+.globe-pin[aria-pressed='true']::after { outline: 2px solid var(--ink); }
+.globe-controls { display: flex; gap: var(--space-2); }
+.globe-controls button {
+  min-width: 44px;
+  min-height: 44px;
+  text-align: center;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.globe-controls button:disabled { opacity: 0.5; cursor: default; }
+.globe-preview {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  text-decoration: none;
+  border-radius: var(--radius);
+}
+.globe-preview .shot { border-radius: var(--radius); }
