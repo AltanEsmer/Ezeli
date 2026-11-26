@@ -18,6 +18,8 @@ test('restores playback in place, retains an omitted file, and hides one same-mi
     rmSync(first)
     load()
     await page.goto(addPerson(fruit('Karpuz')))
+    await page.getByRole('link', { name: 'Search', exact: true }).click()
+    await page.getByRole('searchbox').fill('First clip caption')
     await page.getByRole('article').filter({ hasText: 'Monday, November 21, 2022' }).getByRole('link').click()
     const memory = page.url()
     await expect(conversation.getByText('First clip caption')).toBeVisible()
