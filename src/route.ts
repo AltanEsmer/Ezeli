@@ -6,14 +6,16 @@ import { type MouseEvent, useSyncExternalStore } from 'react'
 // part of the address), `/people`, and `/p/<id>` for one person by
 // their lasting id (the slug of the people file). Hosting must answer every path with
 // index.html (vercel.json); the dev server does it already.
-export type Route = { name: 'timeline' } | { name: 'memory'; key: string } | { name: 'people' } | { name: 'person'; id: string } | { name: 'search' } | { name: 'photo-import' }
+export type Route = { name: 'timeline' } | { name: 'memory'; key: string } | { name: 'people' } | { name: 'person'; id: string } | { name: 'search' } | { name: 'photo-import' } | { name: 'globe' }
 
+export const globePath = '/globe'
 export const memoryPath = (key: string) => `/m/${encodeURIComponent(key)}`
 export const personPath = (id: string) => `/p/${encodeURIComponent(id)}`
 
 export function parse(pathname: string): Route {
   if (/^\/people\/?$/.test(pathname)) return { name: 'people' }
   if (/^\/search\/?$/.test(pathname)) return { name: 'search' }
+  if (/^\/globe\/?$/.test(pathname)) return { name: 'globe' }
   if (/^\/import\/?$/.test(pathname)) return { name: 'photo-import' }
   const person = pathname.match(/^\/p\/([^/]+)\/?$/)
   if (person) {
@@ -50,15 +52,23 @@ const depth = () => (history.state as { depth?: number } | null)?.depth ?? 0
 
 // The list a memory was opened from: where Back goes, and what to call it (no name: the timeline).
 // It is kept in the history entry, so it survives Earlier and Later, which replace the entry.
-export type From = { path: string; name?: string }
+export type From = { path: string; name?: string; photo?: string }
 export const cameFrom = (): From | null => (history.state as { from?: From } | null)?.from ?? null
 
 export function navigate(path: string, options: { replace?: boolean; from?: From } = {}) {
   lastWasPop = false
   const from = options.from ?? (options.replace ? cameFrom() : null)
   if (options.replace) history.replaceState({ depth: depth(), from }, '', path)
-  else history.pushState({ depth: depth() + 1, from }, '', path)
+  else history.pushState({ depth: depth() + 1, from, openingPhoto: from?.photo }, '', path)
   window.dispatchEvent(new Event(CHANGED))
+}
+
+// The globe opens the viewer once; returning to its memory keeps the stage on the selected photo.
+export function takeOpeningPhoto(): string | undefined {
+  const state = history.state as { openingPhoto?: string } | null
+  if (!state?.openingPhoto) return
+  history.replaceState({ ...state, openingPhoto: undefined }, '')
+  return state.openingPhoto
 }
 
 // A layer on top of a screen (the full-screen photo) is a step of its own in the history, so the
