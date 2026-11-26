@@ -120,6 +120,13 @@ test('a standalone photo appears on the globe only after publication and disappe
 
   const friend = await openWide(browser, addPerson(fruit('Lime')))
   const pin = friend.page.getByRole('button', { name: `Photo sent by ${uploader}`, exact: true })
+  let published: string | undefined
+  const hidePublished = () => {
+    if (!published) return
+    const hidden = ownerCommand(['hide', published, '--yes'])
+    expect(hidden.status, hidden.stderr).toBe(0)
+    published = undefined
+  }
   try {
     const publish = '**/rest/v1/rpc/import_photo'
     // The WebPs reached storage, but publication did not. No one else can see a pin.
@@ -133,7 +140,9 @@ test('a standalone photo appears on the globe only after publication and disappe
 
     // Lose the response this time after the real server commits. Its next retry must stay idempotent.
     await page.route(publish, async (route) => {
-      expect((await route.fetch()).ok()).toBe(true)
+      const response = await route.fetch()
+      expect(response.ok()).toBe(true)
+      published = `manual:${route.request().postDataJSON().p_id}`
       await route.fulfill({ status: 503, json: { message: 'Unavailable' } })
     }, { times: 1 })
     await save.click()
@@ -152,11 +161,11 @@ test('a standalone photo appears on the globe only after publication and disappe
     await expect(pin).toHaveCount(1)
     await pin.click()
     const preview = friend.page.getByRole('link', { name: new RegExp(`Open photo sent by ${uploader}$`) })
-    await expect(preview).toHaveAttribute('href', address!)
     const thumbnail = preview.getByRole('img')
     await expect(thumbnail).toHaveAttribute('src', /-thumb[.]webp/)
     const thumbnailUrl = (await thumbnail.getAttribute('src'))!
     await preview.click()
+    await expect(friend.page).toHaveURL(new URL(address!, friend.page.url()).href)
     const viewer = friend.page.getByRole('dialog', { name: 'Photo' })
     await expect(viewer.getByText('1 / 1')).toBeVisible()
     const viewingImage = viewer.getByRole('img', { name: `Photo sent by ${uploader}`, exact: true })
@@ -175,13 +184,16 @@ test('a standalone photo appears on the globe only after publication and disappe
     await expect(friend.page.getByText('Harbor walk')).toBeVisible()
     await expect(friend.page.getByText(highlight, { exact: true })).toHaveCount(1)
 
-    const hidden = ownerCommand(['hide', address!, '--yes'])
-    expect(hidden.status, hidden.stderr).toBe(0)
+    hidePublished()
     await friend.page.getByRole('button', { name: 'Globe', exact: true }).click()
     await expect(friend.page.getByRole('heading', { name: 'Globe' })).toBeVisible()
     await expect(friend.page.getByText('No located photos yet')).toBeVisible()
     await expect(pin).toHaveCount(0)
   } finally {
-    await friend.context.close()
+    try {
+      hidePublished()
+    } finally {
+      await friend.context.close()
+    }
   }
 })
