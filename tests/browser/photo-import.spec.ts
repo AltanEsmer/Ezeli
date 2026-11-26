@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { readFile } from 'node:fs/promises'
 import sharp from 'sharp'
 import { addPerson, expectNoSidewaysScroll, fruit, openWide, ownerCommand } from './support.ts'
 
@@ -10,12 +11,19 @@ const album = 'tests/fixtures/whatsapp-iphone/album'
 
 test('a friend can retry a photo import and open the resulting memory', async ({ page, browser }) => {
   const caption = fruit('Picnic')
-  await page.goto(addPerson(fruit('Limon')))
+  const uploader = fruit('Limon')
+  await page.goto(addPerson(uploader))
   await page.getByRole('link', { name: 'Import photos' }).click()
   await expect(page).toHaveURL(/\/import$/)
   await expectNoSidewaysScroll(page)
 
-  await page.getByLabel('Choose photos').setInputFiles([album + '/' + photo, album + '/' + otherPhoto])
+  const invalidGps = await sharp(album + '/' + otherPhoto).withExif({
+    IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '91/1 0/1 0/1', GPSLongitudeRef: 'E', GPSLongitude: '33/1 21/1 0/1' },
+  }).jpeg().toBuffer()
+  await page.getByLabel('Choose photos').setInputFiles([
+    { name: photo, mimeType: 'image/jpeg', buffer: await readFile(album + '/' + photo) },
+    { name: otherPhoto, mimeType: 'image/jpeg', buffer: invalidGps },
+  ])
   const first = page.getByRole('group', { name: photo, exact: true })
   const remaining = page.getByRole('group', { name: otherPhoto, exact: true })
   await first.getByLabel('Date and time taken').fill('2099-06-12T18:30')
@@ -52,6 +60,10 @@ test('a friend can retry a photo import and open the resulting memory', async ({
   await remaining.getByRole('button', { name: 'Save photo' }).click()
   await page.getByRole('link', { name: otherPhoto, exact: true }).click()
   await expect(page.getByText('Five minutes later')).toBeVisible()
+  await expect(page.getByText('Pine Trail')).toBeVisible()
+  await page.goto('/globe')
+  await expect(page.getByRole('heading', { name: 'Globe' })).toBeVisible()
+  await expect(page.getByRole('button', { name: `Photo sent by ${uploader}`, exact: true })).toHaveCount(0)
 })
 
 test('the owner can hide one of two photos from the same uploader and minute', async ({ page, request }) => {
@@ -116,6 +128,7 @@ test('a standalone photo appears on the globe only after publication and disappe
     await expect(page.getByRole('alert')).toHaveText('Could not save. Try again.')
     await friend.page.getByRole('link', { name: 'Globe', exact: true }).click()
     await expect(friend.page.getByRole('heading', { name: 'Globe' })).toBeVisible()
+    await expect(friend.page.getByText('No located photos yet')).toBeVisible()
     await expect(pin).toHaveCount(0)
 
     // Lose the response this time after the real server commits. Its next retry must stay idempotent.
@@ -128,22 +141,27 @@ test('a standalone photo appears on the globe only after publication and disappe
     await save.click()
     const address = await page.getByRole('link', { name, exact: true }).getAttribute('href')
 
-    await friend.page.reload()
+    await friend.page.goto('/')
+    await expect(friend.page.getByRole('article').filter({ hasText: /June 12, 2097/ })).toHaveCount(1)
+    const located = friend.page.waitForResponse((response) => response.url().includes('/rest/v1/located_photos?'))
+    await friend.page.getByRole('link', { name: 'Globe', exact: true }).click()
+    const photos = await (await located).json()
+    expect(photos).toHaveLength(1)
+    expect(photos[0]).toMatchObject({ display_name: uploader, longitude: 33.35 })
+    expect(photos[0].latitude).toBeCloseTo(35.166667, 6)
     await expect(pin).toHaveCount(1)
     await pin.click()
-    const preview = friend.page.getByRole('link', { name: `Open photo sent by ${uploader}`, exact: true })
+    const preview = friend.page.getByRole('link', { name: new RegExp(`Open photo sent by ${uploader}$`) })
     await expect(preview).toHaveAttribute('href', address!)
     const thumbnail = preview.getByRole('img')
     await expect(thumbnail).toHaveAttribute('src', /-thumb[.]webp/)
     const thumbnailUrl = (await thumbnail.getAttribute('src'))!
     await preview.click()
     const viewer = friend.page.getByRole('dialog', { name: 'Photo' })
+    await expect(viewer.getByText('1 / 1')).toBeVisible()
     const viewingImage = viewer.getByRole('img', { name: `Photo sent by ${uploader}`, exact: true })
     await expect(viewingImage).toHaveAttribute('src', /-view[.]webp/)
-    const variantUrls = [
-      (await viewer.getByRole('img').getAttribute('src'))!,
-      thumbnailUrl,
-    ]
+    const variantUrls = [(await viewingImage.getAttribute('src'))!, thumbnailUrl]
     for (const url of variantUrls) {
       const asset = await request.get(url)
       expect(asset.ok()).toBe(true)
@@ -161,6 +179,7 @@ test('a standalone photo appears on the globe only after publication and disappe
     expect(hidden.status, hidden.stderr).toBe(0)
     await friend.page.getByRole('button', { name: 'Globe', exact: true }).click()
     await expect(friend.page.getByRole('heading', { name: 'Globe' })).toBeVisible()
+    await expect(friend.page.getByText('No located photos yet')).toBeVisible()
     await expect(pin).toHaveCount(0)
   } finally {
     await friend.context.close()
