@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import sharp from 'sharp'
 import { addPerson, expectNoSidewaysScroll, fruit, openWide, ownerCommand } from './support.ts'
 
 test.use({ locale: 'en-US', timezoneId: 'Europe/Amsterdam' })
@@ -86,4 +87,82 @@ test('the owner can hide one of two photos from the same uploader and minute', a
   await expect(page.getByRole('heading', { name: 'This memory is not here' })).toBeVisible()
   await page.goto(addresses.get(otherPhoto)!)
   await expect(page.getByText(otherPhoto, { exact: true })).toBeVisible()
+})
+
+test('a standalone photo appears on the globe only after publication and disappears after hiding', async ({ page, browser, request }) => {
+  const uploader = fruit('Melon')
+  const name = 'harbor.jpg'
+  const highlight = fruit('Harbor')
+  const original = await sharp(album + '/' + photo).withExif({
+    IFD3: { GPSLatitudeRef: 'N', GPSLatitude: '35/1 10/1 0/1', GPSLongitudeRef: 'E', GPSLongitude: '33/1 21/1 0/1' },
+  }).jpeg().toBuffer()
+
+  await page.goto(addPerson(uploader))
+  await page.getByRole('link', { name: 'Import photos' }).click()
+  await page.getByLabel('Choose photos').setInputFiles({ name, mimeType: 'image/jpeg', buffer: original })
+  const draft = page.getByRole('group', { name, exact: true })
+  await draft.getByLabel('Date and time taken').fill('2097-06-12T19:45')
+  await draft.getByLabel('Place', { exact: true }).fill('Harbor walk')
+  await draft.getByLabel('Comment', { exact: true }).fill(highlight)
+  const save = draft.getByRole('button', { name: 'Save photo' })
+
+  const friend = await openWide(browser, addPerson(fruit('Lime')))
+  const pin = friend.page.getByRole('button', { name: `Photo sent by ${uploader}`, exact: true })
+  try {
+    const publish = '**/rest/v1/rpc/import_photo'
+    // The WebPs reached storage, but publication did not. No one else can see a pin.
+    await page.route(publish, (route) => route.fulfill({ status: 503, json: { message: 'Unavailable' } }), { times: 1 })
+    await save.click()
+    await expect(page.getByRole('alert')).toHaveText('Could not save. Try again.')
+    await friend.page.getByRole('link', { name: 'Globe', exact: true }).click()
+    await expect(friend.page.getByRole('heading', { name: 'Globe' })).toBeVisible()
+    await expect(pin).toHaveCount(0)
+
+    // Lose the response this time after the real server commits. Its next retry must stay idempotent.
+    await page.route(publish, async (route) => {
+      expect((await route.fetch()).ok()).toBe(true)
+      await route.fulfill({ status: 503, json: { message: 'Unavailable' } })
+    }, { times: 1 })
+    await save.click()
+    await expect(page.getByRole('alert')).toHaveText('Could not save. Try again.')
+    await save.click()
+    const address = await page.getByRole('link', { name, exact: true }).getAttribute('href')
+
+    await friend.page.reload()
+    await expect(pin).toHaveCount(1)
+    await pin.click()
+    const preview = friend.page.getByRole('link', { name: `Open photo sent by ${uploader}`, exact: true })
+    await expect(preview).toHaveAttribute('href', address!)
+    const thumbnail = preview.getByRole('img')
+    await expect(thumbnail).toHaveAttribute('src', /-thumb[.]webp/)
+    const thumbnailUrl = (await thumbnail.getAttribute('src'))!
+    await preview.click()
+    const viewer = friend.page.getByRole('dialog', { name: 'Photo' })
+    const viewingImage = viewer.getByRole('img', { name: `Photo sent by ${uploader}`, exact: true })
+    await expect(viewingImage).toHaveAttribute('src', /-view[.]webp/)
+    const variantUrls = [
+      (await viewer.getByRole('img').getAttribute('src'))!,
+      thumbnailUrl,
+    ]
+    for (const url of variantUrls) {
+      const asset = await request.get(url)
+      expect(asset.ok()).toBe(true)
+      const metadata = await sharp(await asset.body()).metadata()
+      expect(metadata.format).toBe('webp')
+      expect(metadata.exif).toBeUndefined()
+      expect(metadata.xmp).toBeUndefined()
+    }
+    await viewer.getByRole('button', { name: 'Close' }).click()
+    await expect(friend.page.getByRole('heading', { level: 1 })).toHaveText(/Jun 12, 2097.*7:45 PM/)
+    await expect(friend.page.getByText('Harbor walk')).toBeVisible()
+    await expect(friend.page.getByText(highlight, { exact: true })).toHaveCount(1)
+
+    const hidden = ownerCommand(['hide', address!, '--yes'])
+    expect(hidden.status, hidden.stderr).toBe(0)
+    await friend.page.getByRole('button', { name: 'Globe', exact: true }).click()
+    await expect(friend.page.getByRole('heading', { name: 'Globe' })).toBeVisible()
+    await expect(pin).toHaveCount(0)
+  } finally {
+    await friend.context.close()
+  }
 })
