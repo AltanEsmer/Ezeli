@@ -41,6 +41,7 @@ export default defineConfig({
     { name: 'whole-interface', testMatch: 'whole-interface.spec.ts', dependencies: ['memory-screen'] },
     { name: 'photo-import', testMatch: 'photo-import.spec.ts', dependencies: ['whole-interface'] },
     { name: 'globe', testMatch: 'globe.spec.ts', dependencies: ['photo-import'] },
+    { name: 'globe-backfill', testMatch: 'globe-backfill.spec.ts', dependencies: ['globe'] },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',
