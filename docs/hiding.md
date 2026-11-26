@@ -45,6 +45,7 @@ No longer hidden: message by Limon 🌻, 14 Jul 2023, 21:25 (Kaş Tatili). It re
 - The listings are printed to your terminal only. Nothing in the app shows them.
 - **A code names the item, not its place.** An item's code is the start of its lasting key; a mark's code is the start of its id. A code never changes, so a list that is out of date can never make `hide` or `show` act on the wrong thing, in this chat or another: a code that names nothing is an error.
 - Without a code, `hide` hides every photo and message the memory holds now.
+- For a standalone photo uploaded in Ezeli, `hide` targets that upload by its ID. Other uploads from the same person and minute stay visible. `show` removes the mark. To restore the photo, upload it again.
 - **Hiding a memory's first photo moves its address and its date** to its next photo, as an import would. The old address is no memory any more, to friends and to the commands. A memory with no photo left is removed, **with its comments**; the command counts them, and `show` does not bring them back.
 - **`show` is only the removal of a mark.** The thing comes back with the next import of that chat, messages and photos alike, if the export still holds it. Nothing returns at once. (A message used to be shown again without an import; that is no longer so.)
 - **When the match is not exact, `hide` lists what else will go with it and waits for a yes.** `--yes` skips the question, for scripts. With no answer nothing is hidden.

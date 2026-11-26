@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useRef, useState } from 'react'
-import { type Language, formatDate, formatNameParts, language, t } from './i18n.ts'
+import { type Language, formatDate, formatDateTime, formatNameParts, language, t } from './i18n.ts'
 import { Comments } from './Comments.tsx'
 import { fadeMs } from './fade.ts'
 import { useWide } from './MemoryItem.tsx'
@@ -130,9 +130,11 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
 
       <div className="mem-col">
         <header>
-          <h1>{formatDate(language, memory.at, memory.timezone)}</h1>
+          <h1>{memory.place != null
+            ? formatDateTime(language, memory.at, memory.timezone)
+            : formatDate(language, memory.at, memory.timezone)}</h1>
           <p className="mem-sub" lang="tr">
-            {memory.chat_name}
+            {memory.place || memory.chat_name}
           </p>
           <p className="mem-sub">{t.photoCount(String(count))}</p>
           <p className="mem-sub">

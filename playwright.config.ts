@@ -39,6 +39,7 @@ export default defineConfig({
     { name: 'memory-screen', testMatch: 'memory-screen.spec.ts', dependencies: ['memory-screen-import'] },
     // Last: every screen, the private page and the menu at four widths, and less motion.
     { name: 'whole-interface', testMatch: 'whole-interface.spec.ts', dependencies: ['memory-screen'] },
+    { name: 'photo-import', testMatch: 'photo-import.spec.ts', dependencies: ['whole-interface'] },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',

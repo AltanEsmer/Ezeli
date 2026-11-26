@@ -5,6 +5,7 @@ import { supabase } from './supabase.ts'
 export type MemoryDetail = {
   at: string
   chat_name: string
+  place?: string | null
   timezone: string
   photos: { message: string; by_id: string | null; view: string; thumb: string; width: number; height: number; by: string }[]
   messages: { id: string; by: string; by_id: string | null; at: string; text: string; kind: 'photo' | 'video' | 'gif' | 'voice' | 'document' | 'media' | null }[]

@@ -41,23 +41,24 @@ export default async function wipe() {
     }
   }
 
-  // Photos are in one folder per chat, so look inside the folders too.
+  // Walk subfolders so both chat imports and standalone uploads are cleared.
   const bucket = db.storage.from('photos')
-  for (;;) {
-    const listed = await bucket.list('', { limit: 1000 })
-    if (listed.error) throw listed.error
-    const paths: string[] = []
-    for (const entry of listed.data) {
-      if (entry.id) {
-        paths.push(entry.name)
-        continue
+  async function clearFolder(folder: string) {
+    for (;;) {
+      const listed = await bucket.list(folder, { limit: 1000 })
+      if (listed.error) throw listed.error
+      if (listed.data.length === 0) return
+      const paths: string[] = []
+      for (const entry of listed.data) {
+        const path = folder ? `${folder}/${entry.name}` : entry.name
+        if (entry.id) paths.push(path)
+        else await clearFolder(path)
       }
-      const inside = await bucket.list(entry.name, { limit: 1000 })
-      if (inside.error) throw inside.error
-      paths.push(...inside.data.map((file) => `${entry.name}/${file.name}`))
+      if (paths.length > 0) {
+        const removed = await bucket.remove(paths)
+        if (removed.error) throw removed.error
+      }
     }
-    if (paths.length === 0) break
-    const removed = await bucket.remove(paths)
-    if (removed.error) throw removed.error
   }
+  await clearFolder('')
 }
