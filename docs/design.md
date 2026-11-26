@@ -4,7 +4,7 @@ The Quiet Gallery look: neutral surfaces, the photos as the only colour, one ter
 
 ## Where the styles live
 
-All in `src/styles/`, loaded in this order by `src/main.tsx`.
+All in `src/styles/`. The shell and timeline styles load in order from `src/main.tsx`; the globe's styles load when the globe opens.
 
 | File | Holds | Who edits it |
 |---|---|---|
@@ -16,6 +16,7 @@ All in `src/styles/`, loaded in this order by `src/main.tsx`.
 | `comments.css` | the comments under a memory (ticket 55) | the comments |
 | `people.css` | the people page and a person's page (ticket 56) | the people screens |
 | `search.css` | the search screen's header (ticket 57) | the search screen |
+| `globe.css` | the map, controls and photo choices (tickets 73 and 74) | the globe |
 
 A rebuilt screen gets its own file (for example `timeline.css`), imported in `main.tsx`, named for the screen and using only tokens. Class names of a screen are its own; shared names are only those in `tokens.css` and `shell.css` (`.btn`, `.bar`, `.sheet`, `.notice`, `.fade-in`).
 
@@ -61,9 +62,9 @@ Wide is a window of 900 px or more, narrow is less. In CSS it is `@media (min-wi
 
 One `<nav class="bar" aria-label="Pages">` and one `<main class="content">` in `src/Shell.tsx`. The bar is the same markup at both sizes; CSS moves it.
 
-- Wide: fixed on the left, `--side` (208px) wide. From the top: the name Ezeli (a link to the timeline), Memories, People, Search, and at the bottom the signed-in person's name, which opens the menu. The page has `padding-left: var(--side)`.
-- Narrow: a sticky strip `--bar-h` (52px) high at the top: Ezeli on the left (a link to the timeline), then People, Search and the button Menu. Memories is not shown: Ezeli leads there.
-- The current place has `aria-current="page"`: marked by an accent rule (under the link on narrow, beside it on wide) and ink text. Memories is current on the timeline and a memory, People on people and a person, Search on search.
+- Wide: fixed on the left, `--side` (208px) wide. From the top: the name Ezeli (a link to the timeline), Memories, People, Search, Globe, Import photos, and at the bottom the signed-in person's name, which opens the menu. The page has `padding-left: var(--side)`.
+- Narrow: a sticky strip `--bar-h` (52px) high at the top: Ezeli on the left (a link to the timeline), then People, Search, Globe, Import and Menu. Memories is not shown: Ezeli leads there.
+- The current place has `aria-current="page"`: marked by an accent rule (under the link on narrow, beside it on wide) and ink text. Memories is current on the timeline and a memory, People on people and a person, Search on search, Globe on the globe and Import on the standalone photo form.
 - A memory on a narrow window has no bar, only its own back link, so the photo gets the room (`.shell.bare`). On a wide window the bar stays.
 - A screen change is a new `<main>` that fades in (`.fade-in`, 160 ms, `--fade`). With the device set to less motion nothing animates.
 - Every control shows the keyboard focus: a 2px accent outline, 2px offset.
@@ -145,3 +146,12 @@ One part draws a memory wherever a list of memories is shown: `MemoryItem` (`src
 ## The whole interface (ticket 58)
 
 Nothing of the first look is left: `old.css`, the two old fonts, paper, tape, tilt and handwriting are gone from the styles, the code and the dependencies; no test finds anything by class name. One browser test (`whole-interface.spec.ts`) visits the five screens (timeline, memory, people, a person, search), the private page and the menu at 390, 900, 1440 and 1920 px and checks none scrolls sideways; a second visits them all with the device set to less motion and checks that nothing animates. The pairs of text and surface in both themes were computed from the tokens (not a browser test) and every one is 4.5 to 1 or more.
+
+
+## Globe (tickets 73 and 74)
+
+- The timeline stays the landing screen. The Globe link opens a separate screen for signed-in friends and loads the map, location results and globe styles on demand. The globe opens on an Earth overview facing a located photo, or the Eastern Mediterranean when the collection has no known locations.
+- The map uses an orthographic projection. Neutral ocean and land contrast with terracotta photo markers. The [Natural Earth 1:110m land geometry](https://www.naturalearthdata.com/downloads/110m-physical-vectors/) is bundled in the app from the public-domain v5.1.2 release. The map sends no requests to a basemap provider.
+- Drag or use the arrow keys on the focused map to move around. Pinch, use the mouse wheel, or use the zoom buttons to get closer. Reset returns to the overview. Next location cycles through photo locations, including ones on the far side. Button-driven camera changes ease over 180ms and land immediately when reduced motion is enabled.
+- Nearby pins share a marker with a photo count. The selection exposes every photo at that marker, including photos at identical coordinates. Only choices near the viewport request thumbnail links. Opening one shows the selected photo in the memory's viewer. Closing the viewer shows its conversation. Back returns to the view and selection held for the signed-in session.
+- The empty state shows the globe with a clear count message. A map or data failure provides an explicit way back to the timeline.

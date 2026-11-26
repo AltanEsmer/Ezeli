@@ -112,6 +112,7 @@ test('photos at a shared location stay individually reachable and Back returns t
   await page.getByRole('link', { name: 'Open photo sent by Karpuz' }).click()
   const viewer = page.getByRole('dialog', { name: 'Photo' })
   await expect(viewer.getByText('2 / 3')).toBeVisible()
+  const path = new URL(page.url()).pathname
   await page.goBack()
   await expect(viewer).toBeHidden()
   await page.getByRole('button', { name: 'Globe' }).click()
@@ -119,4 +120,14 @@ test('photos at a shared location stay individually reachable and Back returns t
   expect(await shared.boundingBox()).toEqual(location)
   await expect(page.getByRole('link', { name: 'Open photo sent by Limon' })).toBeVisible()
   await expect(page.getByRole('link', { name: 'Open photo sent by Fıstık' })).toHaveCount(0)
+
+  const listing = ownerCommand(['memory', path])
+  const code = listing.stdout.match(/^([0-9a-f]{8}).*Karpuz.*\[Photo\]/m)?.[1]
+  expect(code, listing.stdout).toBeDefined()
+  expect(ownerCommand(['hide', path, code!]).status).toBe(0)
+  await page.reload()
+  await expect(page.getByRole('button', { name: '2 photos in this area' })).toBeVisible()
+  await page.getByRole('button', { name: '2 photos in this area' }).click()
+  await expect(page.getByRole('link', { name: /Open photo sent by/ })).toHaveCount(2)
+  await expect(page.getByRole('link', { name: 'Open photo sent by Karpuz' })).toHaveCount(0)
 })
