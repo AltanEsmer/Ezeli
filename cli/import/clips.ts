@@ -18,9 +18,8 @@ export function removeConvertedClips() {
 
 function run(tool: string, args: string[]) {
   const result = spawnSync(tool, args, { encoding: 'utf8', timeout: 180_000, maxBuffer: 128 * 1024 })
-  if ((result.error as NodeJS.ErrnoException | undefined)?.code === 'ENOENT') {
-    return undefined
-  }
+  const code = (result.error as NodeJS.ErrnoException | undefined)?.code
+  if (code === 'ENOENT' || code === 'EACCES') return undefined
   return result.status === 0 ? result.stdout : null
 }
 

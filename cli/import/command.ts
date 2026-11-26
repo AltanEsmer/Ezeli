@@ -145,13 +145,14 @@ async function importExport(args: string[]): Promise<string> {
       if (!media || !(media.ambiguousAudio || media.kind === 'video' || media.kind === 'voice')) continue
       const outcome = visible || db ? prepareClip(media) : 'memory has no photo file'
       const where = `${message.person}, ${momentText(message.at, timezone)}`
+      const label = media.name ?? media.kind
       if (typeof outcome === 'string') {
         skipped++
-        clipNotes.push(`Clip skipped (${where}): ${outcome}`)
+        clipNotes.push(`Clip skipped (${where}): ${label} — ${outcome}`)
       } else {
         media.clip = outcome
         playable++
-        clipNotes.push(`Clip eligible for playback (${where}): ${media.name ?? media.kind}`)
+        clipNotes.push(`Clip eligible for playback (${where}): ${label}`)
       }
     }
   }
