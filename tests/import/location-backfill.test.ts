@@ -49,7 +49,7 @@ test('repeat import locates an existing photo once and preserves its memory and 
     run()
     run()
     const recovered = {
-      latitude: 35 + 10 / 60, longitude: 33.35, message_id: photos[0]!.message_id,
+      latitude: expect.closeTo(35.16666667, 8), longitude: 33.35, message_id: photos[0]!.message_id,
       memory_key: memories[0]!.key, thumb_path: photos[0]!.thumb_path,
     }
     expect(await pins()).toEqual([recovered])

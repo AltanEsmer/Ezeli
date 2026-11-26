@@ -25,7 +25,7 @@ export type StoredMessage = {
   media_kind: MediaKind | null
   people: { id: string; slug: string; display_name: string }
 }
-export type StoredPhoto = { key: string; view_path: string; thumb_path: string; width: number; height: number; content_hash: string | null; latitude: number | null; longitude: number | null }
+export type StoredPhoto = { key: string; view_path: string; thumb_path: string; width: number; height: number; content_hash: string | null; latitude: number | null }
 export type Stored = { memories: StoredMemory[]; messages: StoredMessage[]; photos: StoredPhoto[] }
 export type Span = { from: number; to: number } // moments, in milliseconds, both included
 export type Kept = { memories: Set<string>; messages: Set<string> } // the keys of this import
@@ -68,7 +68,7 @@ export async function loadStored(db: Db, chatId: string): Promise<Stored> {
 
 function loadPhotos(db: Db, chatId: string) {
   return pages<StoredPhoto>((from, to) =>
-    db.from('photos').select('key, view_path, thumb_path, width, height, content_hash, latitude, longitude, memories!inner(chat_id)').eq('memories.chat_id', chatId).order('key').range(from, to),
+    db.from('photos').select('key, view_path, thumb_path, width, height, content_hash, latitude, memories!inner(chat_id)').eq('memories.chat_id', chatId).order('key').range(from, to),
   )
 }
 

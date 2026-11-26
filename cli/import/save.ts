@@ -129,14 +129,22 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
       width: size.width,
       height: size.height,
       content_hash: size.hash,
-      latitude: existingPhoto ? existingPhoto.latitude : message.media?.location?.latitude ?? null,
-      longitude: existingPhoto ? existingPhoto.longitude : message.media?.location?.longitude ?? null,
     }
   })
   for (const part of chunks(photoRows)) {
     const saved = await db.from('photos').upsert(part, { onConflict: 'key' })
     if (saved.error) throw saved.error
   }
+
+  // A later export may have GPS that the first one lacked. The regular upsert never
+  // writes coordinates, and a conditional update keeps the first point across retries
+  // and concurrent imports.
+  await mapLimit(messages.filter(hasPhotoFile), 4, async ({ key, media }) => {
+    const location = media?.location
+    if (!location || storedPhotos.get(key)?.latitude != null) return
+    const saved = await db.from('photos').update(location).eq('key', key).is('latitude', null)
+    if (saved.error) throw saved.error
+  })
 
   // Only now, with every row of this import in place, is anything that no longer fits removed.
   const kept = { memories: new Set(memoryRows.map((row) => row.key)), messages: new Set(messages.map((message) => message.key)) }
