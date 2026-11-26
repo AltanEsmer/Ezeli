@@ -192,5 +192,6 @@ Signed-in friends can open **Import photos** to select files and enter each phot
 capture date, time, optional place, and optional comment. Each saved photo becomes a
 memory on the timeline. The capture time uses the device's time zone when entered.
 The upload form links to the saved memory. Comments appear with the memory's other
-comments. The browser prepares viewing and thumbnail WebP files for the private photos
+comments. Returning from a saved memory keeps the remaining drafts for the current
+session. The browser prepares viewing and thumbnail WebP files for the private photos
 bucket and strips original metadata.
