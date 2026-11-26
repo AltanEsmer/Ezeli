@@ -3,7 +3,8 @@
 // and runs the same step at its very end; the owner command `hide` writes marks and runs it.
 //
 // A mark names the chat, the person, the clock minute, the kind (photo, text, other media) and what
-// to match: a photo's file hash, a text message's text, nothing for other media. Rule, the same
+// to match: an upload's key, a chat photo's file hash, a text message's text, nothing for other media.
+// Standalone uploads are matched only by key. For chat exports, the rule is the same
 // wherever it is used: among that person's things of that kind in that minute, the ones that match
 // exactly are hidden; if none matches (the file was re-saved, the text edited, the photo has no
 // stored hash), all of that person's things of that kind in that minute are. It may hide too much; it
@@ -21,14 +22,17 @@ export type Kind = 'photo' | 'text' | 'other' | 'media'
 export type Mark = { id: string; chat_key: string; person_slug: string; minute: string; kind: Kind; match: string; exact: boolean; pending: string[] }
 // `exact`: the mark has matched exactly once (see `matched`).
 export type Matching = { person_slug: string; minute: string; kind: Kind; match: string; exact?: boolean }
-// `match`: a photo's file hash ('' when it has none), a text message's text, '' for other media.
+// `match`: an upload's key, a chat photo's file hash, a text message's text, or ''.
 export type Thing = { slug: string; at: number; kind: Kind; match: string }
 
 export const kindOf = (media: { kind: string } | null | undefined): Kind =>
   !media ? 'text' : media.kind === 'photo' ? 'photo' : media.kind === 'media' ? 'media' : 'other'
 
-// A short lasting name for a mark or an item: the start of its id or key. Printed to the owner only.
-export const codeOf = (idOrKey: string) => idOrKey.replace(/-/g, '').slice(0, 8)
+// Codes use the hexadecimal part of an item's key or a mark's id.
+export const codeKey = (idOrKey: string) => idOrKey.replace(/^manual:/, '').replace(/-/g, '')
+export const codeOf = (idOrKey: string) => codeKey(idOrKey).slice(0, 8)
+
+export const photoMatch = (key: string, hash?: string | null) => key.startsWith('manual:') ? key : (hash ?? '')
 
 const minuteOf = (moment: number) => Math.floor(moment / 60_000) * 60_000
 const together = (a: Kind, b: Kind) => a === b || (a !== 'text' && b !== 'text' && (a === 'media' || b === 'media'))
@@ -44,6 +48,12 @@ export function matched<T extends Thing>(things: T[], marks: Matching[], stored 
   const hits = new Set<T>()
   const results: Result<T>[] = []
   for (const mark of marks) {
+    if (mark.kind === 'photo' && mark.match.startsWith('manual:')) {
+      const hit = things.filter((thing) => thing.kind === 'photo' && thing.match === mark.match)
+      for (const thing of hit) hits.add(thing)
+      results.push({ mark, things: hit, exact: hit.length > 0 })
+      continue
+    }
     const moment = Date.parse(mark.minute)
     const inMinute = things.filter((thing) => thing.slug === mark.person_slug && minuteOf(thing.at) === moment && together(thing.kind, mark.kind))
     const exact = mark.kind === 'other' ? inMinute : inMinute.filter((thing) => mark.match !== '' && thing.match === mark.match)
@@ -70,13 +80,13 @@ export async function loadMarks(db: Db, chatKey: string): Promise<Mark[]> {
 export type Applied = Counts & { comments: number }
 export type StoredThing = Thing & { message: StoredMessage }
 
-// What is stored in a chat, as things to match (a photo's match is the hash stored with it).
+// What is stored in a chat, as things to match.
 export async function storedThings(db: Db, chatId: string): Promise<{ things: StoredThing[]; photos: StoredPhoto[]; memories: StoredMemory[] }> {
   const stored = await loadStored(db, chatId)
   const hashOf = new Map(stored.photos.map((photo) => [photo.key, photo.content_hash ?? '']))
   const things = stored.messages.map((message) => {
     const kind = kindOf(message.media_kind ? { kind: message.media_kind } : null)
-    const match = kind === 'text' ? message.text : kind === 'photo' || kind === 'media' ? (hashOf.get(message.key) ?? '') : ''
+    const match = kind === 'text' ? message.text : kind === 'photo' || kind === 'media' ? photoMatch(message.key, hashOf.get(message.key)) : ''
     return { message, slug: message.people.slug, at: Date.parse(message.at), kind, match }
   })
   return { things, photos: stored.photos, memories: stored.memories }
@@ -94,19 +104,13 @@ export async function applyMarks(db: Db, chatKey: string): Promise<Applied> {
   if (chat.error) throw chat.error
   if (!chat.data) return none
   const marks = await loadMarks(db, chatKey)
-  await removeFiles(db, marks)
   const { things, photos, memories: storedMemories } = await storedThings(db, chat.data.id)
   const found = matched(things, marks, true)
   const hits = [...found.hits].map((thing) => thing.message)
 
   const pathsOf = (thing: StoredThing) => photos.filter((photo) => photo.key === thing.message.key).flatMap((photo) => [photo.view_path, photo.thumb_path])
   const applied = { ...none, messages: hits.length, photos: [...found.hits].flatMap(pathsOf).length / 2 }
-  for (const part of chunks(hits.map((message) => message.id))) {
-    const deleted = await db.from('messages').delete().in('id', part)
-    if (deleted.error) throw deleted.error
-  }
-  failForTest('rows')
-  // The rows are gone: the files they pointed at are remembered with the mark until they are removed.
+  // Record the files and exact matches before the rows that identify them disappear.
   for (const result of found.results) {
     const mark = result.mark as Mark
     const paths = result.things.flatMap(pathsOf)
@@ -119,6 +123,11 @@ export async function applyMarks(db: Db, chatKey: string): Promise<Applied> {
     const updated = await db.from('hidden').update({ exact: true }).in('id', settled)
     if (updated.error) throw updated.error
   }
+  for (const part of chunks(hits.map((message) => message.id))) {
+    const deleted = await db.from('messages').delete().in('id', part)
+    if (deleted.error) throw deleted.error
+  }
+  failForTest('rows')
   // Every memory a row was removed from, and any left in a state a stopped run leaves (a gap in the
   // numbering, an address or date that is not its first photo's): a run that failed is finished here.
   const gone = new Set(hits.map((message) => message.id))
