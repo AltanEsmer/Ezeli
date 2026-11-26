@@ -35,6 +35,15 @@ export function matchRanges(text: string, query: string): [number, number][] {
     .map((hit) => [offsets[hit.index]!.start, offsets[hit.index + hit[0].length - 1]!.end])
 }
 
+export function searchQuote(text: string, query: string) {
+  const compact = text.trim().replace(/\s+/g, ' ')
+  const hits = matchRanges(compact, query)
+  if (compact.length <= 140 || !hits.length) return compact.slice(0, 140) + (compact.length > 140 ? '…' : '')
+  const start = Math.max(0, hits[0]![0] - 18)
+  const end = Math.min(compact.length, start + 140)
+  return (start > 0 ? '…' : '') + compact.slice(start, end) + (end < compact.length ? '…' : '')
+}
+
 export function marked(text: string, ranges: [number, number][], offset = 0) {
   const parts = []
   let cursor = 0

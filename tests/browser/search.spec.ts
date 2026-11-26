@@ -152,6 +152,18 @@ test.describe('search', () => {
     await expect(conversation.getByText('Context 0', { exact: true })).toBeVisible()
     await conversation.getByRole('button', { name: /later messages/i }).click()
     await expect(conversation.getByText('Later context 8', { exact: true })).toBeVisible()
+    await page.getByRole('textbox').fill('Pusula rota comment')
+    await page.getByRole('button', { name: 'Add comment' }).click()
+    await expect(page.getByText('Pusula rota comment')).toBeVisible()
+    await page.goBack()
+    await expect(results(page).getByRole('blockquote')).toContainText('Pusula rota ilk')
+    await find(page, 'PUSULA ROTA')
+    await expect(results(page).getByRole('blockquote')).toContainText('Pusula rota ilk')
+    await find(page, 'pusula context')
+    await expect(results(page)).toHaveCount(1)
+    await results(page).getByRole('link').click()
+    await expect(page.getByRole('heading', { level: 1 })).toBeInViewport()
+    await expect(conversation.locator('mark')).toHaveCount(0)
   })
 
   test('a name finds the memories that person sent a photo or a message in, and only those', async ({ page }) => {

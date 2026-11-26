@@ -1,7 +1,7 @@
 import { type MouseEvent, type RefObject, createContext, memo, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { formatDate, formatNameParts, language, t } from './i18n.ts'
 import { type MemoryCard, signedLink } from './memories.ts'
-import type { SearchJump } from './searchMatch.tsx'
+import { type SearchJump, searchQuote } from './searchMatch.tsx'
 import { memoryPath, navigate, opened } from './route.ts'
 
 type Photo = MemoryCard['photos'][number]
@@ -44,7 +44,7 @@ export const MemoryItem = memo(function MemoryItem({ memory }: { memory: MemoryC
           <h3 className="mi-date">{date}</h3>
           {quote && (
             <p className="mi-line" role="blockquote" dir="auto" lang="tr">
-              {`“${match ? quote : cutLine(quote)}”`}
+              {`“${match ? searchQuote(quote, query) : cutLine(quote)}”`}
             </p>
           )}
           <p className="mi-by">
