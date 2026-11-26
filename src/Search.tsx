@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { language, t } from './i18n.ts'
 import { type Group, ChunkView } from './Memories.tsx'
-import { ListName, useNear } from './MemoryItem.tsx'
+import { ListName, SearchQuery, useNear } from './MemoryItem.tsx'
 import type { Chunk, MemoryCard } from './memories.ts'
 import { takeReturnKeys } from './route.ts'
 import { supabase } from './supabase.ts'
@@ -31,7 +31,7 @@ const quick = (typed: string) => /[\p{L}\p{N}]{3}/u.test(wordsOf(typed).slice(0,
 
 // One page of results after the cursor, newest first. Null when the request failed or was cancelled.
 async function fetchPage(words: string, after: MemoryCard | undefined, signal: AbortSignal): Promise<MemoryCard[] | null> {
-  const found = await supabase.rpc('search_memories', { p_query: words, p_at: after?.local_at ?? null, p_key: after?.key ?? null, p_limit: PAGE }).abortSignal(signal)
+  const found = await supabase.rpc('search_memories_with_matches', { p_query: words, p_at: after?.local_at ?? null, p_key: after?.key ?? null, p_limit: PAGE }).abortSignal(signal)
   return found.error ? null : (found.data as MemoryCard[])
 }
 
@@ -179,7 +179,9 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
       {ready && ready.chunks.length > 0 && (
         <div className="tl" ref={list}>
           <ListName.Provider value={t.search}>
-            <Results chunks={ready.chunks} more={ready.more} busy={ready.busy} failed={ready.pageFailed} onMore={() => void more()} />
+            <SearchQuery.Provider value={searched.current}>
+              <Results chunks={ready.chunks} more={ready.more} busy={ready.busy} failed={ready.pageFailed} onMore={() => void more()} />
+            </SearchQuery.Provider>
           </ListName.Provider>
         </div>
       )}

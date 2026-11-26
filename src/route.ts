@@ -1,3 +1,4 @@
+import type { SearchJump } from './searchMatch.tsx'
 import { type MouseEvent, useSyncExternalStore } from 'react'
 
 // The addresses of the app, kept small on purpose. `/` is the timeline and `/m/<key>` one memory,
@@ -53,18 +54,26 @@ const depth = () => (history.state as { depth?: number } | null)?.depth ?? 0
 export type From = { path: string; name?: string }
 export const cameFrom = (): From | null => (history.state as { from?: From } | null)?.from ?? null
 
-export function navigate(path: string, options: { replace?: boolean; from?: From } = {}) {
+// The search destination lives in this document's history only.
+const searchJumps = new Map<string, SearchJump>()
+export const searchJump = () => searchJumps.get(history.state?.searchJump)
+
+export function navigate(path: string, options: { replace?: boolean; from?: From; jump?: SearchJump } = {}) {
   lastWasPop = false
   const from = options.from ?? (options.replace ? cameFrom() : null)
   if (options.replace) history.replaceState({ depth: depth(), from }, '', path)
-  else history.pushState({ depth: depth() + 1, from }, '', path)
+  else {
+    const searchJump = options.jump ? crypto.randomUUID() : undefined
+    if (searchJump) searchJumps.set(searchJump, options.jump!)
+    history.pushState({ depth: depth() + 1, from, searchJump }, '', path)
+  }
   window.dispatchEvent(new Event(CHANGED))
 }
 
 // A layer on top of a screen (the full-screen photo) is a step of its own in the history, so the
 // phone's Back closes it. The address stays the same.
 export function pushLayer() {
-  history.pushState({ depth: depth() + 1, layer: true, from: cameFrom() }, '')
+  history.pushState({ depth: depth() + 1, layer: true, from: cameFrom(), searchJump: history.state?.searchJump }, '')
 }
 
 // A page that was loaded fresh has no layer open, but the history step of one survives a reload: take

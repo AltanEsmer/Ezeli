@@ -2,7 +2,8 @@
 // real import saved (import.setup.ts) plus two chats imported here. People are made with the real
 // owner commands, and comments are written through the app.
 import { type Browser, type Page, expect, test } from '@playwright/test'
-import { rmSync } from 'node:fs'
+import { appendFileSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
 import { makeSmallExport } from './large.ts'
 import { addPerson, apiUrl, expectNoSidewaysScroll, fruit, openWide, ownerCommand, photoCount, publishableKey, sentBy } from './support.ts'
 
@@ -40,6 +41,15 @@ test.beforeAll(async () => {
     ]),
     'Arama Sohbeti',
   )
+  const deep = await makeSmallExport([{ when: '17.03.2022, 10:00:00', text: 'pusula yeni rota dağlarda' }])
+  appendFileSync(join(deep, '_chat.txt'), [
+    ...Array.from({ length: 14 }, (_, i) => `[17.03.2022, 10:01:${String(i).padStart(2, '0')}] Limon L: Context ${i}`),
+    '[17.03.2022, 10:02:00] Limon L: Pusula rota ilk',
+    '[17.03.2022, 10:02:01] Limon L: Pusula rota ikinci',
+    ...Array.from({ length: 9 }, (_, i) => `[17.03.2022, 10:03:${String(i).padStart(2, '0')}] Limon L: Later context ${i}`),
+    '',
+  ].join('\n'))
+  load(deep, 'Deep Search')
   // More memories than one page of results, all with the same word.
   load(
     await makeSmallExport(Array.from({ length: 30 }, (_, i) => ({ when: `${String(i + 1).padStart(2, '0')}.05.2021, 12:00:00`, text: `Deniz kenarı ${i + 1}` }))),
@@ -93,6 +103,12 @@ test.describe('search', () => {
     expect(await dates(page)).toEqual([JULY14])
     await expect(sentBy(results(page))).toContainText('Sent by')
     await expect(photoCount(results(page))).toContainText('photos')
+    await expect(results(page).getByRole('blockquote')).toContainText(/tekneye/i)
+    await results(page).getByRole('link').click()
+    const hit = page.getByRole('region', { name: 'Conversation' }).locator('mark')
+    await expect(hit).toHaveText(/tekneye/i)
+    await expect(hit).toBeInViewport()
+    await expect(page).toHaveURL(/\/m\/[^/?#]+$/)
   })
 
   test('a word from a comment finds that memory, and not before the comment is written', async ({ page }) => {
@@ -113,6 +129,29 @@ test.describe('search', () => {
 
     await expect(results(page)).toHaveCount(1)
     expect(await dates(page)).toEqual([JULY14])
+    await expect(results(page).getByRole('blockquote')).toContainText(word)
+    await results(page).getByRole('link').click()
+    const hit = page.getByRole('region', { name: 'Comments' }).locator('mark')
+    await expect(hit).toHaveText(word)
+    await expect(hit).toBeInViewport()
+  })
+
+  test('the first exact phrase wins and opens a deep match with context on both sides', async ({ page }) => {
+    await openSearch(page)
+    await find(page, 'pusula rota')
+    await expect(results(page)).toHaveCount(1)
+    await expect(results(page).getByRole('blockquote')).toContainText('Pusula rota ilk')
+    await results(page).getByRole('link').click()
+    const conversation = page.getByRole('region', { name: 'Conversation' })
+    await expect(conversation.locator('mark')).toHaveText(['Pusula', 'rota'])
+    await expect(conversation.getByText('Pusula rota ilk')).toBeInViewport()
+    await expect(conversation.getByText('Pusula rota ikinci')).toBeVisible()
+    await expect(conversation.getByText('Context 13', { exact: true })).toBeVisible()
+    await expect(conversation.getByText('Context 0', { exact: true })).toHaveCount(0)
+    await conversation.getByRole('button', { name: /earlier messages/i }).click()
+    await expect(conversation.getByText('Context 0', { exact: true })).toBeVisible()
+    await conversation.getByRole('button', { name: /later messages/i }).click()
+    await expect(conversation.getByText('Later context 8', { exact: true })).toBeVisible()
   })
 
   test('a name finds the memories that person sent a photo or a message in, and only those', async ({ page }) => {
@@ -456,7 +495,7 @@ test.describe('search', () => {
   })
 
   test('a visitor gets nothing, and a session that has ended is shown the private page', async ({ browser }) => {
-    const refused = await fetch(`${apiUrl}/rest/v1/rpc/search_memories`, {
+    const refused = await fetch(`${apiUrl}/rest/v1/rpc/search_memories_with_matches`, {
       method: 'POST',
       headers: { apikey: publishableKey, 'content-type': 'application/json' },
       body: JSON.stringify({ p_query: 'tekneye' }),
@@ -481,7 +520,7 @@ test.describe('search', () => {
       const key = Object.keys(localStorage).find((k) => k.endsWith('-auth-token'))!
       return JSON.parse(localStorage.getItem(key)!).access_token as string
     })
-    const ask = async (words: string) => (await request.post(`${apiUrl}/rest/v1/rpc/search_memories`, { headers: { apikey: publishableKey, authorization: `Bearer ${token}` }, data: { p_query: words } })).json()
+    const ask = async (words: string) => (await request.post(`${apiUrl}/rest/v1/rpc/search_memories_with_matches`, { headers: { apikey: publishableKey, authorization: `Bearer ${token}` }, data: { p_query: words } })).json()
     expect(((await ask('tekneye')) as unknown[]).length).toBe(1)
 
     ownerCommand(['person', 'relink', '--name', name])

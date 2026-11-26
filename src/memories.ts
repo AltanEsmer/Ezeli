@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { takeReturnKeys } from './route.ts'
+import type { SearchMatch } from './searchMatch.tsx'
 import { supabase } from './supabase.ts'
 
 // One row of the `timeline` view: a memory with its main photos, in one request.
@@ -19,6 +20,7 @@ export type MemoryCard = {
   senders: string[]
   // One line of the conversation, as written. Null when the memory has no text.
   line: string | null
+  match?: SearchMatch | null
 }
 
 export type MonthCount = { month: string; memories: number }

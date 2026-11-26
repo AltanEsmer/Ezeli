@@ -1,11 +1,13 @@
 import { type MouseEvent, type RefObject, createContext, memo, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { formatDate, formatNameParts, language, t } from './i18n.ts'
 import { type MemoryCard, signedLink } from './memories.ts'
+import type { SearchJump } from './searchMatch.tsx'
 import { memoryPath, navigate, opened } from './route.ts'
 
 type Photo = MemoryCard['photos'][number]
 
 // `listName` is what the memory screen calls this list in its back link (none: "All memories").
+export const SearchQuery = createContext('')
 export const ListName = createContext<string | undefined>(undefined)
 
 // A memory on a list: the timeline, a person's page and search results all draw it with this.
@@ -17,6 +19,9 @@ export const MemoryItem = memo(function MemoryItem({ memory }: { memory: MemoryC
   const card = useRef<HTMLElement>(null)
   const near = useNear(card)
   const listName = useContext(ListName)
+  const query = useContext(SearchQuery)
+  const match = query ? memory.match : null
+  const quote = match?.quote ?? memory.line
   const wide = useWide()
   const [box, setBox] = useState<HTMLElement | null>(null)
   const width = useWidth(box)
@@ -34,12 +39,12 @@ export const MemoryItem = memo(function MemoryItem({ memory }: { memory: MemoryC
 
   return (
     <article className="mi" ref={card} data-key={memory.key}>
-      <a className="mi-link" href={memoryPath(memory.key)} onClick={open(memory.key, listName)}>
+      <a className="mi-link" href={memoryPath(memory.key)} onClick={open(memory.key, listName, match ? { id: match.id, kind: match.kind, query } : undefined)}>
         <div className="mi-words">
           <h3 className="mi-date">{date}</h3>
-          {memory.line && (
+          {quote && (
             <p className="mi-line" role="blockquote" dir="auto" lang="tr">
-              {`“${cutLine(memory.line)}”`}
+              {`“${match ? quote : cutLine(quote)}”`}
             </p>
           )}
           <p className="mi-by">
@@ -68,11 +73,11 @@ export const MemoryItem = memo(function MemoryItem({ memory }: { memory: MemoryC
   )
 })
 
-const open = (key: string, listName?: string) => (event: MouseEvent) => {
+const open = (key: string, listName?: string, jump?: SearchJump) => (event: MouseEvent) => {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
   event.preventDefault()
   opened(key)
-  navigate(memoryPath(key), { from: { path: location.pathname, name: listName } })
+  navigate(memoryPath(key), { from: { path: location.pathname, name: listName }, jump })
 }
 
 // A photo's own shape, kept within reason so one panorama cannot take a whole row.

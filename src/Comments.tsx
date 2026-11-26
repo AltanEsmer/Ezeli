@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { formatDateTime, language, t } from './i18n.ts'
+import { type SearchJump, marked, matchRanges, useJumpTarget } from './searchMatch.tsx'
 import type { Person } from './session.ts'
 import { supabase } from './supabase.ts'
 
@@ -17,7 +18,7 @@ async function sessionGone(): Promise<boolean> {
   return !who.error && !who.data[0]
 }
 
-export function Comments({ memoryKey, person, onSessionLost }: { memoryKey: string; person: Person; onSessionLost: () => void }) {
+export function Comments({ memoryKey, person, onSessionLost, jump }: { jump?: SearchJump; memoryKey: string; person: Person; onSessionLost: () => void }) {
   const [memory, setMemory] = useState<string | null>(null)
   const [list, setList] = useState<Comment[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -48,16 +49,17 @@ export function Comments({ memoryKey, person, onSessionLost }: { memoryKey: stri
         </div>
       )}
       {list?.map((comment) => (
-        <Note key={comment.id} comment={comment} person={person} onSessionLost={onSessionLost} onGone={() => setList((now) => now && now.filter((c) => c.id !== comment.id))} />
+        <Note query={jump?.id === comment.id ? jump.query : undefined} key={comment.id} comment={comment} person={person} onSessionLost={onSessionLost} onGone={() => setList((now) => now && now.filter((c) => c.id !== comment.id))} />
       ))}
       {memory && <Write memory={memory} onSessionLost={onSessionLost} onAdded={(comment) => setList((now) => [...(now ?? []), comment])} />}
     </section>
   )
 }
 
-function Note({ comment, person, onSessionLost, onGone }: { comment: Comment; person: Person; onSessionLost: () => void; onGone: () => void }) {
+function Note({ comment, person, onSessionLost, onGone, query }: { query?: string; comment: Comment; person: Person; onSessionLost: () => void; onGone: () => void }) {
   const [asking, setAsking] = useState(false)
   const [failed, setFailed] = useState(false)
+  const target = useJumpTarget(Boolean(query))
   const mine = comment.person_id === person.id
 
   const remove = async () => {
@@ -71,13 +73,13 @@ function Note({ comment, person, onSessionLost, onGone }: { comment: Comment; pe
   }
 
   return (
-    <article className="cm-note">
+    <article className="cm-note" ref={query ? target : undefined} tabIndex={query ? -1 : undefined}>
       <div className="cm-head">
         <span lang="tr">{comment.people?.display_name}</span>
         <time dateTime={comment.created_at}>{formatDateTime(language, comment.created_at)}</time>
       </div>
       <p lang="tr" dir="auto">
-        {comment.body}
+        {query ? marked(comment.body, matchRanges(comment.body, query)) : comment.body}
       </p>
       {(mine || person.is_owner) &&
         (asking ? (
