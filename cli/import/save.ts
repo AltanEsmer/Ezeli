@@ -115,7 +115,8 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   // A photo message with a stored row keeps its row (and gets the memory the regroup gives it)
   // even when this export has no file for it.
   const photoRows = placed.filter(({ message }) => sizes.has(message.key) || storedPhotos.has(message.key)).map(({ message, seq, memory }) => {
-    const size = sizes.get(message.key) ?? (({ view_path, thumb_path, width, height, content_hash }) => ({ view: view_path, thumb: thumb_path, width, height, hash: message.media?.hash ?? content_hash }))(storedPhotos.get(message.key)!)
+    const existingPhoto = storedPhotos.get(message.key)
+    const size = sizes.get(message.key) ?? (({ view_path, thumb_path, width, height, content_hash }) => ({ view: view_path, thumb: thumb_path, width, height, hash: message.media?.hash ?? content_hash }))(existingPhoto!)
     return {
       memory_id: memory,
       message_id: messageIds.get(message.key)!,
@@ -128,6 +129,8 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
       width: size.width,
       height: size.height,
       content_hash: size.hash,
+      latitude: existingPhoto ? existingPhoto.latitude : message.media?.location?.latitude ?? null,
+      longitude: existingPhoto ? existingPhoto.longitude : message.media?.location?.longitude ?? null,
     }
   })
   for (const part of chunks(photoRows)) {

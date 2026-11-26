@@ -27,7 +27,8 @@ test('import stores reliable capture GPS separately from metadata-free images', 
   writeFileSync(join(folder, '00000009-PHOTO-2023-07-14-21-10-05.jpg'), badGps)
 
   const chat = fresh('Kaş Tatili')
-  expect(importChat(chat, { folder }).status).toBe(0)
+  const result = importChat(chat, { folder })
+  expect(result.status, result.err).toBe(0)
 
   const memories = await rows<{ id: string }>(owner.from('memories').select('id').eq('chat_id', (await storedChat(chat))!.id as string))
   const photos = await rows<{ view_path: string; thumb_path: string; width: number; latitude: number | null; longitude: number | null }>(
