@@ -130,4 +130,9 @@ test('photos at a shared location stay individually reachable and Back returns t
   await page.getByRole('button', { name: '2 photos in this area' }).click()
   await expect(page.getByRole('link', { name: /Open photo sent by/ })).toHaveCount(2)
   await expect(page.getByRole('link', { name: 'Open photo sent by Karpuz' })).toHaveCount(0)
+
+  const hidden = ownerCommand(['hide', path, '--yes'])
+  expect(hidden.status, hidden.stderr).toBe(0)
+  await page.reload()
+  await expect(page.getByText('No located photos yet')).toBeVisible()
 })
