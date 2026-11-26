@@ -26,7 +26,9 @@ const world = { center: [20, 25] as Point, zoom: 1 }
 const side = 1000
 const position = (photo: LocatedPhoto): Point => [photo.longitude, photo.latitude]
 
-export default function Globe({ onSessionLost, view }: { onSessionLost: () => void; view: GlobeView }) {
+export default function Globe({ onSessionLost, entry, views }: { onSessionLost: () => void; entry: string; views: Map<string, GlobeView> }) {
+  const [view] = useState(() => views.get(entry) ?? {})
+  useEffect(() => { views.set(entry, view) }, [entry, view, views])
   const [photos, setPhotos] = useState<LocatedPhoto[] | 'failed' | null>(null)
   const [attempt, setAttempt] = useState(0)
   useEffect(() => { window.scrollTo(0, 0) }, [])
@@ -182,8 +184,9 @@ function Preview({ photo, number }: { photo: LocatedPhoto; number?: number }) {
   const near = useNear(ref)
   const [thumb] = useLinks(near ? [photo.thumb_path] : [])
   const path = memoryPath(photo.memory_key)
-  return <a ref={ref} className="globe-preview" href={path} onClick={follow(path, { path: globePath, photo: photo.message_id })}>
+  const [before, after] = t.openLocatedPhoto('\0').split('\0')
+  return <a ref={ref} className="globe-preview" href={`${path}#photo=${photo.message_id}`} onClick={follow(path, { path: globePath, photo: photo.message_id })}>
     <Shot url={thumb} ratio={4 / 3} alt={t.photoBy(photo.display_name)} />
-    <span>{t.openLocatedPhoto(photo.display_name)}{number && ` · ${number}`}</span>
+    <span>{before}<span lang="tr">{photo.display_name}</span>{after}{number && ` · ${number}`}</span>
   </a>
 }

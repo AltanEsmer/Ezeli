@@ -67,7 +67,10 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
   useEffect(() => {
     const opening = takeOpeningPhoto()
     const index = opening ? memory.photos.findIndex((photo) => photo.message === opening) : -1
-    if (index >= 0) show(index)
+    if (index >= 0) {
+      setSelected(index)
+      show(index)
+    }
   }, [memory.photos])
   useEffect(() => {
     const closed = () => {

@@ -52,6 +52,7 @@
   padding-inline: var(--space-1);
   border-radius: 999px;
   color: var(--stage);
+  background: var(--accent);
   font-size: var(--text-sm);
   font-weight: 600;
 }

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useSyncExternalStore } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useSyncExternalStore } from 'react'
 import type { GlobeView } from './globeCamera.ts'
 import { GlobeBoundary } from './GlobeUnavailable.tsx'
 import { getLanguage, subscribeLanguage, t } from './i18n.ts'
@@ -7,7 +7,7 @@ import { MemoryPage } from './MemoryPage.tsx'
 import { PhotoImport } from './PhotoImport.tsx'
 import { Search } from './Search.tsx'
 import { PeoplePage, PersonPage } from './People.tsx'
-import { navigate, useRoute } from './route.ts'
+import { navigate, useGlobeEntry, useRoute } from './route.ts'
 import { type Person, useSession } from './session.ts'
 import { Shell } from './Shell.tsx'
 
@@ -42,14 +42,15 @@ export function App() {
         </Notice>
       )
     case 'in':
-      return <Signed key={session.person.id} person={session.person} onSignOut={signOut} onSessionLost={reload} />
+      return <Signed person={session.person} onSignOut={signOut} onSessionLost={reload} />
   }
 }
 
 // The screens of a signed-in person, by address, inside the shell.
 function Signed({ person, onSignOut, onSessionLost }: { person: Person; onSignOut: () => void; onSessionLost: () => void }) {
   const route = useRoute()
-  const globe = useRef<GlobeView>({})
+  const entry = useGlobeEntry()
+  const globeViews = useMemo(() => new Map<string, GlobeView>(), [person.id])
   // A path the app does not know is the timeline, and says so in the address bar.
   const unknown = route.name === 'timeline' && location.pathname !== '/'
   useEffect(() => {
@@ -67,9 +68,9 @@ function Signed({ person, onSignOut, onSessionLost }: { person: Person; onSignOu
       ) : route.name === 'photo-import' ? (
         null
       ) : route.name === 'globe' ? (
-        <GlobeBoundary>
+        <GlobeBoundary key={`${person.id}:${entry}`}>
           <Suspense fallback={<div aria-busy="true" aria-label={t.loading} />}>
-            <Globe onSessionLost={onSessionLost} view={globe.current} />
+            <Globe onSessionLost={onSessionLost} entry={entry} views={globeViews} />
           </Suspense>
         </GlobeBoundary>
       ) : route.name === 'search' ? (

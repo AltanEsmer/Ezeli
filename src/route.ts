@@ -59,16 +59,23 @@ export function navigate(path: string, options: { replace?: boolean; from?: From
   lastWasPop = false
   const from = options.from ?? (options.replace ? cameFrom() : null)
   if (options.replace) history.replaceState({ depth: depth(), from }, '', path)
-  else history.pushState({ depth: depth() + 1, from, openingPhoto: from?.photo }, '', path)
+  else {
+    // Only an opaque key goes in browser history. The signed-in screen keeps the camera in memory.
+    const globeEntry = path === globePath ? crypto.getRandomValues(new Uint32Array(4)).join('-') : undefined
+    history.pushState({ depth: depth() + 1, from, openingPhoto: from?.photo, globeEntry }, '', path)
+  }
   window.dispatchEvent(new Event(CHANGED))
 }
 
 // The globe opens the viewer once; returning to its memory keeps the stage on the selected photo.
 export function takeOpeningPhoto(): string | undefined {
   const state = history.state as { openingPhoto?: string } | null
-  if (!state?.openingPhoto) return
-  history.replaceState({ ...state, openingPhoto: undefined }, '')
-  return state.openingPhoto
+  const linked = location.hash.match(/^#photo=([0-9a-f-]{36})$/i)?.[1]
+  const photo = state?.openingPhoto ?? linked
+  if (!photo) return
+  const url = location.pathname + location.search + (linked ? '' : location.hash)
+  history.replaceState({ ...state, openingPhoto: undefined }, '', url)
+  return photo
 }
 
 // A layer on top of a screen (the full-screen photo) is a step of its own in the history, so the
@@ -103,6 +110,9 @@ function subscribe(listener: () => void) {
     window.removeEventListener(CHANGED, listener)
   }
 }
+
+const readGlobeEntry = () => (history.state as { globeEntry?: string } | null)?.globeEntry ?? ''
+export const useGlobeEntry = () => useSyncExternalStore(subscribe, readGlobeEntry)
 
 const read = () => location.pathname
 export function useRoute(): Route {
