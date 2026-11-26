@@ -49,7 +49,7 @@ async function find(db: Db, address: string): Promise<Found> {
   if (messages.error) throw messages.error
   const items = messages.data.map((m, index) => {
     const person = m.people as unknown as { id: string; display_name: string; slug: string | null }
-    return { n: index + 1, key: m.key, kind: m.media_kind, by: person.display_name, slug: person.slug ?? person.id, at: m.at, text: m.text, clip: Boolean(m.clip_path) || m.media_kind === 'video' || m.media_kind === 'voice' }
+    return { n: index + 1, key: m.key, kind: m.media_kind, by: person.display_name, slug: person.slug ?? person.id, at: m.at, text: m.text, clip: Boolean(m.clip_path) }
   })
   return { memory: memory.data, chat: memory.data.chats as unknown as Found['chat'], items }
 }
