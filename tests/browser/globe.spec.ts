@@ -29,6 +29,16 @@ test('the globe loads on demand and explains an unlocated collection in either l
   await expectNoSidewaysScroll(page)
 })
 
+test('a globe data failure leaves a way back to the timeline', async ({ page }) => {
+  await page.goto(addPerson(fruit('Limon')))
+  await page.route('**/rest/v1/located_photos*', (request) =>
+    request.fulfill({ status: 500, json: { message: 'Unavailable' } }))
+  await page.getByRole('link', { name: 'Globe', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Could not load the globe' })).toBeVisible()
+  await page.getByRole('link', { name: 'All memories' }).click()
+  await expect(page).toHaveURL(/\/$/)
+})
+
 test('a friend explores a region, opens the exact photo and returns to its conversation', async ({ page, request }) => {
   const folder = mkdtempSync(join(tmpdir(), 'ezeli-globe-'))
   const jpg = '00000009-PHOTO-2023-07-14-21-10-05.jpg'
@@ -49,12 +59,28 @@ test('a friend explores a region, opens the exact photo and returns to its conve
   expect(anonymous.ok()).toBe(false)
   await page.goto('/globe')
   await expect(page.getByRole('heading', { name: 'Ezeli is private' })).toBeVisible()
-  await page.goto(addPerson(fruit('Limon')))
+  const link = addPerson(fruit('Limon'))
+  await page.goto(link)
   await page.getByRole('link', { name: 'Globe', exact: true }).click()
   await page.getByRole('button', { name: 'Zoom in' }).click()
   await page.getByRole('button', { name: 'Photo sent by Karpuz' }).click()
   const choice = page.getByRole('link', { name: 'Open photo sent by Karpuz' })
   await expect(choice.getByRole('img')).toBeVisible()
+
+  // A browser opening the anchor in another tab uses its address directly.
+  const address = await choice.getAttribute('href')
+  const tab = await page.context().newPage()
+  try {
+    await tab.goto(new URL(address!, page.url()).href)
+    const photo = tab.getByRole('dialog', { name: 'Photo' })
+    await expect(photo.getByText('2 / 2')).toBeVisible()
+    expect(new URL(tab.url()).hash).toBe('')
+    await photo.getByRole('button', { name: 'Close' }).click()
+    await expect(tab.getByRole('figure').getByRole('button', { name: 'Open photo 2' })).toBeVisible()
+  } finally {
+    await tab.close()
+  }
+
   await choice.click()
   const viewer = page.getByRole('dialog', { name: 'Photo' })
   await expect(viewer.getByText('2 / 2')).toBeVisible()
@@ -63,6 +89,13 @@ test('a friend explores a region, opens the exact photo and returns to its conve
   const path = new URL(page.url()).pathname
   await page.getByRole('button', { name: 'Globe' }).click()
   await expect(page.getByRole('heading', { name: 'Globe' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Photo sent by Karpuz' })).toBeVisible()
+  await page.getByRole('button', { name: /^Menu:/ }).click()
+  await page.getByRole('button', { name: 'Sign out on this device' }).click()
+  await expect(page.getByRole('heading', { name: 'Ezeli is private' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Photo sent by Karpuz' })).toHaveCount(0)
+  await page.goto(link)
+  await page.getByRole('link', { name: 'Globe', exact: true }).click()
 
   const hidden = ownerCommand(['hide', path, '--yes'])
   expect(hidden.status, hidden.stderr).toBe(0)
