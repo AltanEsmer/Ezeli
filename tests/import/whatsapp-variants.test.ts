@@ -11,7 +11,7 @@ test('a Turkish iPhone export: photos, omitted photo, HEIC photo, notices, numbe
 
   expect(result.err).toBe('')
   expect(result.status).toBe(0)
-  expect(result.out).toBe(
+  expect(result.out.split('\nClips:')[0]).toBe(
     [
       'Trial run. Nothing was saved.',
       '',
@@ -47,7 +47,7 @@ test('an Android export: the text file is found, media without a kind and phone 
 
   expect(result.err).toBe('')
   expect(result.status).toBe(0)
-  expect(result.out).toBe(
+  expect(result.out.split('\nClips:')[0]).toBe(
     [
       'Trial run. Nothing was saved.',
       '',

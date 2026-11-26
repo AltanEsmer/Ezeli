@@ -8,7 +8,7 @@ export type MemoryDetail = {
   place?: string | null
   timezone: string
   photos: { message: string; by_id: string | null; view: string; thumb: string; width: number; height: number; by: string }[]
-  messages: { id: string; by: string; by_id: string | null; at: string; text: string; kind: 'photo' | 'video' | 'gif' | 'voice' | 'document' | 'media' | null }[]
+  messages: { id: string; by: string; by_id: string | null; at: string; text: string; clip?: string | null; kind: 'photo' | 'video' | 'gif' | 'voice' | 'document' | 'media' | null }[]
   // The keys of the memory before and after this one in time.
   before: string | null
   after: string | null
@@ -24,13 +24,18 @@ export type MemoryState =
 
 const LINK_SECONDS = 3600
 
-const pathsOf = (memory: MemoryDetail) => [...new Set(memory.photos.flatMap((photo) => [photo.view, photo.thumb]))]
-
-async function sign(paths: string[]): Promise<Map<string, string> | null> {
-  const signed = await supabase.storage.from('photos').createSignedUrls(paths, LINK_SECONDS)
-  if (signed.error) return null
+async function sign(memory: MemoryDetail): Promise<Map<string, string> | null> {
+  const photos = [...new Set(memory.photos.flatMap((photo) => [photo.view, photo.thumb]))]
+  const clips = memory.messages.flatMap((message) => message.clip ? [message.clip] : [])
+  const [pictures, recordings] = await Promise.all([
+    supabase.storage.from('photos').createSignedUrls(photos, LINK_SECONDS),
+    clips.length ? supabase.storage.from('clips').createSignedUrls(clips, LINK_SECONDS) : null,
+  ])
+  if (pictures.error) return null
   const links = new Map<string, string>()
-  for (const item of signed.data) if (item.path && item.signedUrl) links.set(item.path, item.signedUrl)
+  for (const item of [...pictures.data, ...(recordings?.data ?? [])]) {
+    if (item.path && item.signedUrl) links.set(item.path, item.signedUrl)
+  }
   return links
 }
 
@@ -51,7 +56,7 @@ export function useMemory(key: string): { state: MemoryState; reload: () => void
         return setState({ status: !who.error && !who.data[0] ? 'gone' : 'missing' })
       }
 
-      const links = await sign(pathsOf(memory))
+      const links = await sign(memory)
       if (!links) return setState({ status: 'failed' })
       setState({ status: 'ready', memory, links })
     })()
@@ -62,7 +67,7 @@ export function useMemory(key: string): { state: MemoryState; reload: () => void
   const relink = useCallback(() => {
     fresh.current ??= (async () => {
       if (state.status !== 'ready') return false
-      const links = await sign(pathsOf(state.memory))
+      const links = await sign(state.memory)
       if (links) setState({ status: 'ready', memory: state.memory, links })
       return links !== null
     })()

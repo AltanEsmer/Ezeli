@@ -20,7 +20,7 @@ test('a trial run prints the memories, photos, people, date range and problems',
 
   expect(result.err).toBe('')
   expect(result.status).toBe(0)
-  expect(result.out).toBe(
+  expect(result.out.split('\nClips:')[0]).toBe(
     [
       'Trial run. Nothing was saved.',
       '',
@@ -88,7 +88,7 @@ test('what the conversation of a memory holds, read from the made-up export', ()
   const result = trial('weekend', '--details')
 
   expect(result.status).toBe(0)
-  const conversation = result.out.split('\n').slice(8)
+  const conversation = result.out.split('\nClips:')[0]!.split('\n').slice(8)
   expect(conversation).toEqual([
     '  1. 2023-07-14 20:58  2 photos, 7 messages  Fıstık, Karpuz, Limon',
     '       20:47  Fıstık: Ben geldim bile 😎',

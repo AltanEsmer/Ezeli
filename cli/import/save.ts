@@ -1,7 +1,7 @@
 // Saving: the two sizes of each photo, then the chat, its people, the memories, messages and
 // photos. Everything is written by key, so the same export saved twice leaves one copy, and an
 // import that stopped halfway is finished by running it again.
-import { existsSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import type { Db } from '../supabase.ts'
 import { buildMemories, hasPhotoFile, isPhoto, type Grouping, type MemoryMessage } from './memories.ts'
 import type { ChatApp } from './people.ts'
@@ -36,6 +36,7 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   // What an owner hid is removed from what is stored before anything is read from it (marks.ts).
   await applyMarks(db, chat.key)
   const stored = existing.data ? await loadStored(db, existing.data.id) : nothingStored
+  const storedMessages = new Map(stored.messages.map((message) => [message.key, message]))
   const storedPhotos = new Map(stored.photos.map((photo) => [photo.key, photo]))
   const outside = storedOutside(stored, span)
   // A stored message that this export holds again is the export's: the same chat from another phone
@@ -102,8 +103,10 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
     person_id: people.get(message.personId)!,
     at: new Date(message.at).toISOString(),
     seq,
-    text: message.text,
-    media_kind: message.media?.kind ?? null,
+    text: storedMessages.get(message.key)?.clip_path && !message.media?.file && !message.text
+      ? storedMessages.get(message.key)!.text : message.text,
+    media_kind: storedMessages.get(message.key)?.clip_path
+      ? storedMessages.get(message.key)!.media_kind : message.media?.kind ?? null,
   }))
   const messageIds = new Map<string, string>()
   for (const part of chunks(messageRows)) {
@@ -134,6 +137,27 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
     const saved = await db.from('photos').upsert(part, { onConflict: 'key' })
     if (saved.error) throw saved.error
   }
+
+  // Old copies stay attached when the export has a placeholder or no local file.
+  const visible = new Set(photoRows.map((row) => row.memory_id))
+  await mapLimit(placed, 4, async ({ message, memory }) => {
+    const clip = message.media?.clip
+    if (!clip || !visible.has(memory) || storedMessages.get(message.key)?.clip_path) return
+    const path = `${chatId}/${message.key}-clip.${clip.extension}`
+    const uploaded = await db.storage.from('clips').upload(path, readFileSync(clip.file), { contentType: clip.type, upsert: true })
+    if (uploaded.error) throw uploaded.error
+    const attached = await db.from('messages').update({ clip_path: path }).eq('id', messageIds.get(message.key)!).is('clip_path', null).select('id')
+    if (attached.error) throw attached.error
+    if (!attached.data.length) {
+      // A concurrent hide can delete the message between upload and attachment.
+      const remaining = await db.from('messages').select('clip_path').eq('key', message.key).maybeSingle()
+      if (remaining.error) throw remaining.error
+      if (remaining.data?.clip_path !== path) {
+        const removed = await db.storage.from('clips').remove([path])
+        if (removed.error) throw removed.error
+      }
+    }
+  })
 
   // Only now, with every row of this import in place, is anything that no longer fits removed.
   const kept = { memories: new Set(memoryRows.map((row) => row.key)), messages: new Set(messages.map((message) => message.key)) }

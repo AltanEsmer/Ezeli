@@ -15,7 +15,7 @@
 // says "media omitted" for any media. So a thing of kind `media` is matched by photo marks and by
 // other-media marks, and a mark made on a `media` thing matches photos and other media too.
 import type { Db } from '../supabase.ts'
-import { chunks, loadStored, type Counts, type StoredMemory, type StoredMessage, type StoredPhoto } from './regroup.ts'
+import { chunks, loadStored, removeImportFiles, type Counts, type StoredMemory, type StoredMessage, type StoredPhoto } from './regroup.ts'
 import { Stop } from './stop.ts'
 
 export type Kind = 'photo' | 'text' | 'other' | 'media'
@@ -23,7 +23,7 @@ export type Mark = { id: string; chat_key: string; person_slug: string; minute: 
 // `exact`: the mark has matched exactly once (see `matched`).
 export type Matching = { person_slug: string; minute: string; kind: Kind; match: string; exact?: boolean }
 // `match`: an upload's key, a chat photo's file hash, a text message's text, or ''.
-export type Thing = { slug: string; at: number; kind: Kind; match: string }
+export type Thing = { key: string; slug: string; at: number; kind: Kind; match: string }
 
 export const kindOf = (media: { kind: string } | null | undefined): Kind =>
   !media ? 'text' : media.kind === 'photo' ? 'photo' : media.kind === 'media' ? 'media' : 'other'
@@ -48,6 +48,12 @@ export function matched<T extends Thing>(things: T[], marks: Matching[], stored 
   const hits = new Set<T>()
   const results: Result<T>[] = []
   for (const mark of marks) {
+    if (mark.kind === 'other' && mark.match.startsWith('clip:')) {
+      const hit = things.filter((thing) => `clip:${thing.key}` === mark.match)
+      for (const thing of hit) hits.add(thing)
+      results.push({ mark, things: hit, exact: hit.length > 0 })
+      continue
+    }
     if (mark.kind === 'photo' && mark.match.startsWith('manual:')) {
       const hit = things.filter((thing) => thing.kind === 'photo' && thing.match === mark.match)
       for (const thing of hit) hits.add(thing)
@@ -87,7 +93,7 @@ export async function storedThings(db: Db, chatId: string): Promise<{ things: St
   const things = stored.messages.map((message) => {
     const kind = kindOf(message.media_kind ? { kind: message.media_kind } : null)
     const match = kind === 'text' ? message.text : kind === 'photo' || kind === 'media' ? photoMatch(message.key, hashOf.get(message.key)) : ''
-    return { message, slug: message.people.slug, at: Date.parse(message.at), kind, match }
+    return { message, key: message.key, slug: message.people.slug, at: Date.parse(message.at), kind, match }
   })
   return { things, photos: stored.photos, memories: stored.memories }
 }
@@ -108,8 +114,13 @@ export async function applyMarks(db: Db, chatKey: string): Promise<Applied> {
   const found = matched(things, marks, true)
   const hits = [...found.hits].map((thing) => thing.message)
 
-  const pathsOf = (thing: StoredThing) => photos.filter((photo) => photo.key === thing.message.key).flatMap((photo) => [photo.view_path, photo.thumb_path])
-  const applied = { ...none, messages: hits.length, photos: [...found.hits].flatMap(pathsOf).length / 2 }
+  const hitKeys = new Set(hits.map((message) => message.key))
+  const photosByKey = new Map(photos.map((photo) => [photo.key, photo]))
+  const pathsOf = ({ message }: StoredThing) => {
+    const photo = photosByKey.get(message.key)
+    return [...(photo ? [photo.view_path, photo.thumb_path] : []), ...(message.clip_path ? [message.clip_path] : [])]
+  }
+  const applied = { ...none, messages: hits.length, photos: photos.filter((photo) => hitKeys.has(photo.key)).length }
   // Record the files and exact matches before the rows that identify them disappear.
   for (const result of found.results) {
     const mark = result.mark as Mark
@@ -156,15 +167,12 @@ async function removeFiles(db: Db, marks: Mark[]): Promise<void> {
   for (const mark of marks.filter((candidate) => candidate.pending.length > 0)) {
     try {
       failForTest('files')
-      for (const part of chunks(mark.pending)) {
-        const removed = await db.storage.from('photos').remove(part)
-        if (removed.error) throw removed.error
-      }
+      await removeImportFiles(db, mark.pending)
       const cleared = await db.from('hidden').update({ pending: [] }).eq('id', mark.id)
       if (cleared.error) throw cleared.error
     } catch (error) {
       const reason = ((error as { message?: string }).message ?? String(error)).replace(/\s+/g, ' ')
-      throw new Stop(`Hidden, but the photo files could not be removed (${reason}). Until they are gone, a link a friend already holds keeps working. Run: pnpm ezeli hidden (it removes them).`)
+      throw new Stop(`Hidden, but the media files could not be removed (${reason}). Until they are gone, a link a friend already holds keeps working. Run: pnpm ezeli hidden (it removes them).`)
     }
   }
 }

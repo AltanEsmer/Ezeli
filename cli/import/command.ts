@@ -12,6 +12,7 @@ import { readablePhoto, removeConvertedPhotos } from './photos.ts'
 import { codeOf, kindOf, loadMarks, matched, widerThanOne, type Mark } from './marks.ts'
 import { spanOf } from './regroup.ts'
 import { saveChat, type SaveReport } from './save.ts'
+import { prepareClip, removeConvertedClips } from './clips.ts'
 import { Stop } from './stop.ts'
 import { importSummary } from './summary.ts'
 import { cleanText, removePhoneNumbers } from './text.ts'
@@ -34,6 +35,7 @@ export async function runImport(args: string[]): Promise<number> {
     return 1
   } finally {
     removeConvertedPhotos()
+    removeConvertedClips()
   }
 }
 
@@ -118,7 +120,7 @@ async function importExport(args: string[]): Promise<string> {
   // The keys above were worked out with it in place, so what stays keeps the key it has stored.
   const leftOut: string[] = []
   if (db) {
-    const things = messages.map((message) => ({ message, slug: message.personId, at: message.at, kind: kindOf(message.media), match: message.media ? (message.media.hash ?? '') : message.text }))
+    const things = messages.map((message) => ({ message, slug: message.personId, at: message.at, key: message.key, kind: kindOf(message.media), match: message.media ? (message.media.hash ?? '') : message.text }))
     const { hits: hidden, results } = matched(things, await savingStop(() => loadMarks(db, chatText)))
     // Nothing innocent goes without a line: a mark that could not match exactly left out others.
     for (const result of widerThanOne(results)) {
@@ -133,6 +135,27 @@ async function importExport(args: string[]): Promise<string> {
   }
 
   const memories = buildMemories(messages, grouping)
+  const clipNotes: string[] = []
+  let playable = 0
+  let skipped = 0
+  for (const memory of memories) {
+    const visible = memory.messages.some((message) => message.media?.kind === 'photo' && message.media.file)
+    for (const message of memory.messages) {
+      const media = message.media
+      if (!media || !(media.ambiguousAudio || media.kind === 'video' || media.kind === 'voice')) continue
+      const outcome = visible || db ? prepareClip(media) : 'memory has no photo file'
+      const where = `${message.person}, ${momentText(message.at, timezone)}`
+      if (typeof outcome === 'string') {
+        skipped++
+        clipNotes.push(`Clip skipped (${where}): ${outcome}`)
+      } else {
+        media.clip = outcome
+        playable++
+        clipNotes.push(`Clip eligible for playback (${where}): ${media.name ?? media.kind}`)
+      }
+    }
+  }
+  const clips = playable || skipped ? [`Clips: ${playable} playable, ${skipped} skipped.`, ...clipNotes.map(removePhoneNumbers)] : []
   let report: SaveReport | undefined
   if (db) {
     // The time this export covers, left-out senders and all: only inside it is anything stored
@@ -148,7 +171,8 @@ async function importExport(args: string[]): Promise<string> {
     }
   }
   const summary = importSummary(memories, problems.map(removePhoneNumbers), timezone, details, report && chatName!.trim(), report)
-  return leftOut.length > 0 ? `${summary}\n${leftOut.join('\n')}` : summary
+  const notes = [...clips, ...leftOut]
+  return notes.length > 0 ? `${summary}\n${notes.join('\n')}\n` : summary
 }
 
 // A failed request before saving is told in plain words, like a failed save.

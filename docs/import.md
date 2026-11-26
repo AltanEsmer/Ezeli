@@ -195,3 +195,9 @@ The upload form links to the saved memory. Comments appear with the memory's oth
 comments. Returning from a saved memory keeps the remaining drafts for the current
 session. The browser prepares viewing and thumbnail WebP files for the private photos
 bucket and strips original metadata.
+
+### Video and voice-note playback
+
+Install FFmpeg with `ffmpeg` and `ffprobe` on the owner command's PATH. The import prepares private H.264/AAC video and AAC audio copies up to 25 MiB each. Videos up to and including two minutes and identified voice notes within the size limit play in full. WhatsApp PTT filenames and the iPhone export's timestamped AUDIO Opus names identify voice notes. Discord's voice-message Opus or Ogg filename identifies a voice note. Ordinary audio stays an attachment placeholder.
+
+Run the usual import with `--trial` to see playable clips and reasons for skips. Reimport the same chat to attach copies to existing messages. When a later export keeps the message and omits its file, the stored copy stays playable. Use the item's code from `pnpm ezeli memory <address>` with `pnpm ezeli hide <address> <code>` to remove an individual clip and its caption.

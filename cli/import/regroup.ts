@@ -23,6 +23,7 @@ export type StoredMessage = {
   memory_id: string
   text: string
   media_kind: MediaKind | null
+  clip_path: string | null
   people: { id: string; slug: string; display_name: string }
 }
 export type StoredPhoto = { key: string; view_path: string; thumb_path: string; width: number; height: number; content_hash: string | null }
@@ -57,7 +58,7 @@ export async function loadStored(db: Db, chatId: string): Promise<Stored> {
     messages: await pages<StoredMessage>((from, to) =>
       db
         .from('messages')
-        .select('id, key, at, seq, memory_id, text, media_kind, people(id, slug, display_name), memories!inner(chat_id)')
+        .select('id, key, at, seq, memory_id, text, media_kind, clip_path, people(id, slug, display_name), memories!inner(chat_id)')
         .eq('memories.chat_id', chatId)
         .order('key')
         .range(from, to),
@@ -112,7 +113,10 @@ export async function removeWhatNoLongerFits(db: Db, stored: Stored, kept: Kept)
     const deleted = await db.from('messages').delete().in('id', part)
     if (deleted.error) throw deleted.error
   }
-  await removeFiles(db, gonePhotos.flatMap((photo) => [photo.view_path, photo.thumb_path]))
+  await removeFiles(db, [
+    ...gonePhotos.flatMap((photo) => [photo.view_path, photo.thumb_path]),
+    ...messages.flatMap((message) => message.clip_path ? [message.clip_path] : []),
+  ])
 
   const gone = stored.memories.filter((memory) => !kept.memories.has(memory.key))
   const heirs = await whereTheyWent(db, stored, kept, gone)
@@ -171,40 +175,56 @@ async function whereTheyWent(db: Db, stored: Stored, kept: Kept, gone: StoredMem
   return heirs
 }
 
-async function removeFiles(db: Db, paths: string[]): Promise<void> {
-  for (const part of chunks(paths)) {
-    const removed = await db.storage.from(BUCKET).remove(part)
-    if (removed.error) throw filesStop(removed.error)
+const isClip = (path: string) => /-clip[.](mp4|m4a)$/.test(path)
+
+export async function removeImportFiles(db: Db, paths: string[]): Promise<void> {
+  for (const bucket of [BUCKET, 'clips']) {
+    const selected = paths.filter((path) => isClip(path) === (bucket === 'clips'))
+    for (const part of chunks(selected)) {
+      const removed = await db.storage.from(bucket).remove(part)
+      if (removed.error) throw removed.error
+    }
   }
 }
 
-// Files in the chat's folder of the bucket that no photo row points at: left by a run that
-// stopped while removing them. Run at the end of a saving run, when every row of the run is in
-// place. Other chats' folders are never looked at.
-// Only an import does this, at its own end, and only for files that were already there when it began:
-// a file uploaded since then belongs to an import that is still running and has not given it a row yet.
+// Sweep files left by a failed run. Files created during this import may belong to a
+// concurrent import that has yet to attach them.
 export async function removeFilesWithoutRow(db: Db, chatId: string, since: number): Promise<void> {
-  const known = new Set<string>()
-  for (const photo of await loadPhotos(db, chatId)) {
-    known.add(photo.view_path)
-    known.add(photo.thumb_path)
-  }
-  const orphans: string[] = []
-  for (let offset = 0; ; offset += PAGE) {
-    const listed = await db.storage.from(BUCKET).list(chatId, { limit: PAGE, offset, sortBy: { column: 'name', order: 'asc' } })
-    if (listed.error) throw listed.error
-    for (const file of listed.data) {
-      const newer = Date.parse(file.created_at ?? '') >= since
-      if (file.id && !known.has(`${chatId}/${file.name}`) && !newer) orphans.push(`${chatId}/${file.name}`)
+  const photos = await loadPhotos(db, chatId)
+  const clips = await pages<{ clip_path: string }>((from, to) =>
+    db.from('messages').select('clip_path, memories!inner(chat_id)').eq('memories.chat_id', chatId)
+      .not('clip_path', 'is', null).order('key').range(from, to),
+  )
+  await sweep(BUCKET, new Set(photos.flatMap((photo) => [photo.view_path, photo.thumb_path])))
+  await sweep('clips', new Set(clips.map((clip) => clip.clip_path)))
+
+  async function sweep(bucket: string, known: Set<string>) {
+    const orphans: string[] = []
+    for (let offset = 0; ; offset += PAGE) {
+      const listed = await db.storage.from(bucket).list(chatId, { limit: PAGE, offset, sortBy: { column: 'name', order: 'asc' } })
+      if (listed.error) throw listed.error
+      for (const file of listed.data) {
+        const path = `${chatId}/${file.name}`
+        const newer = Date.parse(file.created_at ?? '') >= since
+        if (file.id && !known.has(path) && !newer) orphans.push(path)
+      }
+      if (listed.data.length < PAGE) break
     }
-    if (listed.data.length < PAGE) break
+    await removeFiles(db, orphans)
   }
-  await removeFiles(db, orphans)
+}
+
+async function removeFiles(db: Db, paths: string[]) {
+  try {
+    await removeImportFiles(db, paths)
+  } catch (error) {
+    throw filesStop(error as { message?: string })
+  }
 }
 
 function filesStop(error: { message?: string }) {
   const reason = (error.message ?? String(error)).replace(/\s+/g, ' ')
-  return new Stop(`The rows are removed but some photo files could not be: ${reason}. Run the same import again; it removes files that have no row.`)
+  return new Stop(`The rows are removed but some media files could not be: ${reason}. Run the same import again; it removes files that have no row.`)
 }
 
 async function pages<T>(page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: unknown }>): Promise<T[]> {

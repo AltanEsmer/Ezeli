@@ -29,6 +29,7 @@ const headers = {
   dash: new RegExp(`^${marks}*${stamp}${space}-${space}(?<rest>.*)$`),
 }
 
+const audioFile = /\.(?:opus|m4a|mp3|aac|ogg|amr|wav|flac)$/i
 const photoFile = /\.(jpe?g|png|heic|heif)$/i
 
 export function readWhatsApp(folder: string, zone: string, chosenOrder?: DateOrder): ChatExport {
@@ -109,12 +110,11 @@ export function readWhatsApp(folder: string, zone: string, chosenOrder?: DateOrd
       if (attachment.kind === 'sticker') continue
       const media: Media = { kind: attachment.kind }
       if (attachment.name) media.name = attachment.name
-      if (attachment.kind === 'photo') {
-        photoMessages++
-        if (attachment.name && present.has(attachment.name.normalize('NFC'))) media.file = join(folder, attachment.name)
-      }
-      // A caption is kept for photos only; for other media the text is a file name or page count.
-      messages.push({ at, minute, sender, text: attachment.kind === 'photo' ? attachment.caption : '', media })
+      const eligible = media.kind === 'photo' || media.kind === 'voice' || media.kind === 'video'
+      if (media.kind === 'photo') photoMessages++
+      if (attachment.name && audioFile.test(attachment.name) && media.kind !== 'voice') media.ambiguousAudio = true
+      if (eligible && attachment.name && present.has(attachment.name.normalize('NFC'))) media.file = join(folder, attachment.name)
+      messages.push({ at, minute, sender, text: eligible ? attachment.caption : '', media })
     } else if (!isNotice(body) && !isLocation(body)) {
       messages.push({ at, minute, sender, text: body })
     }
@@ -297,12 +297,11 @@ function kindOf(name: string): MediaKind | 'sticker' {
   if (tag === 'PHOTO' || tag === 'IMG') return 'photo'
   if (tag === 'VIDEO' || tag === 'VID') return 'video'
   if (tag === 'GIF') return 'gif'
-  if (tag === 'AUDIO' || tag === 'PTT' || tag === 'AUD') return 'voice'
+  if (tag === 'PTT' || /^\d{8}-AUDIO-\d{4}(?:-\d\d){5}\.opus$/i.test(name)) return 'voice'
   if (tag === 'STICKER' || tag === 'STK') return 'sticker'
   const extension = name.split('.').at(-1)!.toLowerCase()
   if (['jpg', 'jpeg', 'png', 'heic', 'heif'].includes(extension)) return 'photo'
   if (['mp4', 'mov', '3gp'].includes(extension)) return 'video'
-  if (['opus', 'm4a', 'mp3', 'aac', 'ogg', 'amr'].includes(extension)) return 'voice'
   if (extension === 'webp') return 'sticker'
   return 'document'
 }

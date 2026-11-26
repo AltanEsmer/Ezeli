@@ -1,14 +1,14 @@
 // What an export of any chat app is read into. Readers (WhatsApp, later Discord) produce this;
 // people and grouping work on it and know nothing about the chat app's file format.
+import type { Clip } from './clips.ts'
 import type { ChatApp } from './people.ts'
 
 // `media` is Android's "media omitted": it does not say what was sent.
 export type MediaKind = 'photo' | 'video' | 'gif' | 'voice' | 'document' | 'media'
 
-// `file` is the path of a photo found in the export. A photo without one is missing from the
-// export. Other kinds are never imported, so they carry no file.
+// `file` is the path of a photo or clip found in the export.
 // `hash` is the hash of the original file's bytes, made when saving, so a hidden photo can be found again.
-export type Media = { kind: MediaKind; name?: string; file?: string; hash?: string }
+export type Media = { kind: MediaKind; name?: string; file?: string; hash?: string; ambiguousAudio?: boolean; clip?: Clip }
 
 export type ChatMessage = {
   at: number // the moment it was sent, in milliseconds since 1970 UTC

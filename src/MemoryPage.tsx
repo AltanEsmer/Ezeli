@@ -208,6 +208,7 @@ function Talk({ memory, links, relink, onPhoto, jump }: { jump?: SearchJump; mem
           {group.messages.map((message) => {
             const index = photoOf.get(message.id)
             const photo = index === undefined ? undefined : memory.photos[index]
+            const clip = message.clip ? links.get(message.clip) : undefined
             const active = jump?.id === message.id
             return (
               <div ref={active ? target : undefined} tabIndex={active ? -1 : undefined} className={photo && !message.text ? 'mem-msg solo' : 'mem-msg'} key={message.id}>
@@ -216,12 +217,13 @@ function Talk({ memory, links, relink, onPhoto, jump }: { jump?: SearchJump; mem
                     <Pic src={links.get(photo.thumb)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={relink} loading="lazy" />
                   </button>
                 )}
-                {message.text ? (
+                {clip && <Clip key={clip} src={clip} video={message.clip!.endsWith('.mp4')} relink={relink} />}
+                {!photo && !clip && (!message.text || message.kind === 'video' || message.kind === 'voice') &&
+                  <p className="mem-gone">{placeholder(message.kind)}</p>}
+                {message.text && (
                   <p dir="auto" lang="tr">
                     {linkify(message.text, active ? jump.query : '')}
                   </p>
-                ) : (
-                  !photo && <p className="mem-gone">{placeholder(message.kind)}</p>
                 )}
               </div>
             )
@@ -235,6 +237,15 @@ function Talk({ memory, links, relink, onPhoto, jump }: { jump?: SearchJump; mem
       )}
     </section>
   )
+}
+
+function Clip({ src, video, relink }: { src: string; video: boolean; relink: () => Promise<boolean> }) {
+  const [failed, setFailed] = useState(false)
+  const label = video ? t.video : t.voice
+  if (failed) return <p className="mem-gone">{label}</p>
+  const props = { className: 'mem-clip', src, controls: true, preload: 'none', 'aria-label': label,
+    onError: () => { setFailed(true); void relink() } }
+  return video ? <video {...props} playsInline /> : <audio {...props} />
 }
 
 // A name opens that person's page, when the owners gave the person a lasting id.
