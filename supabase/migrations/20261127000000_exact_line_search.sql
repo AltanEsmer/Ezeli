@@ -5,17 +5,17 @@ create function public.search_memories_with_matches(
 returns setof jsonb
 language sql stable security invoker set search_path = ''
 as $$
-  with query as (
-    select array_agg(private.word_start(w) order by n) as words,
+  with typed as (
+    select w, n
+    from regexp_split_to_table(private.fold(left(coalesce(p_query, ''), 1000)), '\s+')
+      with ordinality as parts(w, n)
+    where w <> ''
+  ), query as (
+    select array(
+             select private.word_start(w) from typed group by w order by min(n) limit 8
+           ) as words,
            private.word_start(string_agg(w, ' ' order by n)) || '($|[^[:alnum:]])' as phrase
-    from (
-      select w, n
-      from regexp_split_to_table(private.fold(left(coalesce(p_query, ''), 1000)), '\s+')
-        with ordinality as parts(w, n)
-      where w <> ''
-      order by n
-      limit 8
-    ) as typed
+    from typed
   )
   select to_jsonb(t) || jsonb_build_object('match', best.hit)
   from public.search_memories(p_query, p_at, p_key, p_limit) t

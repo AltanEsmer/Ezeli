@@ -79,6 +79,11 @@ a {
   color: inherit;
 }
 
+mark {
+  background: var(--tint);
+  color: var(--accent);
+}
+
 button {
   font: inherit;
   color: inherit;

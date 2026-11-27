@@ -1,65 +1,13 @@
-// Search, as friends use it on a phone, against the local Supabase. The memories are the ones the
-// real import saved (import.setup.ts) plus two chats imported here. People are made with the real
-// owner commands, and comments are written through the app.
+// Search, as friends use it on a phone. The owner import seeds the memories and people,
+// and comments are written through the app.
 import { type Browser, type Page, expect, test } from '@playwright/test'
-import { appendFileSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
-import { makeSmallExport } from './large.ts'
 import { addPerson, apiUrl, expectNoSidewaysScroll, fruit, openWide, ownerCommand, photoCount, publishableKey, sentBy } from './support.ts'
 
-const people = 'tests/fixtures/whatsapp-iphone/people.json'
 const results = (page: Page) => page.getByRole('article')
 const box = (page: Page) => page.getByRole('searchbox')
 const dates = (page: Page) => results(page).getByRole('heading').allTextContents()
 const JULY14 = 'Friday, July 14, 2023'
 const nothing = (page: Page) => page.getByRole('heading', { name: 'Nothing found' })
-
-function load(dir: string, chat: string) {
-  try {
-    const result = ownerCommand(['import', dir, '--people', people, '--timezone', 'Europe/Istanbul', '--chat', chat, '--date-order', 'day-first'])
-    expect(result.stderr).toBe('')
-    expect(result.status).toBe(0)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-}
-
-test.beforeAll(async () => {
-  // Turkish words in every form: dotted and dotless i, in capitals and not, and ş ğ ü ö ç.
-  load(
-    await makeSmallExport([
-      { when: '01.03.2022, 10:00:00', text: 'İstanbul akşamı' },
-      { when: '02.03.2022, 10:00:00', text: 'ISTANBUL SAHİLİ' },
-      { when: '03.03.2022, 10:00:00', text: 'ıstanbul boğazı' },
-      { when: '04.03.2022, 10:00:00', text: 'istanbul köprüsü' },
-      { when: '05.03.2022, 10:00:00', text: 'Şarkı söyledik' },
-      { when: '06.03.2022, 10:00:00', text: 'ÇİĞ KÖFTE yedik' },
-      { when: '07.03.2022, 10:00:00', text: 'yüzde 50 indirim_var \\ ve 100%' },
-      { when: '08.03.2022, 10:00:00', text: 'Şeftali topladık' },
-      { when: '09.03.2022, 10:00:00', text: 'gece yürüyüşü' },
-      { when: '10.03.2022, 10:00:00', text: 'Café açıldı' },
-    ]),
-    'Arama Sohbeti',
-  )
-  const deep = await makeSmallExport([{ when: '17.03.2022, 10:00:00', text: 'pusula yeni rota dağlarda' }])
-  appendFileSync(join(deep, '_chat.txt'), [
-    ...Array.from({ length: 14 }, (_, i) => `[17.03.2022, 10:01:${String(i).padStart(2, '0')}] Limon L: Context ${i}`),
-    '[17.03.2022, 10:02:00] Limon L: Pusula rota ilk',
-    '[17.03.2022, 10:02:01] Limon L: Pusula rota ikinci',
-    ...Array.from({ length: 9 }, (_, i) => `[17.03.2022, 10:03:${String(i).padStart(2, '0')}] Limon L: Later context ${i}`),
-    '',
-  ].join('\n'))
-  load(deep, 'Deep Search')
-  // More memories than one page of results, all with the same word.
-  load(
-    await makeSmallExport(Array.from({ length: 30 }, (_, i) => ({ when: `${String(i + 1).padStart(2, '0')}.05.2021, 12:00:00`, text: `Deniz kenarı ${i + 1}` }))),
-    'Deniz Sohbeti',
-  )
-  // More than a hundred matches, so the database looks for candidates more than once for a page.
-  const start = Date.UTC(2020, 0, 1)
-  const stamp = (i: number) => new Date(start + i * 86_400_000).toISOString().slice(0, 10).split('-').reverse().join('.')
-  load(await makeSmallExport(Array.from({ length: 130 }, (_, i) => ({ when: `${stamp(i)}, 09:00:00`, text: `Kıyı yürüyüşü ${i + 1}` }))), 'Kıyı Sohbeti')
-})
 
 async function device(browser: Browser, locale = 'en-US') {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale })
@@ -143,7 +91,7 @@ test.describe('search', () => {
     await expect(results(page).getByRole('blockquote')).toContainText('Pusula rota ilk')
     await results(page).getByRole('link').click()
     const conversation = page.getByRole('region', { name: 'Conversation' })
-    await expect(conversation.locator('mark')).toHaveText(['Pusula', 'rota'])
+    await expect(conversation.locator('mark')).toHaveText(['Pusula', 'Pusula', 'rota'])
     await expect(conversation.getByText('Pusula rota ilk')).toBeInViewport()
     await expect(conversation.getByText('Pusula rota ikinci')).toBeVisible()
     await expect(conversation.getByText('Context 13', { exact: true })).toBeVisible()
@@ -525,7 +473,7 @@ test.describe('search', () => {
     await context.close()
   })
 
-  test('the function itself answers nothing to a token kept from before the link was replaced', async ({ page, request }) => {
+  test('the search function checks distinct query words and rejects a replaced session', async ({ page, request }) => {
     const name = fruit('Limon')
     await openSearch(page, addPerson(name))
     const token = await page.evaluate(() => {
@@ -534,6 +482,9 @@ test.describe('search', () => {
     })
     const ask = async (words: string) => (await request.post(`${apiUrl}/rest/v1/rpc/search_memories_with_matches`, { headers: { apikey: publishableKey, authorization: `Bearer ${token}` }, data: { p_query: words } })).json()
     expect(((await ask('tekneye')) as unknown[]).length).toBe(1)
+    const split = await ask('pusula '.repeat(8) + 'context')
+    expect(split).toHaveLength(1)
+    expect(split[0].match).toBeNull()
 
     ownerCommand(['person', 'relink', '--name', name])
 
