@@ -1,8 +1,9 @@
+import { spawn } from 'node:child_process'
 import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { expect, test } from 'vitest'
 import { makeClipExport } from '../clip-export.ts'
-import { ezeli, ezeliImport, fresh, freshPeople, owner, peopleFile, rows, signedInAs, storedChat } from './support.ts'
+import { ezeli, ezeliImport, fresh, freshPeople, owner, peopleFile, rows, signedInAs, stack, storedChat } from './support.ts'
 
 test('a hidden WhatsApp clip stays hidden when its export position shifts', async () => {
   const { dir, first: firstFile } = await makeClipExport()
@@ -56,10 +57,70 @@ test('a hidden WhatsApp clip stays hidden when its export position shifts', asyn
     const replacement = second!.replace('WA0003', 'WA0004')
     reimport([photo, second, secondCaption, replacement, 'Replacement clip'])
     const [restored] = await videos()
-    expect(restored).toMatchObject({ key: hiddenClip.key, text: 'Replacement clip' })
+    expect(restored).toMatchObject({ text: 'Replacement clip' })
+    expect(restored!.key.slice(0, 8)).not.toBe(secondCode)
+    const stale = ezeli(['hide', memory!.key, secondCode!, '--yes'])
+    expect(stale.status).toBe(1)
+    expect(stale.err).toContain('This memory has no item with the code')
+    expect(await videos()).toEqual([restored])
     expect(restored!.clip_path).toEqual(expect.any(String))
     expect(restored!.clip_path).not.toBe(hiddenClip.clip_path)
     expect((await fetch(oldUrl)).ok).toBe(false)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+    rmSync(dirname(people), { recursive: true, force: true })
+  }
+}, 60_000)
+
+test('a hide issued during a reordered clip import removes only the selected clip', async () => {
+  const { dir } = await makeClipExport()
+  const people = peopleFile(freshPeople())
+  const chat = fresh('Clip hide during import')
+  const chatFile = join(dir, '_chat.txt')
+  const [photo, first, firstCaption, second, secondCaption] = readFileSync(chatFile, 'utf8').split('\n')
+  const command = [dir, '--people', people, '--timezone', 'UTC', '--chat', chat, '--date-order', 'day-first']
+  const write = (lines: (string | undefined)[]) => writeFileSync(chatFile, [...lines, ''].join('\n'))
+  const pause = join(dir, 'paused')
+  try {
+    write([photo, first, firstCaption, second, secondCaption])
+    const initial = ezeliImport(command)
+    expect(initial.status, initial.err).toBe(0)
+    const savedChat = await storedChat(chat)
+    const [memory] = await rows<{ id: string; key: string }>(owner.from('memories').select('id, key').eq('chat_id', savedChat!.id as string))
+    const videos = () => rows<{ key: string; text: string; clip_path: string | null }>(
+      owner.from('messages').select('key, text, clip_path').eq('memory_id', memory!.id).eq('media_kind', 'video').order('seq'),
+    )
+    const [kept, target] = await videos()
+    expect(kept?.text).toBe(firstCaption)
+    expect(target?.text).toBe(secondCaption)
+
+    write([photo, second, secondCaption, first, firstCaption])
+    const running = spawn('node', ['cli/ezeli.ts', 'import', ...command], {
+      env: {
+        ...process.env, SUPABASE_URL: stack.apiUrl, SUPABASE_SECRET_KEY: stack.secretKey,
+        EZELI_TEST_PAUSE: pause, EZELI_TEST_PAUSE_STAGE: 'before-marks',
+      },
+    })
+    let err = ''
+    running.stderr.on('data', (chunk) => (err += chunk))
+    const finished = new Promise<number | null>((resolve) => running.on('close', resolve))
+    try {
+      await expect.poll(() => {
+        try {
+          readFileSync(`${pause}.ready`)
+          return true
+        } catch {
+          return false
+        }
+      }, { timeout: 20_000 }).toBe(true)
+      const hidden = ezeli(['hide', memory!.key, target!.key.slice(0, 8), '--yes'])
+      expect(hidden.status, hidden.err).toBe(0)
+      expect(await videos()).toEqual([kept])
+    } finally {
+      writeFileSync(`${pause}.go`, '')
+      expect(await finished, err).toBe(0)
+    }
+    expect(await videos()).toEqual([kept])
   } finally {
     rmSync(dir, { recursive: true, force: true })
     rmSync(dirname(people), { recursive: true, force: true })
