@@ -81,6 +81,17 @@ test('restores playback in place, retains an omitted file, and hides one same-mi
     await expect(conversation.getByText('First clip caption')).toHaveCount(0)
     await expect(conversation.getByText('Second clip caption')).toBeVisible()
     await expect(page.getByText('A fictional note to keep')).toBeVisible()
+
+    const unavailable = conversation.locator('video').first()
+    const originalPlayer = await unavailable.elementHandle()
+    const clipUrl = (await unavailable.getAttribute('src'))!
+    await page.route((url) => url.pathname === new URL(clipUrl).pathname, (route) => route.fulfill({ status: 404 }))
+    const play = (element: HTMLVideoElement) => element.play().catch(() => undefined)
+    await unavailable.evaluate(play)
+    await page.waitForFunction((element) => !element?.isConnected, originalPlayer)
+    await unavailable.evaluate(play)
+    await expect(conversation.locator('video')).toHaveCount(1)
+    await expect(conversation.getByText('Video', { exact: true })).toHaveCount(3)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

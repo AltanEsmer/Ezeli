@@ -1,11 +1,11 @@
 // A Discord export (DiscordChatExporter's messages.json and media folder) imported with the real
 // command. The export here is made up from the tool's documented layout (docs/import.md): nobody
 // has seen a real one yet.
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from 'vitest'
-import { counts, ezeliImport, fresh, freshPeople, fixtures, owner, rows, storedChat, type Names } from './support.ts'
+import { counts, ezeli, ezeliImport, fresh, freshPeople, fixtures, owner, rows, storedChat, type Names } from './support.ts'
 
 const discord = 'tests/fixtures/discord'
 const weekend = `${discord}/weekend`
@@ -432,4 +432,38 @@ test.each([
   expect(result.status).toBe(0)
   expect(result.out).toContain('2023-07-14 20:58  3 photos')
   expect(result.out).toContain('20:58  Limon: [Photo: IMG_2041.jpg] Bakın')
+})
+
+test('a hidden legacy Discord text stays hidden when it becomes a video caption', async () => {
+  const caption = 'Fictional caption to keep hidden'
+  const folder = changed((file) => {
+    file.messages[0]!.content = caption
+  })
+  const chat = fresh('Discord hidden caption')
+  const names = freshPeople()
+  try {
+    const imported = save(folder, chat, names)
+    expect(imported.status, imported.err).toBe(0)
+    const stored = (await storedChat(chat))!
+    const [memory] = await rows<{ key: string; id: string }>(owner.from('memories').select('key, id').eq('chat_id', stored.id as string).order('at'))
+    const listed = ezeli(['memory', memory!.key])
+    const code = listed.out.split('\n').find((line) => line.includes(caption))?.split(/\s+/)[0]
+    expect(code).toBeTruthy()
+    const hidden = ezeli(['hide', memory!.key, code!, '--yes'])
+    expect(hidden.status, hidden.err).toBe(0)
+
+    const path = join(folder, 'messages.json')
+    const file = JSON.parse(readFileSync(path, 'utf8')) as Export
+    file.messages[0]!.attachments = [{ id: '500000000000000099', fileName: 'sketch.mp4', url: 'media/sketch.mp4' }]
+    writeFileSync(path, JSON.stringify(file))
+    const reimported = save(folder, chat, names)
+    expect(reimported.status, reimported.err).toBe(0)
+    const messages = await rows<{ text: string; media_kind: string | null }>(
+      owner.from('messages').select('text, media_kind').eq('memory_id', memory!.id).order('at'),
+    )
+    expect(messages[0]).toEqual({ text: '', media_kind: 'video' })
+    expect(messages.map((message) => message.text)).not.toContain(caption)
+  } finally {
+    rmSync(folder, { recursive: true, force: true })
+  }
 })

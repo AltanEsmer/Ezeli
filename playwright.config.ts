@@ -41,6 +41,7 @@ export default defineConfig({
     { name: 'whole-interface', testMatch: 'whole-interface.spec.ts', dependencies: ['memory-screen'] },
     { name: 'photo-import', testMatch: 'photo-import.spec.ts', dependencies: ['whole-interface'] },
     { name: 'clips', testMatch: 'clips.spec.ts', dependencies: ['photo-import'] },
+    { name: 'clip-hiding', testMatch: 'clip-hiding.spec.ts', dependencies: ['clips'] },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',

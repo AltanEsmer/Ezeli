@@ -30,8 +30,12 @@ test('a visitor without a session reads nothing from any table or from the bucke
 test('a signed-in person reads memories, messages and photos, and the photos through short-lived links', async () => {
   const friend = await signedInAs(fresh('Limon'))
 
-  // Every column but the chat's key secret and a photo's file hash (hiding, issue 20).
-  const columns: Record<string, string> = { chats: 'id, key, name, app, timezone', photos: 'id, memory_id, message_id, key, person_id, at, seq, view_path, thumb_path, width, height' }
+  // Owner-only import and hiding metadata is omitted.
+  const columns: Record<string, string> = {
+    chats: 'id, key, name, app, timezone',
+    messages: 'id, memory_id, key, person_id, at, seq, text, media_kind, clip_path',
+    photos: 'id, memory_id, message_id, key, person_id, at, seq, view_path, thumb_path, width, height',
+  }
   for (const table of tables) {
     const read = await friend.from(table).select(columns[table] ?? '*')
     expect(read.error, table).toBeNull()
