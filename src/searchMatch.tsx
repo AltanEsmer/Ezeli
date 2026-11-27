@@ -20,7 +20,10 @@ const fold = (value: string) => value.normalize('NFC')
   .replace(/[İIıŞşĞğÜüÖöÇçÂâÎîÛû]/g, (letter) => folded[letters.indexOf(letter)]!)
   .replace(/[\u0307\u0306\u0308\u0327\u0302\u0301]/g, '').toLowerCase()
 
-export function matchRanges(text: string, query: string): [number, number][] {
+const escapePattern = (word: string) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const wordStart = '(?<![\\p{L}\\p{N}])'
+
+export function matchRanges(text: string, query: string, preferPhrase = false): [number, number][] {
   const offsets: { start: number; end: number }[] = []
   let comparable = ''
   for (const { segment, index } of new Intl.Segmenter().segment(text)) {
@@ -28,18 +31,21 @@ export function matchRanges(text: string, query: string): [number, number][] {
     comparable += piece
     for (let i = 0; i < piece.length; i++) offsets.push({ start: index, end: index + segment.length })
   }
-  const words = fold(query).split(/\s+/).filter(Boolean).sort((a, b) => b.length - a.length)
+  const words = fold(Array.from(query).slice(0, 1000).join('')).split(/\s+/).filter(Boolean)
   if (!words.length) return []
-  const pattern = words.map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')
-  return [...comparable.matchAll(new RegExp(`(?<![\\p{L}\\p{N}])(?:${pattern})`, 'gu'))]
-    .map((hit) => [offsets[hit.index]!.start, offsets[hit.index + hit[0].length - 1]!.end])
+  const pattern = [...new Set(words)].slice(0, 8).sort((a, b) => b.length - a.length).map(escapePattern).join('|')
+  const phrase = preferPhrase
+    ? new RegExp(`${wordStart}${escapePattern(words.join(' '))}(?![\\p{L}\\p{N}])`, 'u').exec(comparable)
+    : null
+  const hits = phrase ? [phrase] : comparable.matchAll(new RegExp(`${wordStart}(?:${pattern})`, 'gu'))
+  return Array.from(hits, (hit) => [offsets[hit.index]!.start, offsets[hit.index + hit[0].length - 1]!.end])
 }
 
 export function searchQuote(text: string, query: string) {
   const compact = text.trim().replace(/\s+/g, ' ')
-  const hits = matchRanges(compact, query)
-  if (compact.length <= 140 || !hits.length) return compact.slice(0, 140) + (compact.length > 140 ? '…' : '')
-  const start = Math.max(0, hits[0]![0] - 18)
+  if (compact.length <= 140) return compact
+  const hit = matchRanges(compact, query, true)[0]
+  const start = Math.max(0, (hit?.[0] ?? 0) - 18)
   const end = Math.min(compact.length, start + 140)
   return (start > 0 ? '…' : '') + compact.slice(start, end) + (end < compact.length ? '…' : '')
 }
