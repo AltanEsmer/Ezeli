@@ -5,7 +5,7 @@ import { fadeMs } from './fade.ts'
 import { useWide } from './MemoryItem.tsx'
 import { type MemoryDetail, useMemory } from './memory.ts'
 import type { Person } from './session.ts'
-import { cameFrom, follow, goBack, memoryPath, navigate, personPath, pushLayer, viewed } from './route.ts'
+import { cameFrom, follow, globePath, goBack, memoryPath, navigate, personPath, pushLayer, takeOpeningPhoto, viewed } from './route.ts'
 import { Pic, Viewer } from './Viewer.tsx'
 
 // One memory: the stage with one photo and the others as small squares, and beside or under it a
@@ -47,7 +47,8 @@ export function MemoryPage({ memoryKey, person, onSessionLost }: { memoryKey: st
 
 function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { memory: MemoryDetail; memoryKey: string; person: Person; onSessionLost: () => void; links: Map<string, string>; relink: () => Promise<boolean> }) {
   const wide = useWide()
-  const [selected, setSelected] = useState(0)
+  const from = cameFrom()
+  const [selected, setSelected] = useState(() => Math.max(0, memory.photos.findIndex((photo) => photo.message === from?.photo)))
   const [open, setOpen] = useState<number | null>(null)
   const [leaving, setLeaving] = useState(false)
   const timer = useRef<number>(undefined)
@@ -63,6 +64,14 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
     setLeaving(false)
     setOpen(index)
   }
+  useEffect(() => {
+    const opening = takeOpeningPhoto()
+    const index = opening ? memory.photos.findIndex((photo) => photo.message === opening) : -1
+    if (index >= 0) {
+      setSelected(index)
+      show(index)
+    }
+  }, [memory.photos])
   useEffect(() => {
     const closed = () => {
       if ((history.state as { layer?: boolean } | null)?.layer) return
@@ -89,7 +98,6 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
   }, [open, count])
 
   // Back goes to the list this memory was opened from, and says so.
-  const from = cameFrom()
   const senders = new Map(memory.photos.map((each) => [each.by, each.by_id]))
   const [before, after] = t.sentBy('\0').split('\0')
   // The stage keeps the shape of the first photo, so nothing below it moves when the photo changes.
@@ -100,7 +108,7 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
       <div className="mem-left">
         <button className="mem-back" onClick={() => goBack(from?.path ?? '/')}>
           <span aria-hidden="true">← </span>
-          {from?.name ?? t.allMemories}
+          {from?.path === globePath ? t.globe : from?.name ?? t.allMemories}
         </button>
         <figure className="mem-stage">
           <button className="mem-shot" style={wide ? undefined : { aspectRatio: shape }} aria-label={t.openPhoto(String(selected + 1))} onClick={() => show(selected)}>
