@@ -9,10 +9,10 @@ import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } fr
 import { isDiscordExport, readDiscord, withMentions } from './discord.ts'
 import { readPeople } from './people.ts'
 import { readablePhoto, removeConvertedPhotos } from './photos.ts'
-import { codeOf, kindOf, loadMarks, matched, widerThanOne, type Mark } from './marks.ts'
+import { codeOf, kindOf, loadMarks, matched, unnamedClip, widerThanOne, type Mark } from './marks.ts'
 import { spanOf } from './regroup.ts'
 import { saveChat, type SaveReport } from './save.ts'
-import { prepareClip, removeConvertedClips } from './clips.ts'
+import { prepareMemoryClips, removeConvertedClips } from './clips.ts'
 import { Stop } from './stop.ts'
 import { importSummary } from './summary.ts'
 import { cleanText, removePhoneNumbers } from './text.ts'
@@ -80,8 +80,9 @@ async function importExport(args: string[]): Promise<string> {
   const secret = db ? await savingStop(() => chatSecret(db, { key: chatText, name: chatName!.trim(), app: chat.app, timezone })) : undefined
   const key = messageKeys(chatText, secret)
   const messages: MemoryMessage[] = []
+  const legacyCaptions = new Map<MemoryMessage, string>()
   const problems = [...chat.problems]
-  for (const { sender, id, at, minute, media, mentions, ...said } of chat.messages) {
+  for (const { sender, id, captionId, at, minute, media, mentions, ...said } of chat.messages) {
     const person = who.find(chat.app, sender)!
     if (person.leftOut) continue
     // A mention shows the person's Ezeli name; a left-out or unknown person is removed.
@@ -97,7 +98,13 @@ async function importExport(args: string[]): Promise<string> {
       personId: person.id,
       text,
     }
-    if (media) message.media = media
+    if (media) {
+      if (db && chat.app === 'whatsapp' && media.name && (media.kind === 'video' || media.kind === 'voice')) {
+        media.clipSource = idKey(chatText, `clip-source:${media.name.normalize('NFC')}`, secret)
+      }
+      message.media = media
+    }
+    if (captionId) legacyCaptions.set(message, idKey(chatText, captionId, secret))
     messages.push(message)
     if (media?.kind !== 'photo') continue
     const where = `${person.name}, ${momentText(at, timezone)}`
@@ -120,8 +127,20 @@ async function importExport(args: string[]): Promise<string> {
   // The keys above were worked out with it in place, so what stays keeps the key it has stored.
   const leftOut: string[] = []
   if (db) {
-    const things = messages.map((message) => ({ message, slug: message.personId, at: message.at, key: message.key, kind: kindOf(message.media), match: message.media ? (message.media.hash ?? '') : message.text }))
-    const { hits: hidden, results } = matched(things, await savingStop(() => loadMarks(db, chatText)))
+    const things = messages.map((message) => ({
+      message, slug: message.personId, at: message.at, key: message.key, kind: kindOf(message.media),
+      match: message.media ? (message.media.hash ?? '') : message.text,
+      clipSource: message.media?.clipSource, unnamedClip: unnamedClip(message.media),
+    }))
+    const captions = things.flatMap((thing) => {
+      const captionKey = legacyCaptions.get(thing.message)
+      return captionKey ? [{ ...thing, key: captionKey, kind: 'text' as const, match: thing.message.text, clipSource: undefined, unnamedClip: false }] : []
+    })
+    const { hits: hidden, results } = matched([...things, ...captions], await savingStop(() => loadMarks(db, chatText)))
+    for (const { message } of captions.filter((caption) => hidden.has(caption))) {
+      message.text = ''
+      message.media!.captionHidden = true
+    }
     // Nothing innocent goes without a line: a mark that could not match exactly left out others.
     for (const result of widerThanOne(results)) {
       const mark = result.mark as Mark
@@ -135,28 +154,6 @@ async function importExport(args: string[]): Promise<string> {
   }
 
   const memories = buildMemories(messages, grouping)
-  const clipNotes: string[] = []
-  let playable = 0
-  let skipped = 0
-  for (const memory of memories) {
-    const visible = memory.messages.some((message) => message.media?.kind === 'photo' && message.media.file)
-    for (const message of memory.messages) {
-      const media = message.media
-      if (!media || !(media.ambiguousAudio || media.kind === 'video' || media.kind === 'voice')) continue
-      const outcome = visible || db ? prepareClip(media) : 'memory has no photo file'
-      const where = `${message.person}, ${momentText(message.at, timezone)}`
-      const label = media.name ?? media.kind
-      if (typeof outcome === 'string') {
-        skipped++
-        clipNotes.push(`Clip skipped (${where}): ${label} — ${outcome}`)
-      } else {
-        media.clip = outcome
-        playable++
-        clipNotes.push(`Clip eligible for playback (${where}): ${label}`)
-      }
-    }
-  }
-  const clips = playable || skipped ? [`Clips: ${playable} playable, ${skipped} skipped.`, ...clipNotes.map(removePhoneNumbers)] : []
   let report: SaveReport | undefined
   if (db) {
     // The time this export covers, left-out senders and all: only inside it is anything stored
@@ -172,6 +169,7 @@ async function importExport(args: string[]): Promise<string> {
     }
   }
   const summary = importSummary(memories, problems.map(removePhoneNumbers), timezone, details, report && chatName!.trim(), report)
+  const clips = report?.clips ?? prepareMemoryClips(memories, timezone)
   const notes = [...clips, ...leftOut]
   return notes.length > 0 ? `${summary}\n${notes.join('\n')}\n` : summary
 }

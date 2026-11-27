@@ -6,8 +6,10 @@ import type { Db } from '../supabase.ts'
 import { buildMemories, hasPhotoFile, isPhoto, type Grouping, type MemoryMessage } from './memories.ts'
 import type { ChatApp } from './people.ts'
 import { makeSizes } from './photos.ts'
+import { idKey } from './keys.ts'
+import { prepareMemoryClips } from './clips.ts'
 import { applyMarks } from './marks.ts'
-import { chunks, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Removed, type Span } from './regroup.ts'
+import { chunks, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Removed, type Span, type StoredMessage } from './regroup.ts'
 import { Stop } from './stop.ts'
 
 export type ChatToSave = { key: string; name: string; app: ChatApp; timezone: string }
@@ -15,7 +17,7 @@ export type ChatToSave = { key: string; name: string; app: ChatApp; timezone: st
 const BUCKET = 'photos'
 
 // What a saving run did, in rows: new ones, ones that were already stored, ones taken away.
-export type SaveReport = { added: Counts; already: Counts; removed: Removed }
+export type SaveReport = { added: Counts; already: Counts; removed: Removed; clips: string[] }
 
 // `exported` are the export's messages in chat order, left-out senders removed. `span` is the
 // time the export covers. What is stored outside that time is joined with the export before the
@@ -39,12 +41,23 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   const storedMessages = new Map(stored.messages.map((message) => [message.key, message]))
   const storedPhotos = new Map(stored.photos.map((photo) => [photo.key, photo]))
   const outside = storedOutside(stored, span)
+  keepNamedClipKeys(exported, stored.messages)
   // A stored message that this export holds again is the export's: the same chat from another phone
   // has other seconds, so a message stored at 20:58:11 may lie outside an export that has minutes only.
   const again = new Set(exported.map((message) => message.key))
   const notAgain = (message: MemoryMessage) => !again.has(message.key)
   const memories = buildMemories([...outside.before.filter(notAgain), ...exported, ...outside.after.filter(notAgain)], grouping)
   const messages = memories.flatMap((memory) => memory.messages)
+  const retainedClips = new Map<string, StoredMessage>()
+  for (const message of messages) {
+    const previous = storedMessages.get(message.key)
+    if (!previous || !(previous.clip_path || previous.clip_source) || !message.media) continue
+    const { kind, clipSource } = message.media
+    if (kind !== 'media' && kind !== previous.media_kind) continue
+    if (clipSource && previous.clip_source && clipSource !== previous.clip_source) continue
+    retainedClips.set(message.key, previous)
+  }
+  const clips = prepareMemoryClips(memories, chat.timezone, { exported: again, photos: storedPhotos, messages: retainedClips })
 
   const savedChat = await db.from('chats').upsert(chat, { onConflict: 'key' }).select('id').single()
   if (savedChat.error) throw savedChat.error
@@ -97,17 +110,20 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   const placed = memories.flatMap((memory, index) =>
     memory.messages.map((message, seq) => ({ message, seq, memory: memoryIds.get(memoryRows[index]!.key)! })),
   )
-  const messageRows = placed.map(({ message, seq, memory }) => ({
-    memory_id: memory,
-    key: message.key,
-    person_id: people.get(message.personId)!,
-    at: new Date(message.at).toISOString(),
-    seq,
-    text: storedMessages.get(message.key)?.clip_path && !message.media?.file && !message.text
-      ? storedMessages.get(message.key)!.text : message.text,
-    media_kind: storedMessages.get(message.key)?.clip_path
-      ? storedMessages.get(message.key)!.media_kind : message.media?.kind ?? null,
-  }))
+  const messageRows = placed.map(({ message, seq, memory }) => {
+    const retained = retainedClips.get(message.key)
+    return {
+      memory_id: memory,
+      key: message.key,
+      person_id: people.get(message.personId)!,
+      at: new Date(message.at).toISOString(),
+      seq,
+      text: retained && !message.media?.file && !message.media?.captionHidden && !message.text ? retained.text : message.text,
+      media_kind: retained?.media_kind ?? message.media?.kind ?? null,
+      clip_path: retained?.clip_path ?? null,
+      clip_source: message.media?.clipSource ?? retained?.clip_source ?? null,
+    }
+  })
   const messageIds = new Map<string, string>()
   for (const part of chunks(messageRows)) {
     const saved = await db.from('messages').upsert(part, { onConflict: 'key' }).select('id, key')
@@ -142,8 +158,11 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   const visible = new Set(photoRows.map((row) => row.memory_id))
   await mapLimit(placed, 4, async ({ message, memory }) => {
     const clip = message.media?.clip
-    if (!clip || !visible.has(memory) || storedMessages.get(message.key)?.clip_path) return
-    const path = `${chatId}/${message.key}-clip.${clip.extension}`
+    if (!clip || !visible.has(memory) || retainedClips.get(message.key)?.clip_path) return
+    const source = message.media?.clipSource
+    // A new attachment at the same WhatsApp position must not inherit an old signed URL.
+    const fileKey = source ? idKey(message.key, `clip-path:${source}`) : message.key
+    const path = `${chatId}/${fileKey}-clip.${clip.extension}`
     const uploaded = await db.storage.from('clips').upload(path, readFileSync(clip.file), { contentType: clip.type, upsert: true })
     if (uploaded.error) throw uploaded.error
     const attached = await db.from('messages').update({ clip_path: path }).eq('id', messageIds.get(message.key)!).is('clip_path', null).select('id')
@@ -181,6 +200,33 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
     added: { memories: now.memories - had.memories, messages: now.messages - had.messages, photos: now.photos - had.photos },
     already: had,
     removed,
+    clips,
+  }
+}
+
+// A uniquely named clip can move within its minute when a partial export omits a sibling.
+function keepNamedClipKeys(exported: MemoryMessage[], stored: StoredMessage[]) {
+  const identity = (person: string, at: number, source: string) => [person, Math.floor(at / 60_000), source].join(':')
+  const previous = new Map<string, string | null>()
+  for (const row of stored) {
+    if (!row.clip_source) continue
+    const source = identity(row.people.slug, Date.parse(row.at), row.clip_source)
+    previous.set(source, previous.has(source) ? null : row.key)
+  }
+  const incoming = new Map<string, MemoryMessage | null>()
+  const used = new Set<string>()
+  for (const message of exported) {
+    used.add(message.key)
+    const token = message.media?.clipSource
+    if (!token) continue
+    const source = identity(message.personId, message.at, token)
+    incoming.set(source, incoming.has(source) ? null : message)
+  }
+  for (const [source, message] of incoming) {
+    const key = previous.get(source)
+    if (!message || !key || used.has(key)) continue
+    message.key = key
+    used.add(key)
   }
 }
 

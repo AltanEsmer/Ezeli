@@ -3,6 +3,9 @@ import { mkdtempSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Media } from './chat.ts'
+import { hasPhotoFile, type Memory } from './memories.ts'
+import { removePhoneNumbers } from './text.ts'
+import { momentText } from './time.ts'
 
 const MAX_BYTES = 25 * 1024 * 1024
 const VIDEO_SECONDS = 120
@@ -10,6 +13,43 @@ let scratch: string | undefined
 let next = 0
 
 export type Clip = { file: string; extension: 'mp4' | 'm4a'; type: 'video/mp4' | 'audio/mp4' }
+
+type SavedClips = {
+  exported: ReadonlySet<string>
+  photos: ReadonlyMap<string, unknown>
+  messages: ReadonlyMap<string, { clip_path: string | null }>
+}
+
+export function prepareMemoryClips(memories: Memory[], timezone: string, saved?: SavedClips): string[] {
+  const notes: string[] = []
+  let playable = 0
+  let skipped = 0
+  for (const memory of memories) {
+    const visible = memory.messages.some((message) => hasPhotoFile(message) || saved?.photos.has(message.key))
+    for (const message of memory.messages) {
+      if (saved && !saved.exported.has(message.key)) continue
+      const media = message.media
+      if (!media || !(media.ambiguousAudio || media.kind === 'video' || media.kind === 'voice')) continue
+      const where = `${message.person}, ${momentText(message.at, timezone)}`
+      const label = media.name ?? media.kind
+      if (visible && saved?.messages.get(message.key)?.clip_path) {
+        playable++
+        notes.push(`Clip already playable (${where}): ${label}`)
+        continue
+      }
+      const outcome = visible ? prepareClip(media) : 'memory has no photo file'
+      if (typeof outcome === 'string') {
+        skipped++
+        notes.push(`Clip skipped (${where}): ${label} — ${outcome}`)
+      } else {
+        media.clip = outcome
+        playable++
+        notes.push(`Clip eligible for playback (${where}): ${label}`)
+      }
+    }
+  }
+  return notes.length ? [`Clips: ${playable} playable, ${skipped} skipped.`, ...notes.map(removePhoneNumbers)] : []
+}
 
 export function removeConvertedClips() {
   if (scratch) rmSync(scratch, { recursive: true, force: true })
@@ -23,7 +63,7 @@ function run(tool: string, args: string[]) {
   return result.status === 0 ? result.stdout : null
 }
 
-export function prepareClip(media: Media): Clip | string {
+function prepareClip(media: Media): Clip | string {
   if (media.ambiguousAudio) return 'audio has no reliable voice-note marker'
   if (!media.file) return 'file missing from export'
   const video = media.kind === 'video'

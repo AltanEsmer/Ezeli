@@ -16,7 +16,7 @@ const USAGE = [
   'A code is the short name printed beside the item; it never changes, so it cannot name the wrong thing.',
 ].join('\n')
 
-type Item = { n: number; key: string; kind: string | null; by: string; slug: string; at: string; text: string; clip: boolean }
+type Item = { n: number; key: string; kind: string | null; by: string; slug: string; at: string; text: string; clip: boolean; clipSource: string | null }
 type Found = { memory: { id: string; key: string; at: string }; chat: { id: string; key: string; name: string; timezone: string }; items: Item[] }
 
 // The memory's lasting key out of what an owner copied from the app.
@@ -45,11 +45,11 @@ async function find(db: Db, address: string): Promise<Found> {
   const memory = await db.from('memories').select('id, key, at, chats(id, key, name, timezone)').eq('key', key).maybeSingle()
   if (memory.error) throw memory.error
   if (!memory.data) throw new Stop('No memory has that address.')
-  const messages = await db.from('messages').select('key, at, seq, text, media_kind, clip_path, people(id, display_name, slug)').eq('memory_id', memory.data.id).order('at').order('seq').order('key')
+  const messages = await db.from('messages').select('key, at, seq, text, media_kind, clip_path, clip_source, people(id, display_name, slug)').eq('memory_id', memory.data.id).order('at').order('seq').order('key')
   if (messages.error) throw messages.error
   const items = messages.data.map((m, index) => {
     const person = m.people as unknown as { id: string; display_name: string; slug: string | null }
-    return { n: index + 1, key: m.key, kind: m.media_kind, by: person.display_name, slug: person.slug ?? person.id, at: m.at, text: m.text, clip: Boolean(m.clip_path) }
+    return { n: index + 1, key: m.key, kind: m.media_kind, by: person.display_name, slug: person.slug ?? person.id, at: m.at, text: m.text, clip: Boolean(m.clip_path), clipSource: m.clip_source }
   })
   return { memory: memory.data, chat: memory.data.chats as unknown as Found['chat'], items }
 }
@@ -95,8 +95,11 @@ export const runHide = (args: string[]) =>
     if (hashes.error) throw hashes.error
     const hashOf = new Map(hashes.data.map((row) => [row.key, row.content_hash ?? '']))
     const wanted = chosen.map((item) => {
-      const kind = item.clip ? 'other' : kindOf(item.kind ? { kind: item.kind } : null)
-      const match = item.clip ? `clip:${item.key}` : kind === 'text' ? item.text : kind === 'photo' ? photoMatch(item.key, hashOf.get(item.key)) : ''
+      const clip = item.clip || item.clipSource
+      const kind = clip ? 'other' : kindOf(item.kind ? { kind: item.kind } : null)
+      const match = clip
+        ? [`clip:${item.key}`, item.clipSource].filter(Boolean).join(':')
+        : kind === 'text' ? item.text : kind === 'photo' ? photoMatch(item.key, hashOf.get(item.key)) : ''
       return { key: item.key, chat_key: found.chat.key, person_slug: item.slug, minute: new Date(Math.floor(Date.parse(item.at) / 60_000) * 60_000).toISOString(), kind, match }
     })
     const have = new Set((await loadMarks(db, found.chat.key)).map((mark) => JSON.stringify([mark.person_slug, Date.parse(mark.minute), mark.kind, mark.match])))

@@ -8,7 +8,7 @@ export type MediaKind = 'photo' | 'video' | 'gif' | 'voice' | 'document' | 'medi
 
 // `file` is the path of a photo or clip found in the export.
 // `hash` is the hash of the original file's bytes, made when saving, so a hidden photo can be found again.
-export type Media = { kind: MediaKind; name?: string; file?: string; hash?: string; ambiguousAudio?: boolean; clip?: Clip }
+export type Media = { kind: MediaKind; name?: string; file?: string; hash?: string; ambiguousAudio?: boolean; clipSource?: string; captionHidden?: boolean; clip?: Clip }
 
 export type ChatMessage = {
   at: number // the moment it was sent, in milliseconds since 1970 UTC
@@ -21,6 +21,7 @@ export type ChatMessage = {
   // are only printed for the owner when the sender is unknown; they are never stored.
   // `mentions` are the accounts mentioned in the text, as `@name`.
   id?: string
+  captionId?: string // the standalone Discord message key used by earlier imports
   names?: string[]
   mentions?: { id: string; names: string[] }[]
 }

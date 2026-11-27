@@ -1,5 +1,9 @@
 alter table public.messages add column clip_path text unique
-  check (clip_path ~ '^[0-9a-f-]+/[0-9a-f]+-clip[.](mp4|m4a)$');
+  check (clip_path ~ '^[0-9a-f-]+/[0-9a-f]+-clip[.](mp4|m4a)$'),
+  add column clip_source text check (clip_source ~ '^[0-9a-f]{32}$');
+
+revoke select on public.messages from authenticated;
+grant select (id, memory_id, key, person_id, at, seq, text, media_kind, clip_path) on public.messages to authenticated;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('clips', 'clips', false, 26214400, array['video/mp4', 'audio/mp4']);

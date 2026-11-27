@@ -3,7 +3,7 @@
 // and runs the same step at its very end; the owner command `hide` writes marks and runs it.
 //
 // A mark names the chat, the person, the clock minute, the kind (photo, text, other media) and what
-// to match: an upload's key, a chat photo's file hash, a text message's text, nothing for other media.
+// to match: an upload's key, a photo's hash, a message's text, a clip's key and optional source, or nothing.
 // Standalone uploads are matched only by key. For chat exports, the rule is the same
 // wherever it is used: among that person's things of that kind in that minute, the ones that match
 // exactly are hidden; if none matches (the file was re-saved, the text edited, the photo has no
@@ -15,18 +15,21 @@
 // says "media omitted" for any media. So a thing of kind `media` is matched by photo marks and by
 // other-media marks, and a mark made on a `media` thing matches photos and other media too.
 import type { Db } from '../supabase.ts'
-import { chunks, loadStored, removeImportFiles, type Counts, type StoredMemory, type StoredMessage, type StoredPhoto } from './regroup.ts'
+import { chunks, isClipPath, loadStored, removeImportFiles, type Counts, type StoredMemory, type StoredMessage, type StoredPhoto } from './regroup.ts'
 import { Stop } from './stop.ts'
 
 export type Kind = 'photo' | 'text' | 'other' | 'media'
 export type Mark = { id: string; chat_key: string; person_slug: string; minute: string; kind: Kind; match: string; exact: boolean; pending: string[] }
 // `exact`: the mark has matched exactly once (see `matched`).
 export type Matching = { person_slug: string; minute: string; kind: Kind; match: string; exact?: boolean }
-// `match`: an upload's key, a chat photo's file hash, a text message's text, or ''.
-export type Thing = { key: string; slug: string; at: number; kind: Kind; match: string }
+// `match`: an upload key, a photo hash, a message's text, a clip identity, or ''.
+export type Thing = { key: string; slug: string; at: number; kind: Kind; match: string; clipSource?: string; unnamedClip?: boolean }
 
 export const kindOf = (media: { kind: string } | null | undefined): Kind =>
   !media ? 'text' : media.kind === 'photo' ? 'photo' : media.kind === 'media' ? 'media' : 'other'
+
+export const unnamedClip = (media: { kind: string; name?: string } | null | undefined) =>
+  Boolean(media && !media.name && (media.kind === 'media' || media.kind === 'video' || media.kind === 'voice'))
 
 // Codes use the hexadecimal part of an item's key or a mark's id.
 export const codeKey = (idOrKey: string) => idOrKey.replace(/^manual:/, '').replace(/-/g, '')
@@ -49,7 +52,7 @@ export function matched<T extends Thing>(things: T[], marks: Matching[], stored 
   const results: Result<T>[] = []
   for (const mark of marks) {
     if (mark.kind === 'other' && mark.match.startsWith('clip:')) {
-      const hit = things.filter((thing) => `clip:${thing.key}` === mark.match)
+      const hit = clipMatches(things, mark, stored)
       for (const thing of hit) hits.add(thing)
       results.push({ mark, things: hit, exact: hit.length > 0 })
       continue
@@ -68,6 +71,23 @@ export function matched<T extends Thing>(things: T[], marks: Matching[], stored 
     results.push({ mark, things: hit, exact: exact.length > 0 && mark.kind !== 'other' })
   }
   return { hits, results }
+}
+
+function clipMatches<T extends Thing>(things: T[], mark: Matching, stored: boolean): T[] {
+  const [, key, source] = mark.match.split(':')
+  if (!source) return things.filter((thing) => thing.key === key)
+  const minute = Date.parse(mark.minute)
+  const nearby = things.filter((thing) => thing.slug === mark.person_slug && minuteOf(thing.at) === minute)
+  const original = nearby.find((thing) => thing.key === key && thing.clipSource === source)
+  const unnamed = nearby.filter((thing) => thing.key === key && !thing.clipSource && thing.unnamedClip)
+  if (stored) return original ? [original] : unnamed
+  const named = nearby.filter((thing) => thing.clipSource === source)
+  if (original) return [original]
+  if (named.length > 1) {
+    throw new Stop('More than one clip in a minute has the same filename as a hidden clip. Use an export that identifies the original clip before importing again.')
+  }
+  if (named.length === 1) return named
+  return unnamed
 }
 
 // The marks that left out more than the one thing: nothing innocent goes without a line. A photo or
@@ -93,12 +113,16 @@ export async function storedThings(db: Db, chatId: string): Promise<{ things: St
   const things = stored.messages.map((message) => {
     const kind = kindOf(message.media_kind ? { kind: message.media_kind } : null)
     const match = kind === 'text' ? message.text : kind === 'photo' || kind === 'media' ? photoMatch(message.key, hashOf.get(message.key)) : ''
-    return { message, key: message.key, slug: message.people.slug, at: Date.parse(message.at), kind, match }
+    return {
+      message, key: message.key, slug: message.people.slug, at: Date.parse(message.at), kind, match,
+      clipSource: message.clip_source ?? undefined,
+      unnamedClip: unnamedClip(message.media_kind && { kind: message.media_kind }),
+    }
   })
   return { things, photos: stored.photos, memories: stored.memories }
 }
 
-// Removes every stored row and photo file that a mark of this chat matches, leaves each touched
+// Removes every stored row and media file that a mark of this chat matches, leaves each touched
 // memory as an import would (its address and date from its first remaining photo; a memory with no
 // photo left is removed, with its comments; messages numbered without gaps). Rows first, files second:
 // the paths of the files still to remove are kept with the mark, so a run that fails is finished by
@@ -114,6 +138,22 @@ export async function applyMarks(db: Db, chatKey: string): Promise<Applied> {
   const found = matched(things, marks, true)
   const hits = [...found.hits].map((thing) => thing.message)
 
+  // Every memory a row was removed from, and any left in a state a stopped run leaves (a gap in the
+  // numbering, an address or date that is not its first photo's): a run that failed is finished here.
+  const gone = new Set(hits.map((message) => message.id))
+  const dirty = new Set(hits.map((message) => message.memory_id))
+  const byMemory = new Map<string, StoredMessage[]>()
+  for (const thing of things) if (!gone.has(thing.message.id)) byMemory.set(thing.message.memory_id, [...(byMemory.get(thing.message.memory_id) ?? []), thing.message])
+  const orphanedClips = new Map<string, string[]>()
+  for (const memory of storedMemories) {
+    const held = (byMemory.get(memory.id) ?? []).sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || a.seq - b.seq)
+    const first = held.find((message) => message.media_kind === 'photo')
+    if (!first) {
+      orphanedClips.set(memory.id, held.flatMap((message) => message.clip_path ? [message.clip_path] : []))
+    }
+    if (!first || held.some((message, index) => message.seq !== index) || first.key !== memory.key || Date.parse(first.at) !== Date.parse(memory.at)) dirty.add(memory.id)
+  }
+
   const hitKeys = new Set(hits.map((message) => message.key))
   const photosByKey = new Map(photos.map((photo) => [photo.key, photo]))
   const pathsOf = ({ message }: StoredThing) => {
@@ -124,7 +164,10 @@ export async function applyMarks(db: Db, chatKey: string): Promise<Applied> {
   // Record the files and exact matches before the rows that identify them disappear.
   for (const result of found.results) {
     const mark = result.mark as Mark
-    const paths = result.things.flatMap(pathsOf)
+    const paths = result.things.flatMap((thing) => [
+      ...pathsOf(thing),
+      ...(orphanedClips.get(thing.message.memory_id) ?? []),
+    ])
     if (paths.length === 0) continue
     const kept = await db.from('hidden').update({ pending: [...new Set([...mark.pending, ...paths])] }).eq('id', mark.id)
     if (kept.error) throw kept.error
@@ -139,17 +182,6 @@ export async function applyMarks(db: Db, chatKey: string): Promise<Applied> {
     if (deleted.error) throw deleted.error
   }
   failForTest('rows')
-  // Every memory a row was removed from, and any left in a state a stopped run leaves (a gap in the
-  // numbering, an address or date that is not its first photo's): a run that failed is finished here.
-  const gone = new Set(hits.map((message) => message.id))
-  const dirty = new Set(hits.map((message) => message.memory_id))
-  const byMemory = new Map<string, StoredMessage[]>()
-  for (const thing of things) if (!gone.has(thing.message.id)) byMemory.set(thing.message.memory_id, [...(byMemory.get(thing.message.memory_id) ?? []), thing.message])
-  for (const memory of storedMemories) {
-    const held = (byMemory.get(memory.id) ?? []).sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || a.seq - b.seq)
-    const first = held.find((message) => message.media_kind === 'photo')
-    if (!first || held.some((message, index) => message.seq !== index) || first.key !== memory.key || Date.parse(first.at) !== Date.parse(memory.at)) dirty.add(memory.id)
-  }
   for (const memory of dirty) await refresh(db, memory, applied)
   await removeFiles(db, await loadMarks(db, chatKey))
   return applied
@@ -167,7 +199,13 @@ async function removeFiles(db: Db, marks: Mark[]): Promise<void> {
   for (const mark of marks.filter((candidate) => candidate.pending.length > 0)) {
     try {
       failForTest('files')
-      await removeImportFiles(db, mark.pending)
+      const stillReferenced = new Set<string>()
+      for (const paths of chunks(mark.pending.filter(isClipPath))) {
+        const references = await db.from('messages').select('clip_path').in('clip_path', paths)
+        if (references.error) throw references.error
+        for (const row of references.data) stillReferenced.add(row.clip_path)
+      }
+      await removeImportFiles(db, mark.pending.filter((path) => !stillReferenced.has(path)))
       const cleared = await db.from('hidden').update({ pending: [] }).eq('id', mark.id)
       if (cleared.error) throw cleared.error
     } catch (error) {

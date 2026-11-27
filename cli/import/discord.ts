@@ -78,9 +78,12 @@ export function readDiscord(folder: string, zone: string): ChatExport {
     })
 
     // Every attachment is a message of its own, with its own lasting id, so a photo keeps its
-    // key however its message is edited. A caption goes with the first photo.
+    // key however its message is edited. A caption goes with the first photo or clip.
     const firstPhoto = attachments.findIndex((a) => kindOf(a.fileName) === 'photo')
-    const captionAt = firstPhoto >= 0 ? firstPhoto : attachments.findIndex((a) => kindOf(a.fileName) === 'video')
+    const captionAt = firstPhoto >= 0 ? firstPhoto : attachments.findIndex(({ fileName }) => {
+      const kind = kindOf(fileName)
+      return kind === 'video' || kind === 'voice'
+    })
     if (text.trim() !== '' && captionAt < 0) messages.push({ ...base, id: `message:${id}`, text, mentions })
     attachments.forEach((a, i) => {
       const kind = kindOf(a.fileName)
@@ -91,7 +94,9 @@ export function readDiscord(folder: string, zone: string): ChatExport {
         if (found) media.file = found
       }
       if (kind === 'document' && audioFile.test(a.fileName)) media.ambiguousAudio = true
-      messages.push({ ...base, id: `attachment:${a.id}`, text: i === captionAt ? text : '', media, mentions })
+      const caption = i === captionAt ? text : ''
+      const captionId = caption && firstPhoto < 0 ? `message:${id}` : undefined
+      messages.push({ ...base, id: `attachment:${a.id}`, text: caption, captionId, media, mentions })
     })
   })
 
