@@ -41,7 +41,7 @@ async function sign(memory: MemoryDetail): Promise<Map<string, string> | null> {
 
 export function useMemory(key: string): { state: MemoryState; reload: () => void; relink: () => Promise<boolean> } {
   const [state, setState] = useState<MemoryState>({ status: 'loading' })
-  const fresh = useRef<Promise<boolean> | null>(null)
+  const fresh = useRef<{ memory: MemoryDetail; response: Promise<boolean> } | null>(null)
 
   const reload = useCallback(() => {
     setState({ status: 'loading' })
@@ -62,16 +62,19 @@ export function useMemory(key: string): { state: MemoryState; reload: () => void
     })()
   }, [key])
 
-  // Simultaneous failures share one link refresh. Later failures can request fresh links again.
+  // A loaded memory shares one refresh across media that fail while its links are being replaced.
   const relink = useCallback(() => {
     if (state.status !== 'ready') return Promise.resolve(false)
     const memory = state.memory
-    fresh.current ??= sign(memory).then((links) => {
-      if (links) setState((current) => current.status === 'ready' && current.memory === memory
-        ? { ...current, links } : current)
-      return links !== null
-    }).finally(() => { fresh.current = null })
-    return fresh.current
+    if (fresh.current?.memory !== memory) {
+      const response = sign(memory).then((links) => {
+        if (links) setState((current) => current.status === 'ready' && current.memory === memory
+          ? { ...current, links } : current)
+        return links !== null
+      })
+      fresh.current = { memory, response }
+    }
+    return fresh.current.response
   }, [state])
 
   useEffect(reload, [reload])
