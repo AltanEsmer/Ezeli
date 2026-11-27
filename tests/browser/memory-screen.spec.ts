@@ -98,7 +98,7 @@ test.describe('on a phone', () => {
   test('the stage comes first, then the squares, then the column', async ({ page }) => {
     await openAlbum(page)
 
-    const back = (await page.getByRole('button', { name: /Search$/ }).boundingBox())!
+    const back = (await page.getByRole('button', { name: 'All memories', exact: true }).boundingBox())!
     const photo = (await stage(page).locator('img').boundingBox())!
     const small = (await squares(page).first().boundingBox())!
     const date = (await page.getByRole('heading', { level: 1 }).boundingBox())!
