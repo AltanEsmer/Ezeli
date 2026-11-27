@@ -217,7 +217,7 @@ function Talk({ memory, links, relink, onPhoto, jump }: { jump?: SearchJump; mem
                     <Pic src={links.get(photo.thumb)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={relink} loading="lazy" />
                   </button>
                 )}
-                {clip && <Clip key={clip} src={clip} video={message.clip!.endsWith('.mp4')} relink={relink} />}
+                {clip && <Clip src={clip} video={message.clip!.endsWith('.mp4')} relink={relink} />}
                 {!photo && !clip && (!message.text || message.kind === 'video' || message.kind === 'voice') &&
                   <p className="mem-gone">{placeholder(message.kind)}</p>}
                 {message.text && (
@@ -240,12 +240,15 @@ function Talk({ memory, links, relink, onPhoto, jump }: { jump?: SearchJump; mem
 }
 
 function Clip({ src, video, relink }: { src: string; video: boolean; relink: () => Promise<boolean> }) {
-  const [failed, setFailed] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const label = video ? t.video : t.voice
-  if (failed) return <p className="mem-gone">{label}</p>
-  const props = { className: 'mem-clip', src, controls: true, preload: 'none', 'aria-label': label,
-    onError: () => { setFailed(true); void relink() } }
-  return video ? <video {...props} playsInline /> : <audio {...props} />
+  if (attempt === 2) return <p className="mem-gone">{label}</p>
+  const retry = () => {
+    if (attempt > 0) return setAttempt(2)
+    void relink().then((ok) => setAttempt(ok ? 1 : 2))
+  }
+  const props = { className: 'mem-clip', src, controls: true, preload: 'none', 'aria-label': label, onError: retry }
+  return video ? <video key={attempt} {...props} playsInline /> : <audio key={attempt} {...props} />
 }
 
 // A name opens that person's page, when the owners gave the person a lasting id.

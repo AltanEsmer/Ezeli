@@ -62,15 +62,15 @@ export function useMemory(key: string): { state: MemoryState; reload: () => void
     })()
   }, [key])
 
-  // A photo whose link ran out asks for new links. Photos that fail at the same time share one
-  // request. The answer is true when new links arrived.
+  // Simultaneous failures share one link refresh. Later failures can request fresh links again.
   const relink = useCallback(() => {
-    fresh.current ??= (async () => {
-      if (state.status !== 'ready') return false
-      const links = await sign(state.memory)
-      if (links) setState({ status: 'ready', memory: state.memory, links })
+    if (state.status !== 'ready') return Promise.resolve(false)
+    const memory = state.memory
+    fresh.current ??= sign(memory).then((links) => {
+      if (links) setState((current) => current.status === 'ready' && current.memory === memory
+        ? { ...current, links } : current)
       return links !== null
-    })()
+    }).finally(() => { fresh.current = null })
     return fresh.current
   }, [state])
 
