@@ -8,7 +8,7 @@ import type { ChatApp } from './people.ts'
 import { makeSizes } from './photos.ts'
 import { idKey } from './keys.ts'
 import { prepareMemoryClips } from './clips.ts'
-import { applyMarks } from './marks.ts'
+import { applyMarks, clipMarkKey, loadMarks, unnamedClip, type Mark } from './marks.ts'
 import { chunks, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Removed, type Span, type StoredMessage } from './regroup.ts'
 import { Stop } from './stop.ts'
 
@@ -22,7 +22,7 @@ export type SaveReport = { added: Counts; already: Counts; removed: Removed; cli
 // `exported` are the export's messages in chat order, left-out senders removed. `span` is the
 // time the export covers. What is stored outside that time is joined with the export before the
 // grouping (see regroup.ts), so a memory cut by the edge of the export stays whole.
-export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage[], grouping: Grouping, span: Span | undefined): Promise<SaveReport> {
+export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage[], grouping: Grouping, span: Span | undefined, marks: Mark[]): Promise<SaveReport> {
   const startedAt = Date.now()
   // The time zone is fixed at the chat's first import: the dates of what is stored were made
   // with it. Checked before anything is written.
@@ -36,12 +36,14 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   }
 
   // What an owner hid is removed from what is stored before anything is read from it (marks.ts).
+  await testPause('before-marks')
   await applyMarks(db, chat.key)
   const stored = existing.data ? await loadStored(db, existing.data.id) : nothingStored
   const storedMessages = new Map(stored.messages.map((message) => [message.key, message]))
   const storedPhotos = new Map(stored.photos.map((photo) => [photo.key, photo]))
   const outside = storedOutside(stored, span)
-  keepNamedClipKeys(exported, stored.messages)
+  const retired = new Set((await loadMarks(db, chat.key)).map(clipMarkKey))
+  keepNamedClipKeys(exported, storedMessages, retired)
   // A stored message that this export holds again is the export's: the same chat from another phone
   // has other seconds, so a message stored at 20:58:11 may lie outside an export that has minutes only.
   const again = new Set(exported.map((message) => message.key))
@@ -92,7 +94,7 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   const people = await savePeople(db, exported)
   for (const row of stored.messages) if (!people.has(row.people.slug)) people.set(row.people.slug, row.people.id)
 
-  await testPause()
+  await testPause('after-photos')
 
   // A memory is known by its first photo message, whether or not its file was there.
   const memoryRows = memories.map((memory) => ({
@@ -185,7 +187,7 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   await removeFilesWithoutRow(db, chatId, startedAt)
   // Once more at the very end: a hide that landed while this import ran (which may have written a
   // hidden photo's row again from what was read at the start) is put right here.
-  const late = await applyMarks(db, chat.key)
+  const late = await applyMarks(db, chat.key, { knownMarks: new Set(marks.map((mark) => mark.id)), exportedKeys: again })
   removed.memories += late.memories
   removed.messages += late.messages
   removed.photos += late.photos
@@ -205,28 +207,40 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
 }
 
 // A uniquely named clip can move within its minute when a partial export omits a sibling.
-function keepNamedClipKeys(exported: MemoryMessage[], stored: StoredMessage[]) {
-  const identity = (person: string, at: number, source: string) => [person, Math.floor(at / 60_000), source].join(':')
+function keepNamedClipKeys(exported: MemoryMessage[], stored: ReadonlyMap<string, StoredMessage>, retired: ReadonlySet<string | undefined>) {
+  const identity = (person: string, at: number, source: string) => JSON.stringify([person, Math.floor(at / 60_000), source])
   const previous = new Map<string, string | null>()
-  for (const row of stored) {
+  for (const row of stored.values()) {
     if (!row.clip_source) continue
     const source = identity(row.people.slug, Date.parse(row.at), row.clip_source)
     previous.set(source, previous.has(source) ? null : row.key)
   }
   const incoming = new Map<string, MemoryMessage | null>()
-  const used = new Set<string>()
   for (const message of exported) {
-    used.add(message.key)
     const token = message.media?.clipSource
     if (!token) continue
     const source = identity(message.personId, message.at, token)
     incoming.set(source, incoming.has(source) ? null : message)
   }
+  const pinned = new Set<MemoryMessage>()
+  const used = new Set<string>()
   for (const [source, message] of incoming) {
     const key = previous.get(source)
-    if (!message || !key || used.has(key)) continue
+    if (!message || !key || retired.has(key)) continue
     message.key = key
+    pinned.add(message)
     used.add(key)
+  }
+  for (const message of exported) {
+    if (pinned.has(message)) continue
+    const original = message.key
+    const source = message.media?.clipSource
+    const oldSource = stored.get(original)?.clip_source
+    const conflicts = oldSource && oldSource !== source && !unnamedClip(message.media)
+    if (used.has(original) || retired.has(original) || conflicts) {
+      message.key = idKey(original, `clip-slot:${source ?? message.media?.kind ?? 'text'}`)
+    }
+    used.add(message.key)
   }
 }
 
@@ -269,11 +283,10 @@ async function savePeople(db: Db, messages: MemoryMessage[]): Promise<Map<string
   return rowIds
 }
 
-// A seam for a test only: with EZELI_TEST_PAUSE set, the import stops here until `<value>.go` exists
-// (and says so by writing `<value>.ready`), so a test can run an owner command in the middle of it.
-async function testPause(): Promise<void> {
+// A test can run an owner command while the import waits for its `<value>.go` file.
+async function testPause(stage: 'before-marks' | 'after-photos'): Promise<void> {
   const base = process.env.EZELI_TEST_PAUSE
-  if (!base) return
+  if (!base || stage !== (process.env.EZELI_TEST_PAUSE_STAGE ?? 'after-photos')) return
   writeFileSync(`${base}.ready`, '')
   while (!existsSync(`${base}.go`)) await new Promise((resolve) => setTimeout(resolve, 50))
 }

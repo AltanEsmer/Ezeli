@@ -126,6 +126,7 @@ async function importExport(args: string[]): Promise<string> {
   // What an owner hid is left out here, before grouping, so the summary matches the app (marks.ts).
   // The keys above were worked out with it in place, so what stays keeps the key it has stored.
   const leftOut: string[] = []
+  const marks = db ? await savingStop(() => loadMarks(db, chatText)) : []
   if (db) {
     const things = messages.map((message) => ({
       message, slug: message.personId, at: message.at, key: message.key, kind: kindOf(message.media),
@@ -136,7 +137,7 @@ async function importExport(args: string[]): Promise<string> {
       const captionKey = legacyCaptions.get(thing.message)
       return captionKey ? [{ ...thing, key: captionKey, kind: 'text' as const, match: thing.message.text, clipSource: undefined, unnamedClip: false }] : []
     })
-    const { hits: hidden, results } = matched([...things, ...captions], await savingStop(() => loadMarks(db, chatText)))
+    const { hits: hidden, results } = matched([...things, ...captions], marks)
     for (const { message } of captions.filter((caption) => hidden.has(caption))) {
       message.text = ''
       message.media!.captionHidden = true
@@ -160,7 +161,7 @@ async function importExport(args: string[]): Promise<string> {
     // taken away, so an older export never removes what a newer one added.
     const span = spanOf(chat.messages.map((message) => message.at))
     try {
-      report = await saveChat(db, { key: chatText, name: chatName!.trim(), app: chat.app, timezone }, messages, grouping, span)
+      report = await saveChat(db, { key: chatText, name: chatName!.trim(), app: chat.app, timezone }, messages, grouping, span, marks)
     } catch (error) {
       if (error instanceof Stop) throw error
       // Plain words, no stack. Everything is saved by key, so the same import finishes the job.

@@ -21,7 +21,7 @@ import { Stop } from './stop.ts'
 export type Kind = 'photo' | 'text' | 'other' | 'media'
 export type Mark = { id: string; chat_key: string; person_slug: string; minute: string; kind: Kind; match: string; exact: boolean; pending: string[] }
 // `exact`: the mark has matched exactly once (see `matched`).
-export type Matching = { person_slug: string; minute: string; kind: Kind; match: string; exact?: boolean }
+export type Matching = { id?: string; person_slug: string; minute: string; kind: Kind; match: string; exact?: boolean }
 // `match`: an upload key, a photo hash, a message's text, a clip identity, or ''.
 export type Thing = { key: string; slug: string; at: number; kind: Kind; match: string; clipSource?: string; unnamedClip?: boolean }
 
@@ -40,6 +40,11 @@ export const photoMatch = (key: string, hash?: string | null) => key.startsWith(
 const minuteOf = (moment: number) => Math.floor(moment / 60_000) * 60_000
 const together = (a: Kind, b: Kind) => a === b || (a !== 'text' && b !== 'text' && (a === 'media' || b === 'media'))
 
+export const clipMarkKey = (mark: Matching) =>
+  mark.kind === 'other' && mark.match.startsWith('clip:') ? mark.match.split(':')[1] : undefined
+
+type LateClipMarks = { knownMarks: ReadonlySet<string>; exportedKeys: ReadonlySet<string> }
+
 // What one mark hit: `exact` when something matched it exactly, `things` all that it hides.
 export type Result<T> = { mark: Matching; things: T[]; exact: boolean }
 
@@ -47,12 +52,13 @@ export type Result<T> = { mark: Matching; things: T[]; exact: boolean }
 // mark that has already matched exactly once (`exact`) then hides only exact matches there, so that
 // what was in the same minute and is innocent is not hidden because the exact photo is already gone.
 // An export is always judged on its own: a re-saved copy of a hidden photo matches nothing exactly.
-export function matched<T extends Thing>(things: T[], marks: Matching[], stored = false): { hits: Set<T>; results: Result<T>[] } {
+export function matched<T extends Thing>(things: T[], marks: Matching[], stored = false, late?: LateClipMarks): { hits: Set<T>; results: Result<T>[] } {
   const hits = new Set<T>()
   const results: Result<T>[] = []
   for (const mark of marks) {
     if (mark.kind === 'other' && mark.match.startsWith('clip:')) {
-      const hit = clipMatches(things, mark, stored)
+      const exportedKeys = late && mark.id && !late.knownMarks.has(mark.id) ? late.exportedKeys : undefined
+      const hit = clipMatches(things, mark, stored, exportedKeys)
       for (const thing of hit) hits.add(thing)
       results.push({ mark, things: hit, exact: hit.length > 0 })
       continue
@@ -73,16 +79,19 @@ export function matched<T extends Thing>(things: T[], marks: Matching[], stored 
   return { hits, results }
 }
 
-function clipMatches<T extends Thing>(things: T[], mark: Matching, stored: boolean): T[] {
+function clipMatches<T extends Thing>(things: T[], mark: Matching, stored: boolean, exportedKeys?: ReadonlySet<string>): T[] {
   const [, key, source] = mark.match.split(':')
   if (!source) return things.filter((thing) => thing.key === key)
   const minute = Date.parse(mark.minute)
   const nearby = things.filter((thing) => thing.slug === mark.person_slug && minuteOf(thing.at) === minute)
   const original = nearby.find((thing) => thing.key === key && thing.clipSource === source)
   const unnamed = nearby.filter((thing) => thing.key === key && !thing.clipSource && thing.unnamedClip)
-  if (stored) return original ? [original] : unnamed
-  const named = nearby.filter((thing) => thing.clipSource === source)
   if (original) return [original]
+  if (stored) {
+    const moved = exportedKeys ? nearby.filter((thing) => thing.clipSource === source && exportedKeys.has(thing.key)) : []
+    return moved.length ? moved : unnamed
+  }
+  const named = nearby.filter((thing) => thing.clipSource === source)
   if (named.length > 1) {
     throw new Stop('More than one clip in a minute has the same filename as a hidden clip. Use an export that identifies the original clip before importing again.')
   }
@@ -128,14 +137,14 @@ export async function storedThings(db: Db, chatId: string): Promise<{ things: St
 // the paths of the files still to remove are kept with the mark, so a run that fails is finished by
 // the next one (`hide`, `hidden` and every import run this). It removes exactly those files and never
 // sweeps the bucket: only an import does that, at its own end. Safe to run twice.
-export async function applyMarks(db: Db, chatKey: string): Promise<Applied> {
+export async function applyMarks(db: Db, chatKey: string, late?: LateClipMarks): Promise<Applied> {
   const none: Applied = { memories: 0, messages: 0, photos: 0, comments: 0 }
   const chat = await db.from('chats').select('id').eq('key', chatKey).maybeSingle()
   if (chat.error) throw chat.error
   if (!chat.data) return none
   const marks = await loadMarks(db, chatKey)
   const { things, photos, memories: storedMemories } = await storedThings(db, chat.data.id)
-  const found = matched(things, marks, true)
+  const found = matched(things, marks, true, late)
   const hits = [...found.hits].map((thing) => thing.message)
 
   // Every memory a row was removed from, and any left in a state a stopped run leaves (a gap in the
