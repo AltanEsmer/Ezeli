@@ -9,8 +9,7 @@ const talk = (page: Page) => page.getByRole('region', { name: 'Conversation' })
 const squares = (page: Page) => page.getByRole('group', { name: 'Photos' }).getByRole('button')
 const stage = (page: Page) => page.getByRole('figure')
 
-// Opens the memory that a search for the word finds (the card with that date, when other memories
-// have the word too), in a window that is already signed in.
+// Use Search to locate the fixture, then open its address to exercise the default memory screen.
 async function openFoundHere(page: Page, word: string, date: RegExp, searchLink = 'Search') {
   await expect(page.getByRole('article').first()).toBeVisible()
   await page.getByRole('link', { name: searchLink, exact: true }).click()
@@ -18,7 +17,9 @@ async function openFoundHere(page: Page, word: string, date: RegExp, searchLink 
   await page.getByRole('searchbox').press('Enter')
   const card = page.getByRole('article').filter({ hasText: date })
   await expect(card).toHaveCount(1)
-  await card.getByRole('link').click()
+  const address = await card.getByRole('link').getAttribute('href')
+  expect(address).toMatch(/^\/m\//)
+  await page.goto(address!)
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
 }
 const openAlbum = (page: Page, link = addPerson(fruit('Karpuz'))) => page.goto(link).then(() => openFoundHere(page, 'hepsi', /June 12, 2016/))
@@ -97,7 +98,7 @@ test.describe('on a phone', () => {
   test('the stage comes first, then the squares, then the column', async ({ page }) => {
     await openAlbum(page)
 
-    const back = (await page.getByRole('button', { name: /Search$/ }).boundingBox())!
+    const back = (await page.getByRole('button', { name: 'All memories', exact: true }).boundingBox())!
     const photo = (await stage(page).locator('img').boundingBox())!
     const small = (await squares(page).first().boundingBox())!
     const date = (await page.getByRole('heading', { level: 1 }).boundingBox())!
@@ -208,7 +209,7 @@ test.describe('on a PC', () => {
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0)
     const after = (await squares(page).first().boundingBox())!
     expect(after.y).toBe(beforeScroll.y)
-    expect((await page.getByRole('heading', { level: 1 }).boundingBox())!.y).toBeLessThan(column.y)
+    await expect.poll(async () => (await page.getByRole('heading', { level: 1 }).boundingBox())!.y).toBeLessThan(column.y)
     await context.close()
   })
 

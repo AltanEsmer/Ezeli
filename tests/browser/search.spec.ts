@@ -1,55 +1,13 @@
-// Search, as friends use it on a phone, against the local Supabase. The memories are the ones the
-// real import saved (import.setup.ts) plus two chats imported here. People are made with the real
-// owner commands, and comments are written through the app.
+// Search, as friends use it on a phone. The owner import seeds the memories and people,
+// and comments are written through the app.
 import { type Browser, type Page, expect, test } from '@playwright/test'
-import { rmSync } from 'node:fs'
-import { makeSmallExport } from './large.ts'
 import { addPerson, apiUrl, expectNoSidewaysScroll, fruit, openWide, ownerCommand, photoCount, publishableKey, sentBy } from './support.ts'
 
-const people = 'tests/fixtures/whatsapp-iphone/people.json'
 const results = (page: Page) => page.getByRole('article')
 const box = (page: Page) => page.getByRole('searchbox')
 const dates = (page: Page) => results(page).getByRole('heading').allTextContents()
 const JULY14 = 'Friday, July 14, 2023'
 const nothing = (page: Page) => page.getByRole('heading', { name: 'Nothing found' })
-
-function load(dir: string, chat: string) {
-  try {
-    const result = ownerCommand(['import', dir, '--people', people, '--timezone', 'Europe/Istanbul', '--chat', chat, '--date-order', 'day-first'])
-    expect(result.stderr).toBe('')
-    expect(result.status).toBe(0)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-}
-
-test.beforeAll(async () => {
-  // Turkish words in every form: dotted and dotless i, in capitals and not, and ş ğ ü ö ç.
-  load(
-    await makeSmallExport([
-      { when: '01.03.2022, 10:00:00', text: 'İstanbul akşamı' },
-      { when: '02.03.2022, 10:00:00', text: 'ISTANBUL SAHİLİ' },
-      { when: '03.03.2022, 10:00:00', text: 'ıstanbul boğazı' },
-      { when: '04.03.2022, 10:00:00', text: 'istanbul köprüsü' },
-      { when: '05.03.2022, 10:00:00', text: 'Şarkı söyledik' },
-      { when: '06.03.2022, 10:00:00', text: 'ÇİĞ KÖFTE yedik' },
-      { when: '07.03.2022, 10:00:00', text: 'yüzde 50 indirim_var \\ ve 100%' },
-      { when: '08.03.2022, 10:00:00', text: 'Şeftali topladık' },
-      { when: '09.03.2022, 10:00:00', text: 'gece yürüyüşü' },
-      { when: '10.03.2022, 10:00:00', text: 'Café açıldı' },
-    ]),
-    'Arama Sohbeti',
-  )
-  // More memories than one page of results, all with the same word.
-  load(
-    await makeSmallExport(Array.from({ length: 30 }, (_, i) => ({ when: `${String(i + 1).padStart(2, '0')}.05.2021, 12:00:00`, text: `Deniz kenarı ${i + 1}` }))),
-    'Deniz Sohbeti',
-  )
-  // More than a hundred matches, so the database looks for candidates more than once for a page.
-  const start = Date.UTC(2020, 0, 1)
-  const stamp = (i: number) => new Date(start + i * 86_400_000).toISOString().slice(0, 10).split('-').reverse().join('.')
-  load(await makeSmallExport(Array.from({ length: 130 }, (_, i) => ({ when: `${stamp(i)}, 09:00:00`, text: `Kıyı yürüyüşü ${i + 1}` }))), 'Kıyı Sohbeti')
-})
 
 async function device(browser: Browser, locale = 'en-US') {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, locale })
@@ -93,26 +51,75 @@ test.describe('search', () => {
     expect(await dates(page)).toEqual([JULY14])
     await expect(sentBy(results(page))).toContainText('Sent by')
     await expect(photoCount(results(page))).toContainText('photos')
+    await expect(results(page).getByRole('blockquote')).toContainText(/tekneye/i)
+    await results(page).getByRole('link').click()
+    const hit = page.getByRole('region', { name: 'Conversation' }).locator('mark')
+    await expect(hit).toHaveText(/tekneye/i)
+    await expect(hit).toBeInViewport()
+    await expect(page).toHaveURL(/\/m\/[^/?#]+$/)
   })
 
-  test('a word from a comment finds that memory, and not before the comment is written', async ({ page }) => {
-    const word = `mercimek${Date.now().toString(36)}`
+  test('a long exact comment match is fully visible and disappears from Search after deletion', async ({ page }) => {
+    const phrase = `mercimek${Date.now().toString(36)} characteristically disproportionate counterintuitive uncharacteristically incomprehensible institutionalization unpredictability`
+    const comment = `This is the beginning of the note: ${phrase} and there is more after it.`
     await openSearch(page)
-    await find(page, word)
+    await find(page, phrase)
     await expect(nothing(page)).toBeVisible()
 
     await page.goto('/')
     await results(page).filter({ hasText: 'Çok güzel çıkmış' }).click()
-    await page.getByRole('textbox').fill(`Bu ${word} çorbası harikaydı`)
+    await page.getByRole('textbox').fill(comment)
     await page.getByRole('button', { name: 'Add comment' }).click()
-    // Saved: the box is emptied and the note is shown among the comments (the typed text is not yet).
-    await expect(page.getByRole('textbox')).toHaveValue('')
-    await expect(page.getByRole('article').filter({ hasText: `Bu ${word} çorbası harikaydı` })).toBeVisible()
+    await expect(page.getByText(comment, { exact: true })).toBeVisible()
     await page.goto('/search')
-    await find(page, word.toUpperCase())
+    await find(page, phrase.toUpperCase())
 
     await expect(results(page)).toHaveCount(1)
     expect(await dates(page)).toEqual([JULY14])
+    const quote = results(page).getByRole('blockquote')
+    await expect(quote).toContainText(phrase)
+    expect(await quote.evaluate((node) => node.scrollHeight - node.clientHeight)).toBe(0)
+    await results(page).getByRole('link').click()
+    const note = page.getByRole('region', { name: 'Comments' }).getByRole('article').filter({ hasText: phrase })
+    const hits = note.locator('mark')
+    await expect(hits).toHaveText(phrase.split(' '))
+    await expect(hits.first()).toBeInViewport()
+    await note.getByRole('button', { name: 'Delete' }).click()
+    await note.getByRole('button', { name: 'Yes, delete' }).click()
+    await expect(note).toHaveCount(0)
+    await page.goBack()
+    await expect(nothing(page)).toBeVisible()
+    await expect(results(page)).toHaveCount(0)
+  })
+
+  test('the first exact phrase wins and opens a deep match with context on both sides', async ({ page }) => {
+    await openSearch(page)
+    await find(page, 'pusula rota')
+    await expect(results(page)).toHaveCount(1)
+    await expect(results(page).getByRole('blockquote')).toContainText('Pusula rota ilk')
+    await results(page).getByRole('link').click()
+    const conversation = page.getByRole('region', { name: 'Conversation' })
+    await expect(conversation.locator('mark')).toHaveText(['Pusula', 'Pusula', 'rota'])
+    await expect(conversation.getByText('Pusula rota ilk')).toBeInViewport()
+    await expect(conversation.getByText('Pusula rota ikinci')).toBeVisible()
+    await expect(conversation.getByText('Context 13', { exact: true })).toBeVisible()
+    await expect(conversation.getByText('Context 0', { exact: true })).toHaveCount(0)
+    await conversation.getByRole('button', { name: /earlier messages/i }).click()
+    await expect(conversation.getByText('Context 0', { exact: true })).toBeVisible()
+    await conversation.getByRole('button', { name: /later messages/i }).click()
+    await expect(conversation.getByText('Later context 8', { exact: true })).toBeVisible()
+    await page.getByRole('textbox').fill('Pusula rota comment')
+    await page.getByRole('button', { name: 'Add comment' }).click()
+    await expect(page.getByText('Pusula rota comment')).toBeVisible()
+    await page.goBack()
+    await expect(results(page).getByRole('blockquote')).toContainText('Pusula rota ilk')
+    await find(page, 'PUSULA ROTA')
+    await expect(results(page).getByRole('blockquote')).toContainText('Pusula rota ilk')
+    await find(page, 'pusula context')
+    await expect(results(page)).toHaveCount(1)
+    await results(page).getByRole('link').click()
+    await expect(page.getByRole('heading', { level: 1 })).toBeInViewport()
+    await expect(conversation.locator('mark')).toHaveCount(0)
   })
 
   test('a name finds the memories that person sent a photo or a message in, and only those', async ({ page }) => {
@@ -456,7 +463,7 @@ test.describe('search', () => {
   })
 
   test('a visitor gets nothing, and a session that has ended is shown the private page', async ({ browser }) => {
-    const refused = await fetch(`${apiUrl}/rest/v1/rpc/search_memories`, {
+    const refused = await fetch(`${apiUrl}/rest/v1/rpc/search_memories_with_matches`, {
       method: 'POST',
       headers: { apikey: publishableKey, 'content-type': 'application/json' },
       body: JSON.stringify({ p_query: 'tekneye' }),
@@ -474,15 +481,18 @@ test.describe('search', () => {
     await context.close()
   })
 
-  test('the function itself answers nothing to a token kept from before the link was replaced', async ({ page, request }) => {
+  test('the search function checks distinct query words and rejects a replaced session', async ({ page, request }) => {
     const name = fruit('Limon')
     await openSearch(page, addPerson(name))
     const token = await page.evaluate(() => {
       const key = Object.keys(localStorage).find((k) => k.endsWith('-auth-token'))!
       return JSON.parse(localStorage.getItem(key)!).access_token as string
     })
-    const ask = async (words: string) => (await request.post(`${apiUrl}/rest/v1/rpc/search_memories`, { headers: { apikey: publishableKey, authorization: `Bearer ${token}` }, data: { p_query: words } })).json()
+    const ask = async (words: string) => (await request.post(`${apiUrl}/rest/v1/rpc/search_memories_with_matches`, { headers: { apikey: publishableKey, authorization: `Bearer ${token}` }, data: { p_query: words } })).json()
     expect(((await ask('tekneye')) as unknown[]).length).toBe(1)
+    const split = await ask('pusula '.repeat(8) + 'context')
+    expect(split).toHaveLength(1)
+    expect(split[0].match).toBeNull()
 
     ownerCommand(['person', 'relink', '--name', name])
 

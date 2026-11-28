@@ -5,11 +5,10 @@ import { fadeMs } from './fade.ts'
 import { useWide } from './MemoryItem.tsx'
 import { type MemoryDetail, useMemory } from './memory.ts'
 import type { Person } from './session.ts'
-import { cameFrom, follow, globePath, goBack, memoryPath, navigate, personPath, pushLayer, takeOpeningPhoto, viewed } from './route.ts'
+import { cameFrom, follow, globePath, goBack, memoryPath, navigate, personPath, pushLayer, searchJump, takeOpeningPhoto, viewed } from './route.ts'
+import { type SearchJump, marked, matchRanges, useJumpTarget } from './searchMatch.tsx'
 import { Pic, Viewer } from './Viewer.tsx'
 
-// One memory: the stage with one photo and the others as small squares, and beside or under it a
-// column with the date, the conversation as plain lines, the comments and earlier and later memory.
 export function MemoryPage({ memoryKey, person, onSessionLost }: { memoryKey: string; person: Person; onSessionLost: () => void }) {
   const { state, reload, relink } = useMemory(memoryKey)
   useEffect(() => {
@@ -17,7 +16,6 @@ export function MemoryPage({ memoryKey, person, onSessionLost }: { memoryKey: st
     window.scrollTo(0, 0)
   }, [memoryKey])
 
-  // A replaced link: the app asks who is signed in again, and shows the private page.
   const lost = state.status === 'gone'
   useEffect(() => {
     if (lost) onSessionLost()
@@ -46,6 +44,7 @@ export function MemoryPage({ memoryKey, person, onSessionLost }: { memoryKey: st
 }
 
 function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { memory: MemoryDetail; memoryKey: string; person: Person; onSessionLost: () => void; links: Map<string, string>; relink: () => Promise<boolean> }) {
+  const [jump] = useState(searchJump)
   const wide = useWide()
   const from = cameFrom()
   const [selected, setSelected] = useState(() => Math.max(0, memory.photos.findIndex((photo) => photo.message === from?.photo)))
@@ -56,8 +55,7 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
   const photo = memory.photos[selected]!
   const sentAt = (memory.messages.find((m) => m.id === photo.message)?.at ?? memory.at)
 
-  // The full-screen view is a step in the history, so the phone's Back closes it and stays here.
-  // It fades out before it goes.
+  // Keep the viewer in history so Back can close it.
   const show = (index: number) => {
     pushLayer()
     clearTimeout(timer.current)
@@ -85,8 +83,7 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
     }
   }, [])
 
-  // The arrow keys move between the photos on the stage, unless a key like Alt (the browser's Back) is
-  // held, a box has the focus or a dialog (the full-screen photo, the menu) is open.
+  // Leave keys alone while a dialog is open or a control has focus.
   useEffect(() => {
     const move = (event: KeyboardEvent) => {
       if (open !== null || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || (event.target as Element).closest('input, textarea') || document.querySelector('[role="dialog"]')) return
@@ -97,7 +94,6 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
     return () => window.removeEventListener('keydown', move)
   }, [open, count])
 
-  // Back goes to the list this memory was opened from, and says so.
   const senders = new Map(memory.photos.map((each) => [each.by, each.by_id]))
   const [before, after] = t.sentBy('\0').split('\0')
   // The stage keeps the shape of the first photo, so nothing below it moves when the photo changes.
@@ -152,9 +148,9 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
           </p>
         </header>
 
-        <Talk memory={memory} links={links} relink={relink} onPhoto={(index) => (wide ? setSelected(index) : show(index))} />
+        <Talk jump={jump?.kind === 'message' ? jump : undefined} memory={memory} links={links} relink={relink} onPhoto={(index) => (wide ? setSelected(index) : show(index))} />
 
-        <Comments memoryKey={memoryKey} person={person} onSessionLost={onSessionLost} />
+        <Comments jump={jump?.kind === 'comment' ? jump : undefined} memoryKey={memoryKey} person={person} onSessionLost={onSessionLost} />
 
         <nav className="mem-pn">
           {memory.before ? (
@@ -181,12 +177,15 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
 
 // A long conversation opens on the messages around the first photo: three before it and the ones
 // after, nine in all. The rest is one press away in each direction.
-function Talk({ memory, links, relink, onPhoto }: { memory: MemoryDetail; links: Map<string, string>; relink: () => Promise<boolean>; onPhoto: (index: number) => void }) {
+function Talk({ memory, links, relink, onPhoto, jump }: { jump?: SearchJump; memory: MemoryDetail; links: Map<string, string>; relink: () => Promise<boolean>; onPhoto: (index: number) => void }) {
   const photoOf = new Map(memory.photos.map((photo, index) => [photo.message, index]))
   const total = memory.messages.length
   const first = Math.max(0, memory.messages.findIndex((m) => photoOf.has(m.id)))
-  const from = Math.max(0, first - 3)
+  const matched = jump ? memory.messages.findIndex((message) => message.id === jump.id) : -1
+  const from = Math.max(0, (matched < 0 ? first : matched) - 3)
   const [range, setRange] = useState(total <= 12 ? { from: 0, to: total } : { from, to: Math.min(total, from + 9) })
+
+  const target = useJumpTarget(matched >= 0)
 
   return (
     <section className="mem-talk" aria-label={t.conversation}>
@@ -211,8 +210,9 @@ function Talk({ memory, links, relink, onPhoto }: { memory: MemoryDetail; links:
           {group.messages.map((message) => {
             const index = photoOf.get(message.id)
             const photo = index === undefined ? undefined : memory.photos[index]
+            const active = jump?.id === message.id
             return (
-              <div className={photo && !message.text ? 'mem-msg solo' : 'mem-msg'} key={message.id}>
+              <div ref={active ? target : undefined} tabIndex={active ? -1 : undefined} className={photo && !message.text ? 'mem-msg solo' : 'mem-msg'} key={message.id}>
                 {photo && (
                   <button className="mem-mini" aria-label={t.openPhoto(String(index! + 1))} onClick={() => onPhoto(index!)}>
                     <Pic src={links.get(photo.thumb)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={relink} loading="lazy" />
@@ -220,7 +220,7 @@ function Talk({ memory, links, relink, onPhoto }: { memory: MemoryDetail; links:
                 )}
                 {message.text ? (
                   <p dir="auto" lang="tr">
-                    {linkify(message.text)}
+                    {linkify(message.text, active ? jump.query : '')}
                   </p>
                 ) : (
                   !photo && <p className="mem-gone">{placeholder(message.kind)}</p>
@@ -239,7 +239,6 @@ function Talk({ memory, links, relink, onPhoto }: { memory: MemoryDetail; links:
   )
 }
 
-// A name opens that person's page, when the owners gave the person a lasting id.
 const named = (name: string, id: string | null) =>
   id ? (
     <a className="nm" href={personPath(id)} onClick={follow(personPath(id))}>
@@ -292,7 +291,6 @@ function placeholder(kind: MemoryDetail['messages'][number]['kind']): string {
   }
 }
 
-// The time of day in the chat's own time zone, 24 hours.
 function formatTime(lang: Language, moment: string, zone: string): string {
   return new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone }).format(new Date(moment))
 }
@@ -301,8 +299,9 @@ function formatTime(lang: Language, moment: string, zone: string): string {
 // no sign-in part. Text stays text (React escapes it); the link opens in a new tab with no access
 // to this one and no referrer.
 const ADDRESS = /(?:https?:\/\/|www\.)[^\s<>]+/gi
-function linkify(text: string): ReactNode[] {
+function linkify(text: string, query: string): ReactNode[] {
   const parts: ReactNode[] = []
+  const ranges = query ? matchRanges(text, query) : []
   let from = 0
   for (const found of text.matchAll(ADDRESS)) {
     let shown = found[0]
@@ -316,15 +315,15 @@ function linkify(text: string): ReactNode[] {
     const href = webAddress(shown)
     if (!href) continue
     const start = found.index!
-    parts.push(text.slice(from, start))
+    parts.push(...marked(text.slice(from, start), ranges, from))
     parts.push(
       <a key={start} href={href} target="_blank" rel="noopener noreferrer">
-        {shown}
+        {marked(shown, ranges, start)}
       </a>,
     )
     from = start + shown.length
   }
-  parts.push(text.slice(from))
+  parts.push(...marked(text.slice(from), ranges, from))
   return parts
 }
 
