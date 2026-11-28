@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { expect, test } from 'vitest'
 import { makeClipExport } from '../clip-export.ts'
@@ -29,7 +29,7 @@ test('a hidden WhatsApp clip stays hidden when its export position shifts', asyn
     const hiddenClip = before[1]!
     expect(hiddenClip.clip_path).toEqual(expect.any(String))
     const friend = await signedInAs(fresh('Clip friend'))
-    const source = await friend.from('messages').select('clip_source').eq('id', hiddenClip.id)
+    const source = await friend.from('messages').select('clip_source, clip_digest').eq('id', hiddenClip.id)
     expect(source.error?.code).toBe('42501')
     const signed = await friend.storage.from('clips').createSignedUrl(hiddenClip.clip_path!, 60)
     expect(signed.error).toBeNull()
@@ -43,6 +43,12 @@ test('a hidden WhatsApp clip stays hidden when its export position shifts', asyn
     expect(firstCode).not.toBe(secondCode)
     const hidden = ezeli(['hide', memory!.key, secondCode!, '--yes'])
     expect(hidden.status, hidden.err).toBe(0)
+    expect(await videos()).toEqual([before[0]])
+    expect((await fetch(oldUrl)).ok).toBe(false)
+
+    const renamed = second!.replace('WA0003', 'WA0009')
+    copyFileSync(join(dir, 'VID-20221121-WA0003.mp4'), join(dir, 'VID-20221121-WA0009.mp4'))
+    reimport([photo, first, firstCaption, renamed, secondCaption])
     expect(await videos()).toEqual([before[0]])
     expect((await fetch(oldUrl)).ok).toBe(false)
 
@@ -121,6 +127,59 @@ test('a hide issued during a reordered clip import removes only the selected cli
       expect(await finished, err).toBe(0)
     }
     expect(await videos()).toEqual([kept])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+    rmSync(dirname(people), { recursive: true, force: true })
+  }
+}, 60_000)
+
+test('a clip stays hidden when a stale import is interrupted after writing clips', async () => {
+  const { dir } = await makeClipExport()
+  const people = peopleFile(freshPeople())
+  const chat = fresh('Interrupted clip import')
+  const command = [dir, '--people', people, '--timezone', 'UTC', '--chat', chat, '--date-order', 'day-first']
+  const pause = join(dir, 'paused')
+  const wait = async (stage: string) => {
+    await expect.poll(() => {
+      try { return readFileSync(`${pause}.${stage}.ready`, 'utf8') }
+      catch { return null }
+    }, { timeout: 20_000 }).toBe('')
+  }
+  try {
+    const initial = ezeliImport(command)
+    expect(initial.status, initial.err).toBe(0)
+    const saved = await storedChat(chat)
+    const [memory] = await rows<{ id: string; key: string }>(owner.from('memories').select('id, key').eq('chat_id', saved!.id as string))
+    const videos = () => rows<{ key: string; clip_path: string }>(
+      owner.from('messages').select('key, clip_path').eq('memory_id', memory!.id).eq('media_kind', 'video').order('seq'),
+    )
+    const [kept, target] = await videos()
+    expect(target?.clip_path).toEqual(expect.any(String))
+    const friend = await signedInAs(fresh('Interrupted clip friend'))
+    const signed = await friend.storage.from('clips').createSignedUrl(target!.clip_path, 60)
+    expect(signed.error).toBeNull()
+
+    const running = spawn('node', ['cli/ezeli.ts', 'import', ...command], {
+      env: {
+        ...process.env, SUPABASE_URL: stack.apiUrl, SUPABASE_SECRET_KEY: stack.secretKey,
+        EZELI_TEST_PAUSE: pause, EZELI_TEST_PAUSE_STAGE: 'after-photos,after-clips',
+      },
+    })
+    const finished = new Promise<string | null>((resolve) => running.on('close', (_, signal) => resolve(signal)))
+    try {
+      await wait('after-photos')
+      const hidden = ezeli(['hide', memory!.key, target!.key.slice(0, 8), '--yes'])
+      expect(hidden.status, hidden.err).toBe(0)
+      writeFileSync(`${pause}.after-photos.go`, '')
+      await wait('after-clips')
+    } finally {
+      running.kill('SIGTERM')
+      expect(await finished).toBe('SIGTERM')
+    }
+    const remaining = await videos()
+    expect(remaining).toContainEqual(kept)
+    expect(remaining.map((video) => video.key)).not.toContain(target!.key)
+    expect((await fetch(signed.data!.signedUrl)).ok).toBe(false)
   } finally {
     rmSync(dir, { recursive: true, force: true })
     rmSync(dirname(people), { recursive: true, force: true })

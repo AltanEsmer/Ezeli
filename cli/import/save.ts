@@ -1,6 +1,7 @@
 // Saving: the two sizes of each photo, then the chat, its people, the memories, messages and
 // photos. Everything is written by key, so the same export saved twice leaves one copy, and an
 // import that stopped halfway is finished by running it again.
+import { randomBytes } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import type { Db } from '../supabase.ts'
 import { buildMemories, hasPhotoFile, isPhoto, type Grouping, type MemoryMessage } from './memories.ts'
@@ -8,8 +9,8 @@ import type { ChatApp } from './people.ts'
 import { makeSizes } from './photos.ts'
 import { idKey } from './keys.ts'
 import { prepareMemoryClips } from './clips.ts'
-import { applyMarks, clipMarkKey, loadMarks, unnamedClip, type Mark } from './marks.ts'
-import { chunks, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Removed, type Span, type StoredMessage } from './regroup.ts'
+import { applyMarks, clipMarkKey, loadMarks, matched, thingsFrom, unnamedClip, type Mark } from './marks.ts'
+import { chunks, loadStored, nothingStored, removeFilesWithoutRow, removeWhatNoLongerFits, storedOutside, type Counts, type Removed, type Span, type Stored, type StoredMessage } from './regroup.ts'
 import { Stop } from './stop.ts'
 
 export type ChatToSave = { key: string; name: string; app: ChatApp; timezone: string }
@@ -39,26 +40,9 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   await testPause('before-marks')
   await applyMarks(db, chat.key)
   const stored = existing.data ? await loadStored(db, existing.data.id) : nothingStored
-  const storedMessages = new Map(stored.messages.map((message) => [message.key, message]))
-  const storedPhotos = new Map(stored.photos.map((photo) => [photo.key, photo]))
-  const outside = storedOutside(stored, span)
-  const retired = new Set((await loadMarks(db, chat.key)).map(clipMarkKey))
-  keepNamedClipKeys(exported, storedMessages, retired)
-  // A stored message that this export holds again is the export's: the same chat from another phone
-  // has other seconds, so a message stored at 20:58:11 may lie outside an export that has minutes only.
-  const again = new Set(exported.map((message) => message.key))
-  const notAgain = (message: MemoryMessage) => !again.has(message.key)
-  const memories = buildMemories([...outside.before.filter(notAgain), ...exported, ...outside.after.filter(notAgain)], grouping)
-  const messages = memories.flatMap((memory) => memory.messages)
-  const retainedClips = new Map<string, StoredMessage>()
-  for (const message of messages) {
-    const previous = storedMessages.get(message.key)
-    if (!previous || !(previous.clip_path || previous.clip_source) || !message.media) continue
-    const { kind, clipSource } = message.media
-    if (kind !== 'media' && kind !== previous.media_kind) continue
-    if (clipSource && previous.clip_source && clipSource !== previous.clip_source) continue
-    retainedClips.set(message.key, previous)
-  }
+  const { storedPhotos, again, memories, messages, retainedClips } = planClips(
+    stored, exported, grouping, span, await loadMarks(db, chat.key),
+  )
   const clips = prepareMemoryClips(memories, chat.timezone, { exported: again, photos: storedPhotos, messages: retainedClips })
 
   const savedChat = await db.from('chats').upsert(chat, { onConflict: 'key' }).select('id').single()
@@ -124,6 +108,7 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
       media_kind: retained?.media_kind ?? message.media?.kind ?? null,
       clip_path: retained?.clip_path ?? null,
       clip_source: message.media?.clipSource ?? retained?.clip_source ?? null,
+      clip_digest: message.media?.clipDigest ?? retained?.clip_digest ?? null,
     }
   })
   const messageIds = new Map<string, string>()
@@ -161,25 +146,22 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   const visible = new Set(photoRows.map((row) => row.memory_id))
   await mapLimit(placed, 4, async ({ message, memory }) => {
     const clip = message.media?.clip
-    if (!clip || !visible.has(memory) || retainedClips.get(message.key)?.clip_path) return
-    const source = message.media?.clipSource
-    // A new attachment at the same WhatsApp position must not inherit an old signed URL.
-    const fileKey = source ? idKey(message.key, `clip-path:${source}`) : message.key
-    const path = `${chatId}/${fileKey}-clip.${clip.extension}`
-    const uploaded = await db.storage.from('clips').upload(path, readFileSync(clip.file), { contentType: clip.type, upsert: true })
+    const id = messageIds.get(message.key)
+    if (!id || !clip || !visible.has(memory) || retainedClips.get(message.key)?.clip_path) return
+    // Never recreate a path for which a friend may still have a signed URL.
+    const path = `${chatId}/${randomBytes(16).toString('hex')}-clip.${clip.extension}`
+    const uploaded = await db.storage.from('clips').upload(path, readFileSync(clip.file), { contentType: clip.type })
     if (uploaded.error) throw uploaded.error
-    const attached = await db.from('messages').update({ clip_path: path }).eq('id', messageIds.get(message.key)!).is('clip_path', null).select('id')
+    const attached = await db.from('messages').update({ clip_path: path }).eq('id', id).is('clip_path', null).select('id')
     if (attached.error) throw attached.error
     if (!attached.data.length) {
-      // A concurrent hide can delete the message between upload and attachment.
-      const remaining = await db.from('messages').select('clip_path').eq('key', message.key).maybeSingle()
-      if (remaining.error) throw remaining.error
-      if (remaining.data?.clip_path !== path) {
-        const removed = await db.storage.from('clips').remove([path])
-        if (removed.error) throw removed.error
-      }
+      // A hide or another import won the attachment after the upload.
+      const removed = await db.storage.from('clips').remove([path])
+      if (removed.error) throw removed.error
     }
   })
+
+  await testPause('after-clips')
 
   // A later export may have GPS that the first one lacked. The regular upsert never
   // writes coordinates, and a conditional update keeps the first point across retries
@@ -215,6 +197,39 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
     removed,
     clips,
   }
+}
+
+// Use the same grouping and retained copies for a trial and a save.
+export function previewClips(stored: Stored, exported: MemoryMessage[], grouping: Grouping, span: Span | undefined, marks: Mark[], timezone: string) {
+  const hidden = matched(thingsFrom(stored), marks, true).hits
+  const keys = new Set([...hidden].map((thing) => thing.key))
+  const visible = { ...stored, messages: stored.messages.filter((row) => !keys.has(row.key)), photos: stored.photos.filter((row) => !keys.has(row.key)) }
+  const { storedPhotos, again, memories, retainedClips } = planClips(visible, exported, grouping, span, marks)
+  return prepareMemoryClips(memories, timezone, { exported: again, photos: storedPhotos, messages: retainedClips })
+}
+
+function planClips(stored: Stored, exported: MemoryMessage[], grouping: Grouping, span: Span | undefined, marks: Mark[]) {
+  const storedMessages = new Map(stored.messages.map((message) => [message.key, message]))
+  const storedPhotos = new Map(stored.photos.map((photo) => [photo.key, photo]))
+  const outside = storedOutside(stored, span)
+  const retired = new Set(marks.map(clipMarkKey))
+  keepNamedClipKeys(exported, storedMessages, retired)
+  // A stored message that this export holds again is the export's: the same chat from another phone
+  // has other seconds, so a message stored at 20:58:11 may lie outside an export that has minutes only.
+  const again = new Set(exported.map((message) => message.key))
+  const notAgain = (message: MemoryMessage) => !again.has(message.key)
+  const memories = buildMemories([...outside.before.filter(notAgain), ...exported, ...outside.after.filter(notAgain)], grouping)
+  const messages = memories.flatMap((memory) => memory.messages)
+  const retainedClips = new Map<string, StoredMessage>()
+  for (const message of messages) {
+    const previous = storedMessages.get(message.key)
+    if (!previous || !(previous.clip_path || previous.clip_source) || !message.media) continue
+    const { kind, clipSource } = message.media
+    if (kind !== 'media' && kind !== previous.media_kind) continue
+    if (clipSource && previous.clip_source && clipSource !== previous.clip_source) continue
+    retainedClips.set(message.key, previous)
+  }
+  return { storedPhotos, again, memories, messages, retainedClips }
 }
 
 // A uniquely named clip can move within its minute when a partial export omits a sibling.
@@ -295,9 +310,11 @@ async function savePeople(db: Db, messages: MemoryMessage[]): Promise<Map<string
 }
 
 // A test can run an owner command while the import waits for its `<value>.go` file.
-async function testPause(stage: 'before-marks' | 'after-photos'): Promise<void> {
-  const base = process.env.EZELI_TEST_PAUSE
-  if (!base || stage !== (process.env.EZELI_TEST_PAUSE_STAGE ?? 'after-photos')) return
+async function testPause(stage: 'before-marks' | 'after-photos' | 'after-clips'): Promise<void> {
+  const prefix = process.env.EZELI_TEST_PAUSE
+  const stages = (process.env.EZELI_TEST_PAUSE_STAGE ?? 'after-photos').split(',')
+  if (!prefix || !stages.includes(stage)) return
+  const base = stages.length > 1 ? `${prefix}.${stage}` : prefix
   writeFileSync(`${base}.ready`, '')
   while (!existsSync(`${base}.go`)) await new Promise((resolve) => setTimeout(resolve, 50))
 }

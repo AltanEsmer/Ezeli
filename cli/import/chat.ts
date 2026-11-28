@@ -9,7 +9,7 @@ export type MediaKind = 'photo' | 'video' | 'gif' | 'voice' | 'document' | 'medi
 
 // `file` is the path of a photo or clip found in the export.
 // `hash` is the hash of the original file's bytes, made when saving, so a hidden photo can be found again.
-export type Media = { kind: MediaKind; name?: string; file?: string; hash?: string; ambiguousAudio?: boolean; clipSource?: string; captionHidden?: boolean; clip?: Clip; location?: CaptureLocation }
+export type Media = { kind: MediaKind; name?: string; file?: string; hash?: string; ambiguousAudio?: boolean; clipSource?: string; clipDigest?: string; captionHidden?: boolean; clip?: Clip; location?: CaptureLocation }
 
 export type ChatMessage = {
   at: number // the moment it was sent, in milliseconds since 1970 UTC

@@ -25,6 +25,7 @@ export type StoredMessage = {
   media_kind: MediaKind | null
   clip_path: string | null
   clip_source: string | null
+  clip_digest: string | null
   people: { id: string; slug: string; display_name: string }
 }
 export type StoredPhoto = { key: string; view_path: string; thumb_path: string; width: number; height: number; content_hash: string | null; latitude: number | null }
@@ -59,7 +60,7 @@ export async function loadStored(db: Db, chatId: string): Promise<Stored> {
     messages: await pages<StoredMessage>((from, to) =>
       db
         .from('messages')
-        .select('id, key, at, seq, memory_id, text, media_kind, clip_path, clip_source, people(id, slug, display_name), memories!inner(chat_id)')
+        .select('id, key, at, seq, memory_id, text, media_kind, clip_path, clip_source, clip_digest, people(id, slug, display_name), memories!inner(chat_id)')
         .eq('memories.chat_id', chatId)
         .order('key')
         .range(from, to),
@@ -89,6 +90,7 @@ export function storedOutside(stored: Stored, span: Span | undefined): { before:
     if (row.media_kind) {
       const media: Media = { kind: row.media_kind }
       if (row.clip_source) media.clipSource = row.clip_source
+      if (row.clip_digest) media.clipDigest = row.clip_digest
       if (photos.has(row.key)) media.file = 'stored'
       message.media = media
     }

@@ -33,6 +33,11 @@ test('an export starting after the stored photo restores the clip at the existin
 
     writeFileSync(chatFile, lines.slice(1).join('\n') + '\n')
     writeFileSync(first, bytes)
+    const trial = ezeliImport([...command, '--trial'])
+    expect(trial.status, trial.err).toBe(0)
+    expect(trial.out).toContain('Clips: 1 playable, 0 skipped.')
+    expect(await memories()).toEqual(before)
+    expect(await clips()).toEqual(original)
     const partial = ezeliImport(command)
     expect(partial.status, partial.err).toBe(0)
     expect(partial.out).toContain('Clips: 1 playable, 0 skipped.')
@@ -44,6 +49,10 @@ test('an export starting after the stored photo restores the clip at the existin
     const downloaded = await owner.storage.from('clips').download(path!)
     expect(downloaded.error).toBeNull()
     expect(downloaded.data?.type).toBe('video/mp4')
+    rmSync(first)
+    const retained = ezeliImport([...command, '--trial'])
+    expect(retained.status, retained.err).toBe(0)
+    expect(retained.out).toContain('Clip already playable')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

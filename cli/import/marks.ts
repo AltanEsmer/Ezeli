@@ -15,7 +15,7 @@
 // says "media omitted" for any media. So a thing of kind `media` is matched by photo marks and by
 // other-media marks, and a mark made on a `media` thing matches photos and other media too.
 import type { Db } from '../supabase.ts'
-import { chunks, isClipPath, loadStored, removeImportFiles, type Counts, type StoredMemory, type StoredMessage, type StoredPhoto } from './regroup.ts'
+import { chunks, isClipPath, loadStored, removeImportFiles, type Counts, type Stored, type StoredMemory, type StoredMessage, type StoredPhoto } from './regroup.ts'
 import { Stop } from './stop.ts'
 
 export type Kind = 'photo' | 'text' | 'other' | 'media'
@@ -23,7 +23,7 @@ export type Mark = { id: string; chat_key: string; person_slug: string; minute: 
 // `exact`: the mark has matched exactly once (see `matched`).
 export type Matching = { id?: string; person_slug: string; minute: string; kind: Kind; match: string; exact?: boolean }
 // `match`: an upload key, a photo hash, a message's text, a clip identity, or ''.
-export type Thing = { key: string; slug: string; at: number; kind: Kind; match: string; clipSource?: string; unnamedClip?: boolean }
+export type Thing = { key: string; slug: string; at: number; kind: Kind; match: string; clipSource?: string; clipDigest?: string; knownClip?: boolean; unnamedClip?: boolean }
 
 export const kindOf = (media: { kind: string } | null | undefined): Kind =>
   !media ? 'text' : media.kind === 'photo' ? 'photo' : media.kind === 'media' ? 'media' : 'other'
@@ -80,7 +80,7 @@ export function matched<T extends Thing>(things: T[], marks: Matching[], stored 
 }
 
 function clipMatches<T extends Thing>(things: T[], mark: Matching, stored: boolean, exportedKeys?: ReadonlySet<string>): T[] {
-  const [, key, source] = mark.match.split(':')
+  const [, key, source, digest] = mark.match.split(':')
   if (!source) return things.filter((thing) => thing.key === key)
   const minute = Date.parse(mark.minute)
   const nearby = things.filter((thing) => thing.slug === mark.person_slug && minuteOf(thing.at) === minute)
@@ -88,6 +88,8 @@ function clipMatches<T extends Thing>(things: T[], mark: Matching, stored: boole
   const unnamed = nearby.filter((thing) => thing.key === key && !thing.clipSource && thing.unnamedClip)
   if (original) return [original]
   if (stored) {
+    const renamedInPlace = digest && nearby.filter((thing) => thing.key === key && thing.clipDigest === digest)
+    if (renamedInPlace && renamedInPlace.length) return renamedInPlace
     const moved = exportedKeys ? nearby.filter((thing) => thing.clipSource === source && exportedKeys.has(thing.key)) : []
     return moved.length ? moved : unnamed
   }
@@ -96,6 +98,16 @@ function clipMatches<T extends Thing>(things: T[], mark: Matching, stored: boole
     throw new Stop('More than one clip in a minute has the same filename as a hidden clip. Use an export that identifies the original clip before importing again.')
   }
   if (named.length === 1) return named
+  if (digest) {
+    const renamed = nearby.filter((thing) => thing.clipDigest === digest && !thing.knownClip)
+    if (renamed.length > 1) {
+      throw new Stop('More than one clip in a minute has the same contents as a hidden clip. Use an export that identifies the original clip before importing again.')
+    }
+    if (renamed.length === 1) return renamed
+  }
+  if (nearby.some((thing) => thing.clipSource && !thing.knownClip && !thing.clipDigest && thing.key === key)) {
+    throw new Stop('A clip at a hidden message position has a different filename and no file. Use an export that identifies the original clip before importing again.')
+  }
   return unnamed
 }
 
@@ -118,17 +130,21 @@ export type StoredThing = Thing & { message: StoredMessage }
 // What is stored in a chat, as things to match.
 export async function storedThings(db: Db, chatId: string): Promise<{ things: StoredThing[]; photos: StoredPhoto[]; memories: StoredMemory[] }> {
   const stored = await loadStored(db, chatId)
+  return { things: thingsFrom(stored), photos: stored.photos, memories: stored.memories }
+}
+
+export function thingsFrom(stored: Stored): StoredThing[] {
   const hashOf = new Map(stored.photos.map((photo) => [photo.key, photo.content_hash ?? '']))
-  const things = stored.messages.map((message) => {
+  return stored.messages.map((message) => {
     const kind = kindOf(message.media_kind ? { kind: message.media_kind } : null)
     const match = kind === 'text' ? message.text : kind === 'photo' || kind === 'media' ? photoMatch(message.key, hashOf.get(message.key)) : ''
     return {
       message, key: message.key, slug: message.people.slug, at: Date.parse(message.at), kind, match,
       clipSource: message.clip_source ?? undefined,
+      clipDigest: message.clip_digest ?? undefined,
       unnamedClip: unnamedClip(message.media_kind && { kind: message.media_kind }),
     }
   })
-  return { things, photos: stored.photos, memories: stored.memories }
 }
 
 // Removes every stored row and media file that a mark of this chat matches, leaves each touched

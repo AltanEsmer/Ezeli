@@ -2,7 +2,7 @@
 import { parseArgs } from 'node:util'
 import { adminClient } from '../supabase.ts'
 import { createHash, randomBytes } from 'node:crypto'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { createReadStream, existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { chatKey, idKey, messageKeys } from './keys.ts'
 import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } from './memories.ts'
@@ -11,8 +11,8 @@ import { readPeople } from './people.ts'
 import { captureLocation } from '../../src/captureLocation.ts'
 import { readablePhoto, removeConvertedPhotos } from './photos.ts'
 import { codeOf, kindOf, loadMarks, matched, unnamedClip, widerThanOne, type Mark } from './marks.ts'
-import { spanOf } from './regroup.ts'
-import { saveChat, type SaveReport } from './save.ts'
+import { loadStored, nothingStored, spanOf } from './regroup.ts'
+import { previewClips, saveChat, type ChatToSave, type SaveReport } from './save.ts'
 import { prepareMemoryClips, removeConvertedClips } from './clips.ts'
 import { Stop } from './stop.ts'
 import { importSummary } from './summary.ts'
@@ -24,7 +24,7 @@ const usage =
   'Usage: pnpm ezeli import <export folder> --people <file> --timezone <zone> --chat <name> [--trial]\n' +
   '  [--date-order day-first|month-first] [--details] [--photo-gap <minutes>] [--before <minutes>] [--after <minutes>] [--max-messages <number>]\n' +
   '  --chat names the chat; importing a later export of the same chat under the same name keeps it one chat.\n' +
-  '  --trial saves nothing (then --chat is not needed). Saving needs SUPABASE_URL and SUPABASE_SECRET_KEY in the environment.'
+  '  --trial saves nothing. Use --chat and the database environment to preview an existing chat.'
 
 export async function runImport(args: string[]): Promise<number> {
   try {
@@ -47,7 +47,8 @@ async function importExport(args: string[]): Promise<string> {
   }
   if (!trial && !chatName) throw new Stop(`Saving needs a name for the chat.\n${usage}`)
   // Before anything is read, so a missing key does not cost a long run.
-  const db = trial ? undefined : databaseOrStop()
+  const withArchive = chatName && process.env.SUPABASE_URL && process.env.SUPABASE_SECRET_KEY
+  const db = trial && !withArchive ? undefined : databaseOrStop()
 
   const who = readPeople(people)
   // The kind of export is recognised from the folder's contents.
@@ -78,7 +79,8 @@ async function importExport(args: string[]): Promise<string> {
   // nothing about them reaches the result. Problems name the person by display name only.
   const chatText = chatKey(chat.app, chatName ?? '')
   // The secret every key of this chat is made with: the chat's own, or a new one for a new chat.
-  const secret = db ? await savingStop(() => chatSecret(db, { key: chatText, name: chatName!.trim(), app: chat.app, timezone })) : undefined
+  const archived = db ? await savingStop(() => importChat(db, { key: chatText, name: chatName!.trim(), app: chat.app, timezone }, trial)) : undefined
+  const secret = archived?.secret
   const key = messageKeys(chatText, secret)
   const messages: MemoryMessage[] = []
   const legacyCaptions = new Map<MemoryMessage, string>()
@@ -100,8 +102,12 @@ async function importExport(args: string[]): Promise<string> {
       text,
     }
     if (media) {
-      if (db && chat.app === 'whatsapp' && media.name && (media.kind === 'video' || media.kind === 'voice')) {
+      if (secret && chat.app === 'whatsapp' && media.name && (media.kind === 'video' || media.kind === 'voice')) {
         media.clipSource = idKey(chatText, `clip-source:${media.name.normalize('NFC')}`, secret)
+        if (media.file) {
+          const digest = await clipDigest(media.file)
+          if (digest) media.clipDigest = idKey(chatText, `clip-digest:${digest}`, secret)
+        }
       }
       message.media = media
     }
@@ -114,7 +120,7 @@ async function importExport(args: string[]): Promise<string> {
       continue
     }
     // The hash of the original file, kept with the photo so hiding it can find it again.
-    if (db) {
+    if (archived) {
       const original = readFileSync(media.file)
       media.hash = createHash('sha256').update(original).digest('hex')
       media.location = await captureLocation(original)
@@ -132,15 +138,22 @@ async function importExport(args: string[]): Promise<string> {
   // The keys above were worked out with it in place, so what stays keeps the key it has stored.
   const leftOut: string[] = []
   const marks = db ? await savingStop(() => loadMarks(db, chatText)) : []
+  const stored = db && archived && (trial || marks.some((mark) => mark.kind === 'other' && mark.match.startsWith('clip:') && mark.match.split(':')[2]))
+    ? await savingStop(() => loadStored(db, archived.id))
+    : nothingStored
+  const identity = (slug: string, at: number, source: string) => JSON.stringify([slug, Math.floor(at / 60_000), source])
+  const knownClips = new Set(stored.messages.flatMap((row) => row.clip_source ? [identity(row.people.slug, Date.parse(row.at), row.clip_source)] : []))
   if (db) {
     const things = messages.map((message) => ({
       message, slug: message.personId, at: message.at, key: message.key, kind: kindOf(message.media),
       match: message.media ? (message.media.hash ?? '') : message.text,
-      clipSource: message.media?.clipSource, unnamedClip: unnamedClip(message.media),
+      clipSource: message.media?.clipSource, clipDigest: message.media?.clipDigest,
+      knownClip: Boolean(message.media?.clipSource && knownClips.has(identity(message.personId, message.at, message.media.clipSource))),
+      unnamedClip: unnamedClip(message.media),
     }))
     const captions = things.flatMap((thing) => {
       const captionKey = legacyCaptions.get(thing.message)
-      return captionKey ? [{ ...thing, key: captionKey, kind: 'text' as const, match: thing.message.text, clipSource: undefined, unnamedClip: false }] : []
+      return captionKey ? [{ ...thing, key: captionKey, kind: 'text' as const, match: thing.message.text, clipSource: undefined, clipDigest: undefined, unnamedClip: false }] : []
     })
     const { hits: hidden, results } = matched([...things, ...captions], marks)
     for (const { message } of captions.filter((caption) => hidden.has(caption))) {
@@ -161,10 +174,9 @@ async function importExport(args: string[]): Promise<string> {
 
   const memories = buildMemories(messages, grouping)
   let report: SaveReport | undefined
-  if (db) {
-    // The time this export covers, left-out senders and all: only inside it is anything stored
-    // taken away, so an older export never removes what a newer one added.
-    const span = spanOf(chat.messages.map((message) => message.at))
+  // Only replace the part of the chat covered by this export, including left-out senders.
+  const span = spanOf(chat.messages.map((message) => message.at))
+  if (db && !trial) {
     try {
       report = await saveChat(db, { key: chatText, name: chatName!.trim(), app: chat.app, timezone }, messages, grouping, span, marks)
     } catch (error) {
@@ -175,7 +187,9 @@ async function importExport(args: string[]): Promise<string> {
     }
   }
   const summary = importSummary(memories, problems.map(removePhoneNumbers), timezone, details, report && chatName!.trim(), report)
-  const clips = report?.clips ?? prepareMemoryClips(memories, timezone)
+  const clips = report?.clips ?? (archived
+    ? previewClips(stored, messages, grouping, span, marks, timezone)
+    : prepareMemoryClips(memories, timezone))
   const notes = [...clips, ...leftOut]
   return notes.length > 0 ? `${summary}\n${notes.join('\n')}\n` : summary
 }
@@ -194,22 +208,35 @@ async function savingStop<T>(work: () => Promise<T>): Promise<T> {
 // The secret of a stored chat; none for a chat stored before secrets existed (it keeps its keys). A
 // chat not stored yet is stored now, with a new secret, so that two imports of it that start together
 // make their keys with the same one.
-async function chatSecret(db: NonNullable<ReturnType<typeof databaseOrStop>>, chat: { key: string; name: string; app: string; timezone: string }): Promise<string> {
+async function importChat(db: ReturnType<typeof databaseOrStop>, chat: ChatToSave, trial: boolean) {
   const read = async () => {
-    const found = await db.from('chats').select('secret').eq('key', chat.key).maybeSingle()
+    const found = await db.from('chats').select('id, secret, timezone').eq('key', chat.key).maybeSingle()
     if (found.error) throw found.error
     return found.data
   }
   const there = await read()
   if (there) {
+    if (there.timezone !== chat.timezone) throw new Stop(`This chat was first imported with the time zone ${there.timezone}, not ${chat.timezone}. Import it again with --timezone ${there.timezone}; nothing was changed.`)
     if (!there.secret) throw new Stop('This chat was stored before its keys had a secret, so it cannot be imported again. Remove the chat and import it again (no real chat exists yet).')
-    return there.secret
+    return there
   }
+  if (trial) return undefined
   const made = await db.from('chats').upsert({ ...chat, secret: randomBytes(24).toString('hex') }, { onConflict: 'key', ignoreDuplicates: true })
   if (made.error) throw made.error
-  const made2 = (await read())?.secret
-  if (!made2) throw new Stop('The chat could not be stored with a secret. Run the same import again.')
+  const made2 = await read()
+  if (!made2?.secret) throw new Stop('The chat could not be stored with a secret. Run the same import again.')
   return made2
+}
+
+async function clipDigest(file: string): Promise<string | undefined> {
+  const hash = createHash('sha256')
+  try {
+    for await (const chunk of createReadStream(file)) hash.update(chunk)
+    return hash.digest('hex')
+  } catch {
+    // Playback preparation reports unreadable files as skipped clips.
+    return undefined
+  }
 }
 
 function databaseOrStop() {

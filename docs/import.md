@@ -12,7 +12,7 @@ pnpm ezeli import <export folder> --people <file> --timezone <zone> --chat "<cha
 - `--timezone <zone>`: the time zone the memory dates are shown in, such as `Europe/Istanbul`. For WhatsApp it is the zone the phone that made the export was in (exports carry clock times without a zone). A Discord export carries exact times, so for Discord it is only the zone the dates are shown in.
 - `--date-order day-first|month-first`: only for a WhatsApp export whose dates cannot say (see below).
 - `--chat <name>`: the name of the chat, needed when saving. Importing a later export of the same chat under the same name is the same chat (case and spaces around the name are ignored).
-- `--trial`: print the summary and save nothing (no `--chat`, no secret key needed).
+- `--trial`: print the summary and save nothing. For a reimport preview, pass the existing `--chat` and set the same database environment as for saving. Otherwise the trial reads only the export.
 - `--details`: also print the conversation of every memory, to check the grouping.
 
 ## What is read
@@ -201,4 +201,4 @@ bucket and strips original metadata.
 
 Install FFmpeg with `ffmpeg` and `ffprobe` on the owner command's PATH. The import prepares private H.264/AAC video and AAC audio copies up to 25 MiB each. Videos up to and including two minutes and identified voice notes within the size limit play in full. WhatsApp PTT filenames and the iPhone export's timestamped AUDIO Opus names identify voice notes. Discord's voice-message Opus or Ogg filename identifies a voice note. Ordinary audio stays an attachment placeholder.
 
-Run the usual import with `--trial` to see playable clips and reasons for skips. Reimport the same chat to attach copies to existing messages. A partial export can restore a clip beside its photo already in the archive. When a later export keeps the message and omits its file, the stored copy stays playable. Use the item's code from `pnpm ezeli memory <address>` with `pnpm ezeli hide <address> <code>` to remove an individual clip and its caption.
+Run the usual import with `--trial` to see playable clips and reasons for skips. With the existing chat name and database environment, it also accounts for stored photos, playback copies and hides. Reimport the same chat to attach copies to existing messages. A partial export can restore a clip beside its photo already in the archive. When a later export keeps the message and omits its file, the stored copy stays playable. Use the item's code from `pnpm ezeli memory <address>` with `pnpm ezeli hide <address> <code>` to remove an individual clip and its caption.

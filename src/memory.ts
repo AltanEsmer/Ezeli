@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase.ts'
 
-// What `memory_detail` returns, in one request: the memory, its photos and all its messages.
 export type MemoryDetail = {
   at: string
   chat_name: string
@@ -9,7 +8,6 @@ export type MemoryDetail = {
   timezone: string
   photos: { message: string; by_id: string | null; view: string; thumb: string; width: number; height: number; by: string }[]
   messages: { id: string; by: string; by_id: string | null; at: string; text: string; clip?: string | null; kind: 'photo' | 'video' | 'gif' | 'voice' | 'document' | 'media' | null }[]
-  // The keys of the memory before and after this one in time.
   before: string | null
   after: string | null
 }
@@ -18,7 +16,6 @@ export type MemoryState =
   | { status: 'loading' }
   | { status: 'failed' }
   | { status: 'missing' }
-  // The memory is not there for this reader because the session ended (a replaced link).
   | { status: 'gone' }
   | { status: 'ready'; memory: MemoryDetail; links: Map<string, string> }
 
@@ -33,9 +30,7 @@ async function sign(memory: MemoryDetail): Promise<Map<string, string> | null> {
   ])
   if (pictures.error) return null
   const links = new Map<string, string>()
-  for (const item of [...pictures.data, ...(recordings?.data ?? [])]) {
-    if (item.path && item.signedUrl) links.set(item.path, item.signedUrl)
-  }
+  for (const item of [...pictures.data, ...(recordings?.data ?? [])]) if (item.path && item.signedUrl) links.set(item.path, item.signedUrl)
   return links
 }
 

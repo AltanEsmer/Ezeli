@@ -5,6 +5,7 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } f
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { expect, test } from 'vitest'
+import { makeClipExport } from '../clip-export.ts'
 import { counts, ezeli, ezeliImport, fresh, freshPeople, fixtures, owner, rows, storedChat, type Names } from './support.ts'
 
 const discord = 'tests/fixtures/discord'
@@ -467,3 +468,41 @@ test('a hidden legacy Discord text stays hidden when it becomes a video caption'
     rmSync(folder, { recursive: true, force: true })
   }
 })
+
+test('hiding a missing Discord clip preserves a playable sibling from the same minute', async () => {
+  const chat = fresh('Discord clip placeholders')
+  const names = freshPeople()
+  const media = await makeClipExport()
+  const folder = changed((file) => {
+    for (const message of file.messages) message.attachments = message.attachments.filter((item: { fileName: string }) => !item.fileName.endsWith('.mp4'))
+    file.messages[0]!.attachments = [
+      { id: '500000000000000097', fileName: 'missing.mp4', url: 'media/missing.mp4' },
+      { id: '500000000000000098', fileName: 'kept.mp4', url: 'media/kept.mp4' },
+    ]
+  })
+  try {
+    cpSync(media.first, join(folder, 'media', 'kept.mp4'))
+    const imported = save(folder, chat, names)
+    expect(imported.status, imported.err).toBe(0)
+    const stored = (await storedChat(chat))!
+    const [memory] = await rows<{ key: string; id: string }>(owner.from('memories').select('key, id').eq('chat_id', stored.id as string).order('at'))
+    const videos = () => rows<{ key: string; clip_path: string | null }>(
+      owner.from('messages').select('key, clip_path').eq('memory_id', memory!.id).eq('media_kind', 'video').order('seq'),
+    )
+    const before = await videos()
+    expect(before).toHaveLength(2)
+    const missing = before.find((row) => !row.clip_path)
+    const kept = before.find((row) => row.clip_path)
+    expect(kept).toBeDefined()
+    expect(missing).toBeDefined()
+    const hidden = ezeli(['hide', memory!.key, missing!.key.slice(0, 8), '--yes'])
+    expect(hidden.status, hidden.err).toBe(0)
+    expect(await videos()).toEqual([kept])
+    const repeated = save(folder, chat, names)
+    expect(repeated.status, repeated.err).toBe(0)
+    expect(await videos()).toEqual([kept])
+  } finally {
+    rmSync(folder, { recursive: true, force: true })
+    rmSync(media.dir, { recursive: true, force: true })
+  }
+}, 60_000)
