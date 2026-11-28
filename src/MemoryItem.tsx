@@ -39,7 +39,7 @@ export const MemoryItem = memo(function MemoryItem({ memory }: { memory: MemoryC
         <div className="mi-words">
           <h3 className="mi-date">{date}</h3>
           {quote && (
-            <p className="mi-line" role="blockquote" dir="auto" lang="tr">
+            <p className={match ? 'mi-line mi-match' : 'mi-line'} role="blockquote" dir="auto" lang="tr">
               {`“${match ? searchQuote(quote, query) : cutLine(quote)}”`}
             </p>
           )}

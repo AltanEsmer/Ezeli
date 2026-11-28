@@ -59,29 +59,37 @@ test.describe('search', () => {
     await expect(page).toHaveURL(/\/m\/[^/?#]+$/)
   })
 
-  test('a word from a comment finds that memory, and not before the comment is written', async ({ page }) => {
-    const word = `mercimek${Date.now().toString(36)}`
+  test('a long exact comment match is fully visible and disappears from Search after deletion', async ({ page }) => {
+    const phrase = `mercimek${Date.now().toString(36)} characteristically disproportionate counterintuitive uncharacteristically incomprehensible institutionalization unpredictability`
+    const comment = `This is the beginning of the note: ${phrase} and there is more after it.`
     await openSearch(page)
-    await find(page, word)
+    await find(page, phrase)
     await expect(nothing(page)).toBeVisible()
 
     await page.goto('/')
     await results(page).filter({ hasText: 'Çok güzel çıkmış' }).click()
-    await page.getByRole('textbox').fill(`Bu ${word} çorbası harikaydı`)
+    await page.getByRole('textbox').fill(comment)
     await page.getByRole('button', { name: 'Add comment' }).click()
-    // Saved: the box is emptied and the note is shown among the comments (the typed text is not yet).
-    await expect(page.getByRole('textbox')).toHaveValue('')
-    await expect(page.getByRole('article').filter({ hasText: `Bu ${word} çorbası harikaydı` })).toBeVisible()
+    await expect(page.getByText(comment, { exact: true })).toBeVisible()
     await page.goto('/search')
-    await find(page, word.toUpperCase())
+    await find(page, phrase.toUpperCase())
 
     await expect(results(page)).toHaveCount(1)
     expect(await dates(page)).toEqual([JULY14])
-    await expect(results(page).getByRole('blockquote')).toContainText(word)
+    const quote = results(page).getByRole('blockquote')
+    await expect(quote).toContainText(phrase)
+    expect(await quote.evaluate((node) => node.scrollHeight - node.clientHeight)).toBe(0)
     await results(page).getByRole('link').click()
-    const hit = page.getByRole('region', { name: 'Comments' }).locator('mark')
-    await expect(hit).toHaveText(word)
-    await expect(hit).toBeInViewport()
+    const note = page.getByRole('region', { name: 'Comments' }).getByRole('article').filter({ hasText: phrase })
+    const hits = note.locator('mark')
+    await expect(hits).toHaveText(phrase.split(' '))
+    await expect(hits.first()).toBeInViewport()
+    await note.getByRole('button', { name: 'Delete' }).click()
+    await note.getByRole('button', { name: 'Yes, delete' }).click()
+    await expect(note).toHaveCount(0)
+    await page.goBack()
+    await expect(nothing(page)).toBeVisible()
+    await expect(results(page)).toHaveCount(0)
   })
 
   test('the first exact phrase wins and opens a deep match with context on both sides', async ({ page }) => {

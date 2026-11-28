@@ -45,8 +45,8 @@ export function searchQuote(text: string, query: string) {
   const compact = text.trim().replace(/\s+/g, ' ')
   if (compact.length <= 140) return compact
   const hit = matchRanges(compact, query, true)[0]
-  const start = Math.max(0, (hit?.[0] ?? 0) - 18)
-  const end = Math.min(compact.length, start + 140)
+  const start = hit ? Math.max(0, Math.min(hit[0], Math.max(hit[0] - 18, hit[1] - 140))) : 0
+  const end = Math.min(compact.length, Math.max(start + 140, hit?.[1] ?? 0))
   return (start > 0 ? '…' : '') + compact.slice(start, end) + (end < compact.length ? '…' : '')
 }
 
