@@ -50,3 +50,5 @@
   .mi-strip .mi-cell { flex: 0 0 auto; height: 100%; }
   .mi-strip .mi-cell.fill { flex: 1 1 0; }
 }
+
+.mi-line.mi-match { display: block; }

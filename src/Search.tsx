@@ -21,7 +21,7 @@ type State =
 // What was searched and found last, kept while the friend looks at a result, so coming back shows
 // the same results. It lives only in the page (never in storage or the address): reloading, or
 // opening the search screen afresh, starts empty.
-let saved: { text: string; chunks: Chunk[]; more: boolean; cut: boolean } | null = null
+let saved: { text: string; pages: number } | null = null
 
 // The words of what was typed that are searched: the first eight, in the order typed.
 const wordsOf = (typed: string) => typed.split(/\s+/).filter(Boolean)
@@ -45,26 +45,29 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
     return saved && keys.length ? { ...saved, keys } : null
   })
   const [text, setText] = useState(back?.text ?? '')
-  const [state, setState] = useState<State>(back ? { status: 'ready', chunks: back.chunks, more: back.more, busy: false, pageFailed: false, cut: back.cut } : { status: 'idle' })
+  const [state, setState] = useState<State>({ status: back ? 'searching' : 'idle' })
   const list = useRef<HTMLDivElement>(null)
   const timer = useRef(0)
-  const ids = useRef(back ? Math.max(0, ...back.chunks.map((chunk) => chunk.id)) : 0)
+  const ids = useRef(0)
   // A new search makes the one on its way stale: its request is cancelled, and if it answers anyway
   // (the generation says) it changes nothing.
   const generation = useRef(0)
   const request = useRef<AbortController | null>(null)
-  const searched = useRef(back ? wordsOf(back.text).slice(0, MOST_WORDS).join(' ') : '')
+  const searched = useRef('')
   // The text that was typed when the results were last searched: what the box says may have moved on.
   const searchedText = useRef(back?.text ?? '')
+  const restoring = useRef(back)
   const ready = state.status === 'ready' ? state : null
 
   useLayoutEffect(() => {
-    if (!back) return
+    const previous = restoring.current
+    if (!previous || state.status !== 'ready') return
+    restoring.current = null
     const cards = [...(list.current?.querySelectorAll<HTMLElement>('[data-key]') ?? [])]
     // The memory looked at last if it is among the results, else the one opened from them.
-    const key = back.keys.find((k) => cards.some((card) => card.dataset.key === k))
+    const key = previous.keys.find((k) => cards.some((card) => card.dataset.key === k))
     cards.find((card) => card.dataset.key === key)?.scrollIntoView({ block: 'center' })
-  }, [back])
+  }, [state.status])
   useEffect(
     () => () => {
       clearTimeout(timer.current)
@@ -84,7 +87,7 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
   }, [onSessionLost])
 
   const run = useCallback(
-    async (typed: string, force = false) => {
+    async (typed: string, force = false, pages = 1) => {
       const all = wordsOf(typed)
       const words = all.slice(0, MOST_WORDS).join(' ')
       if (!force && words === searched.current) return
@@ -96,18 +99,28 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
       saved = null
       if (!words) return setState({ status: 'idle' })
       setState({ status: 'searching' })
-      const items = await fetchPage(words, undefined, controller.signal)
+      const chunks: Chunk[] = []
+      let more = true
+      for (let index = 0; index < pages && more; index++) {
+        const items = await fetchPage(words, chunks.at(-1)?.memories.at(-1), controller.signal)
+        if (mine !== generation.current || controller.signal.aborted) return
+        if (!items) return setState({ status: 'failed' })
+        if (items.length) chunks.push({ id: (ids.current += 1), memories: items })
+        more = items.length === PAGE
+      }
+      if (chunks.length === 0 && (await sessionEnded())) return
       if (mine !== generation.current) return
-      if (!items) return setState({ status: 'failed' })
-      if (items.length === 0 && (await sessionEnded())) return
-      if (mine !== generation.current) return
-      const chunks = items.length ? [{ id: (ids.current += 1), memories: items }] : []
       const cut = all.length > MOST_WORDS
-      saved = { text: typed, chunks, more: items.length === PAGE, cut }
-      setState({ status: 'ready', chunks, more: items.length === PAGE, busy: false, pageFailed: false, cut })
+      saved = { text: typed, pages: chunks.length }
+      setState({ status: 'ready', chunks, more, busy: false, pageFailed: false, cut })
     },
     [sessionEnded],
   )
+
+  // A hidden line or deleted comment may have been the selected quote.
+  useEffect(() => {
+    if (back) void run(back.text, true, Math.max(1, back.pages))
+  }, [back, run])
 
   const more = useCallback(async () => {
     if (!ready) return
@@ -119,7 +132,7 @@ export function Search({ onSessionLost }: { onSessionLost: () => void }) {
     if (mine !== generation.current) return
     if (!page) return setState({ ...ready, busy: false, pageFailed: true })
     const chunks = page.length ? [...ready.chunks, { id: (ids.current += 1), memories: page }] : ready.chunks
-    saved = { text: searchedText.current, chunks, more: page.length === PAGE, cut: ready.cut }
+    saved = { text: searchedText.current, pages: chunks.length }
     setState({ ...ready, chunks, more: page.length === PAGE, busy: false, pageFailed: false })
   }, [ready])
 
