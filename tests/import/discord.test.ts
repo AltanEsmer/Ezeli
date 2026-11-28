@@ -105,7 +105,7 @@ test('an import saves the chat as a Discord chat, with its memories, messages, p
 
   const memories = await rows<{ id: string; at: string }>(owner.from('memories').select('id, at').eq('chat_id', stored.id as string).order('at'))
   expect(memories.map((m) => new Date(m.at).toISOString())).toEqual(['2023-07-14T17:58:11.120Z', '2023-07-15T08:05:00.000Z'])
-  const messages = await rows<{ text: string; media_kind: string | null }>(owner.from('messages').select('text, media_kind').eq('memory_id', memories[0]!.id).order('at'))
+  const messages = await rows<{ text: string; media_kind: string | null }>(owner.from('messages').select('text, media_kind').eq('memory_id', memories[0]!.id).order('at').order('seq'))
   expect(messages.map((m) => [m.media_kind, m.text])).toEqual([
     [null, 'İskeleye gelin\ngün batımı çok güzel'],
     ['photo', 'Bakın'],
