@@ -9,8 +9,6 @@ import { cameFrom, follow, globePath, goBack, memoryPath, navigate, personPath, 
 import { type SearchJump, marked, matchRanges, useJumpTarget } from './searchMatch.tsx'
 import { Pic, Viewer } from './Viewer.tsx'
 
-// One memory: the stage with one photo and the others as small squares, and beside or under it a
-// column with the date, the conversation as plain lines, the comments and earlier and later memory.
 export function MemoryPage({ memoryKey, person, onSessionLost }: { memoryKey: string; person: Person; onSessionLost: () => void }) {
   const { state, reload, relink } = useMemory(memoryKey)
   useEffect(() => {
@@ -18,7 +16,6 @@ export function MemoryPage({ memoryKey, person, onSessionLost }: { memoryKey: st
     window.scrollTo(0, 0)
   }, [memoryKey])
 
-  // A replaced link: the app asks who is signed in again, and shows the private page.
   const lost = state.status === 'gone'
   useEffect(() => {
     if (lost) onSessionLost()
@@ -58,8 +55,7 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
   const photo = memory.photos[selected]!
   const sentAt = (memory.messages.find((m) => m.id === photo.message)?.at ?? memory.at)
 
-  // The full-screen view is a step in the history, so the phone's Back closes it and stays here.
-  // It fades out before it goes.
+  // Keep the viewer in history so Back can close it.
   const show = (index: number) => {
     pushLayer()
     clearTimeout(timer.current)
@@ -87,8 +83,7 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
     }
   }, [])
 
-  // The arrow keys move between the photos on the stage, unless a key like Alt (the browser's Back) is
-  // held, a box has the focus or a dialog (the full-screen photo, the menu) is open.
+  // Leave keys alone while a dialog is open or a control has focus.
   useEffect(() => {
     const move = (event: KeyboardEvent) => {
       if (open !== null || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || (event.target as Element).closest('input, textarea') || document.querySelector('[role="dialog"]')) return
@@ -99,7 +94,6 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
     return () => window.removeEventListener('keydown', move)
   }, [open, count])
 
-  // Back goes to the list this memory was opened from, and says so.
   const senders = new Map(memory.photos.map((each) => [each.by, each.by_id]))
   const [before, after] = t.sentBy('\0').split('\0')
   // The stage keeps the shape of the first photo, so nothing below it moves when the photo changes.
@@ -259,7 +253,6 @@ function Clip({ src, video, relink }: { src: string; video: boolean; relink: () 
   return video ? <video key={attempt} {...props} playsInline /> : <audio key={attempt} {...props} />
 }
 
-// A name opens that person's page, when the owners gave the person a lasting id.
 const named = (name: string, id: string | null) =>
   id ? (
     <a className="nm" href={personPath(id)} onClick={follow(personPath(id))}>
@@ -312,7 +305,6 @@ function placeholder(kind: MemoryDetail['messages'][number]['kind']): string {
   }
 }
 
-// The time of day in the chat's own time zone, 24 hours.
 function formatTime(lang: Language, moment: string, zone: string): string {
   return new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone }).format(new Date(moment))
 }

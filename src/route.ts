@@ -1,12 +1,7 @@
 import type { SearchJump } from './searchMatch.tsx'
 import { type MouseEvent, useSyncExternalStore } from 'react'
 
-// The addresses of the app, kept small on purpose. `/` is the timeline and `/m/<key>` one memory,
-// by the memory's lasting key, so the address survives a later import. The people and search
-// screens (issues 17 and 19) add their paths in `parse`: `/search` (what is typed there is never
-// part of the address), `/people`, and `/p/<id>` for one person by
-// their lasting id (the slug of the people file). Hosting must answer every path with
-// index.html (vercel.json); the dev server does it already.
+// Memory URLs use lasting keys. The host must serve index.html for app routes.
 export type Route = { name: 'timeline' } | { name: 'memory'; key: string } | { name: 'people' } | { name: 'person'; id: string } | { name: 'search' } | { name: 'photo-import' } | { name: 'globe' }
 
 export const globePath = '/globe'
@@ -31,28 +26,23 @@ export function parse(pathname: string): Route {
     try {
       return { name: 'memory', key: decodeURIComponent(memory[1]!) }
     } catch {
-      // A broken % escape is no memory: the screen for a memory that is not there answers it.
       return { name: 'memory', key: '' }
     }
   }
   return { name: 'timeline' }
 }
 
-// The page decides where it is scrolled to (the timeline returns to the memory that was open).
 history.scrollRestoration = 'manual'
 
 const CHANGED = 'ezeli:route'
-// Whether the last move was the browser's back or forward, not a tap on a link of the app.
 let lastWasPop = false
 window.addEventListener('popstate', () => {
   lastWasPop = true
 })
-// The state of an entry of the history counts how many screens of this app are behind it,
-// so a button can tell "go back" from "this address was opened directly".
+// History depth distinguishes in-app navigation from direct links.
 const depth = () => (history.state as { depth?: number } | null)?.depth ?? 0
 
-// The list a memory was opened from: where Back goes, and what to call it (no name: the timeline).
-// It is kept in the history entry, so it survives Earlier and Later, which replace the entry.
+// Store the originating list in history so it survives Earlier and Later.
 export type From = { path: string; name?: string; photo?: string }
 export const cameFrom = (): From | null => (history.state as { from?: From } | null)?.from ?? null
 
@@ -85,18 +75,15 @@ export function takeOpeningPhoto(): string | undefined {
   return photo
 }
 
-// A layer on top of a screen (the full-screen photo) is a step of its own in the history, so the
-// phone's Back closes it. The address stays the same.
+// A viewer layer shares the current URL and gets its own Back step.
 export function pushLayer() {
   history.pushState({ depth: depth() + 1, layer: true, from: cameFrom(), searchJump: history.state?.searchJump }, '')
 }
 
-// A page that was loaded fresh has no layer open, but the history step of one survives a reload: take
-// that step back, so the first Back leaves the screen instead of seeming to do nothing.
+// Discard stale viewer layers after a full reload.
 if ((history.state as { layer?: boolean } | null)?.layer) history.back()
 
-// Back to the timeline: the browser's own back when this app has a screen behind, else forward to it.
-// A tap on a link of the app goes there without a reload; a modified tap is left to the browser.
+// Leave modified clicks to the browser.
 export const follow = (path: string, from?: From) => (event: MouseEvent) => {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
   event.preventDefault()
@@ -127,10 +114,7 @@ export function useRoute(): Route {
   return parse(pathname)
 }
 
-// Where a list should be scrolled to when the reader comes back to it: the memory they looked at
-// last if it is on that list, else the memory they opened from it. So "the same place" is a
-// memory, not a number of pixels or of loaded pages, and Earlier and Later (which step onto other
-// memories) never lose it. Any list a memory is opened from does this: `opened` when it opens one.
+// Restore a list by memory key, falling back to the memory that opened it.
 let lastViewed: string | null = null
 let openedKey: string | null = null
 export const viewed = (key: string) => {
@@ -139,8 +123,7 @@ export const viewed = (key: string) => {
 export const opened = (key: string) => {
   openedKey = key
 }
-// A person's list asks for them only after going back: tapping a name in a memory must not open
-// their page at that memory, and the memory stays remembered for the list behind it.
+// Restore the person-list position only on history navigation.
 export function takeReturnKeys(onlyAfterBack = false): string[] {
   if (onlyAfterBack && !lastWasPop) return []
   const keys = [lastViewed, openedKey].filter((key): key is string => key !== null)

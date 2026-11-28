@@ -2,8 +2,7 @@ import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from
 import { t } from './i18n.ts'
 import type { MemoryDetail } from './memory.ts'
 
-// A photo full screen. The photos sit side by side in a strip that snaps one at a time, so a swipe
-// is the browser's own scrolling; the buttons and the arrow keys move the same strip.
+// A snapping scroll strip handles swipes, buttons and arrow keys.
 export function Viewer(props: { photos: MemoryDetail['photos']; links: Map<string, string>; relink: () => Promise<boolean>; start: number; leaving: boolean; onClose: () => void }) {
   const { photos, start, leaving } = props
   // While it fades out, a key or a press must not close it a second time.
@@ -11,8 +10,7 @@ export function Viewer(props: { photos: MemoryDetail['photos']; links: Map<strin
   const strip = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDivElement>(null)
   const [index, setIndex] = useState(start)
-  // The photo being shown and the width it was laid out at: a change of width (a phone turned)
-  // is not the friend moving on, and the strip is put back on that photo here, not left to the browser.
+  // After resize, restore the previous photo before accepting scroll events.
   const held = useRef(start)
   const width = useRef(0)
 
@@ -22,7 +20,6 @@ export function Viewer(props: { photos: MemoryDetail['photos']; links: Map<strin
     box.scrollTo({ left: to * box.clientWidth, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })
   }
 
-  // Start on the photo that was tapped.
   useLayoutEffect(() => {
     const box = strip.current
     if (!box) return
@@ -110,11 +107,8 @@ export function Viewer(props: { photos: MemoryDetail['photos']; links: Map<strin
   )
 }
 
-// A photo. When its link has run out it asks for fresh links once; when that does not help either,
-// a plain placeholder of the photo's shape stands in, never the browser's broken-image icon. The
-// photo fades in once it has loaded.
+// Refresh an expired photo link once before showing a placeholder.
 export function Pic(props: { src: string | undefined; alt: string; width: number; height: number; relink: () => Promise<boolean>; loading?: 'eager' | 'lazy' }) {
-  // 0: the first try. 1: tried again after the fresh links arrived. Failing then is the end.
   const [attempt, setAttempt] = useState(0)
   const [on, setOn] = useState(false)
   const failed = () => {
