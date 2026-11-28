@@ -210,6 +210,7 @@ test('another person’s link on a signed-in device signs in as the new person',
   await page.goto(secondLink)
 
   await expect(page.getByText('No memories yet')).toBeVisible()
+  await expect(page.getByRole('button', { name: `Menu: ${second}`, exact: true })).toBeVisible()
   const menu = await openMenu(page)
   await expect(menu.getByText(second)).toBeVisible()
   await expect(menu.getByText(first)).toHaveCount(0)

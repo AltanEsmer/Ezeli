@@ -136,7 +136,8 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
   // A photo message with a stored row keeps its row (and gets the memory the regroup gives it)
   // even when this export has no file for it.
   const photoRows = placed.filter(({ message }) => sizes.has(message.key) || storedPhotos.has(message.key)).map(({ message, seq, memory }) => {
-    const size = sizes.get(message.key) ?? (({ view_path, thumb_path, width, height, content_hash }) => ({ view: view_path, thumb: thumb_path, width, height, hash: message.media?.hash ?? content_hash }))(storedPhotos.get(message.key)!)
+    const existingPhoto = storedPhotos.get(message.key)
+    const size = sizes.get(message.key) ?? (({ view_path, thumb_path, width, height, content_hash }) => ({ view: view_path, thumb: thumb_path, width, height, hash: message.media?.hash ?? content_hash }))(existingPhoto!)
     return {
       memory_id: memory,
       message_id: messageIds.get(message.key)!,
@@ -178,6 +179,16 @@ export async function saveChat(db: Db, chat: ChatToSave, exported: MemoryMessage
         if (removed.error) throw removed.error
       }
     }
+  })
+
+  // A later export may have GPS that the first one lacked. The regular upsert never
+  // writes coordinates, and a conditional update keeps the first point across retries
+  // and concurrent imports.
+  await mapLimit(messages.filter(hasPhotoFile), 4, async ({ key, media }) => {
+    const location = media?.location
+    if (!location || storedPhotos.get(key)?.latitude != null) return
+    const saved = await db.from('photos').update(location).eq('key', key).is('latitude', null)
+    if (saved.error) throw saved.error
   })
 
   // Only now, with every row of this import in place, is anything that no longer fits removed.

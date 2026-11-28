@@ -8,6 +8,7 @@ import { chatKey, idKey, messageKeys } from './keys.ts'
 import { startingGrouping, buildMemories, type Grouping, type MemoryMessage } from './memories.ts'
 import { isDiscordExport, readDiscord, withMentions } from './discord.ts'
 import { readPeople } from './people.ts'
+import { captureLocation } from '../../src/captureLocation.ts'
 import { readablePhoto, removeConvertedPhotos } from './photos.ts'
 import { codeOf, kindOf, loadMarks, matched, unnamedClip, widerThanOne, type Mark } from './marks.ts'
 import { spanOf } from './regroup.ts'
@@ -113,7 +114,11 @@ async function importExport(args: string[]): Promise<string> {
       continue
     }
     // The hash of the original file, kept with the photo so hiding it can find it again.
-    if (db) media.hash = createHash('sha256').update(readFileSync(media.file)).digest('hex')
+    if (db) {
+      const original = readFileSync(media.file)
+      media.hash = createHash('sha256').update(original).digest('hex')
+      media.location = await captureLocation(original)
+    }
     // A photo that cannot be read is a problem to report, not a crash. It stays in the
     // conversation as a photo that is missing.
     const readable = await readablePhoto(media.file)
