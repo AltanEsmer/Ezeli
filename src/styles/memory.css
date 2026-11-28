@@ -73,3 +73,5 @@
 @media (prefers-reduced-motion: no-preference) {
   .viewer.out { animation: fade-out var(--fade) ease-in forwards; }
 }
+
+.mem-clip { display: block; width: min(100%, 540px); max-height: 60vh; }

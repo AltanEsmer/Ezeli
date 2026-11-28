@@ -1,15 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from './supabase.ts'
 
-// What `memory_detail` returns, in one request: the memory, its photos and all its messages.
 export type MemoryDetail = {
   at: string
   chat_name: string
   place?: string | null
   timezone: string
   photos: { message: string; by_id: string | null; view: string; thumb: string; width: number; height: number; by: string }[]
-  messages: { id: string; by: string; by_id: string | null; at: string; text: string; kind: 'photo' | 'video' | 'gif' | 'voice' | 'document' | 'media' | null }[]
-  // The keys of the memory before and after this one in time.
+  messages: { id: string; by: string; by_id: string | null; at: string; text: string; clip?: string | null; kind: 'photo' | 'video' | 'gif' | 'voice' | 'document' | 'media' | null }[]
   before: string | null
   after: string | null
 }
@@ -18,25 +16,27 @@ export type MemoryState =
   | { status: 'loading' }
   | { status: 'failed' }
   | { status: 'missing' }
-  // The memory is not there for this reader because the session ended (a replaced link).
   | { status: 'gone' }
   | { status: 'ready'; memory: MemoryDetail; links: Map<string, string> }
 
 const LINK_SECONDS = 3600
 
-const pathsOf = (memory: MemoryDetail) => [...new Set(memory.photos.flatMap((photo) => [photo.view, photo.thumb]))]
-
-async function sign(paths: string[]): Promise<Map<string, string> | null> {
-  const signed = await supabase.storage.from('photos').createSignedUrls(paths, LINK_SECONDS)
-  if (signed.error) return null
+async function sign(memory: MemoryDetail): Promise<Map<string, string> | null> {
+  const photos = [...new Set(memory.photos.flatMap((photo) => [photo.view, photo.thumb]))]
+  const clips = memory.messages.flatMap((message) => message.clip ? [message.clip] : [])
+  const [pictures, recordings] = await Promise.all([
+    supabase.storage.from('photos').createSignedUrls(photos, LINK_SECONDS),
+    clips.length ? supabase.storage.from('clips').createSignedUrls(clips, LINK_SECONDS) : null,
+  ])
+  if (pictures.error) return null
   const links = new Map<string, string>()
-  for (const item of signed.data) if (item.path && item.signedUrl) links.set(item.path, item.signedUrl)
+  for (const item of [...pictures.data, ...(recordings?.data ?? [])]) if (item.path && item.signedUrl) links.set(item.path, item.signedUrl)
   return links
 }
 
 export function useMemory(key: string): { state: MemoryState; reload: () => void; relink: () => Promise<boolean> } {
   const [state, setState] = useState<MemoryState>({ status: 'loading' })
-  const fresh = useRef<Promise<boolean> | null>(null)
+  const fresh = useRef<{ memory: MemoryDetail; response: Promise<boolean> } | null>(null)
 
   const reload = useCallback(() => {
     setState({ status: 'loading' })
@@ -51,22 +51,25 @@ export function useMemory(key: string): { state: MemoryState; reload: () => void
         return setState({ status: !who.error && !who.data[0] ? 'gone' : 'missing' })
       }
 
-      const links = await sign(pathsOf(memory))
+      const links = await sign(memory)
       if (!links) return setState({ status: 'failed' })
       setState({ status: 'ready', memory, links })
     })()
   }, [key])
 
-  // A photo whose link ran out asks for new links. Photos that fail at the same time share one
-  // request. The answer is true when new links arrived.
+  // A loaded memory shares one refresh across media that fail while its links are being replaced.
   const relink = useCallback(() => {
-    fresh.current ??= (async () => {
-      if (state.status !== 'ready') return false
-      const links = await sign(pathsOf(state.memory))
-      if (links) setState({ status: 'ready', memory: state.memory, links })
-      return links !== null
-    })()
-    return fresh.current
+    if (state.status !== 'ready') return Promise.resolve(false)
+    const memory = state.memory
+    if (fresh.current?.memory !== memory) {
+      const response = sign(memory).then((links) => {
+        if (links) setState((current) => current.status === 'ready' && current.memory === memory
+          ? { ...current, links } : current)
+        return links !== null
+      })
+      fresh.current = { memory, response }
+    }
+    return fresh.current.response
   }, [state])
 
   useEffect(reload, [reload])

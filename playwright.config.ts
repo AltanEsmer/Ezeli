@@ -43,6 +43,8 @@ export default defineConfig({
     { name: 'photo-import', testMatch: 'photo-import.spec.ts', dependencies: ['whole-interface'] },
     { name: 'globe', testMatch: 'globe.spec.ts', dependencies: ['photo-import'] },
     { name: 'globe-backfill', testMatch: 'globe-backfill.spec.ts', dependencies: ['globe'] },
+    { name: 'clips', testMatch: 'clips.spec.ts', dependencies: ['globe-backfill'] },
+    { name: 'clip-hiding', testMatch: 'clip-hiding.spec.ts', dependencies: ['clips'] },
   ],
   fullyParallel: true,
   reporter: process.env.CI ? 'github' : 'list',

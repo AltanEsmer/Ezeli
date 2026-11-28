@@ -55,7 +55,6 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
   const photo = memory.photos[selected]!
   const sentAt = (memory.messages.find((m) => m.id === photo.message)?.at ?? memory.at)
 
-  // Keep the viewer in history so Back can close it.
   const show = (index: number) => {
     pushLayer()
     clearTimeout(timer.current)
@@ -83,7 +82,6 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
     }
   }, [])
 
-  // Leave keys alone while a dialog is open or a control has focus.
   useEffect(() => {
     const move = (event: KeyboardEvent) => {
       if (open !== null || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || (event.target as Element).closest('input, textarea') || document.querySelector('[role="dialog"]')) return
@@ -96,7 +94,6 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
 
   const senders = new Map(memory.photos.map((each) => [each.by, each.by_id]))
   const [before, after] = t.sentBy('\0').split('\0')
-  // The stage keeps the shape of the first photo, so nothing below it moves when the photo changes.
   const shape = Math.min(1.5, Math.max(0.8, memory.photos[0]!.width / memory.photos[0]!.height))
 
   return (
@@ -175,8 +172,6 @@ function Memory({ memory, memoryKey, person, onSessionLost, links, relink }: { m
   )
 }
 
-// A long conversation opens on the messages around the first photo: three before it and the ones
-// after, nine in all. The rest is one press away in each direction.
 function Talk({ memory, links, relink, onPhoto, jump }: { jump?: SearchJump; memory: MemoryDetail; links: Map<string, string>; relink: () => Promise<boolean>; onPhoto: (index: number) => void }) {
   const photoOf = new Map(memory.photos.map((photo, index) => [photo.message, index]))
   const total = memory.messages.length
@@ -210,6 +205,7 @@ function Talk({ memory, links, relink, onPhoto, jump }: { jump?: SearchJump; mem
           {group.messages.map((message) => {
             const index = photoOf.get(message.id)
             const photo = index === undefined ? undefined : memory.photos[index]
+            const clip = message.clip ? links.get(message.clip) : undefined
             const active = jump?.id === message.id
             return (
               <div ref={active ? target : undefined} tabIndex={active ? -1 : undefined} className={photo && !message.text ? 'mem-msg solo' : 'mem-msg'} key={message.id}>
@@ -218,12 +214,13 @@ function Talk({ memory, links, relink, onPhoto, jump }: { jump?: SearchJump; mem
                     <Pic src={links.get(photo.thumb)} alt={t.photoBy(photo.by)} width={photo.width} height={photo.height} relink={relink} loading="lazy" />
                   </button>
                 )}
-                {message.text ? (
+                {clip && <Clip src={clip} video={message.clip!.endsWith('.mp4')} relink={relink} />}
+                {!photo && !clip && (!message.text || message.kind === 'video' || message.kind === 'voice') &&
+                  <p className="mem-gone">{placeholder(message.kind)}</p>}
+                {message.text && (
                   <p dir="auto" lang="tr">
                     {linkify(message.text, active ? jump.query : '')}
                   </p>
-                ) : (
-                  !photo && <p className="mem-gone">{placeholder(message.kind)}</p>
                 )}
               </div>
             )
@@ -239,6 +236,18 @@ function Talk({ memory, links, relink, onPhoto, jump }: { jump?: SearchJump; mem
   )
 }
 
+function Clip({ src, video, relink }: { src: string; video: boolean; relink: () => Promise<boolean> }) {
+  const [attempt, setAttempt] = useState(0)
+  const label = video ? t.video : t.voice
+  if (attempt === 2) return <p className="mem-gone">{label}</p>
+  const retry = () => {
+    if (attempt > 0) return setAttempt(2)
+    void relink().then((ok) => setAttempt(ok ? 1 : 2))
+  }
+  const props = { className: 'mem-clip', src, controls: true, preload: 'none', 'aria-label': label, onError: retry }
+  return video ? <video key={attempt} {...props} playsInline /> : <audio key={attempt} {...props} />
+}
+
 const named = (name: string, id: string | null) =>
   id ? (
     <a className="nm" href={personPath(id)} onClick={follow(personPath(id))}>
@@ -248,7 +257,6 @@ const named = (name: string, id: string | null) =>
     name
   )
 
-// Another memory replaces this one in the history, so Back still leads to the timeline.
 const go = (key: string) => (event: React.MouseEvent) => {
   if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
   event.preventDefault()
@@ -257,8 +265,7 @@ const go = (key: string) => (event: React.MouseEvent) => {
 
 type Group = { by: string; day: string | null; messages: MemoryDetail['messages'] }
 
-// Messages of one sender in a row sit together; a group also starts where the day changes (in the
-// chat's time zone), and says which day it is.
+// Group consecutive messages by sender and local day.
 function groups(memory: MemoryDetail, from: number, to: number): Group[] {
   const dayOf = (moment: string) => new Intl.DateTimeFormat('en-CA', { timeZone: memory.timezone }).format(new Date(moment))
   const result: Group[] = []
@@ -295,9 +302,7 @@ function formatTime(lang: Language, moment: string, zone: string): string {
   return new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: zone }).format(new Date(moment))
 }
 
-// Only real web addresses become links: http or https, or www., with a host that has a dot and
-// no sign-in part. Text stays text (React escapes it); the link opens in a new tab with no access
-// to this one and no referrer.
+// Only web addresses without credentials become links.
 const ADDRESS = /(?:https?:\/\/|www\.)[^\s<>]+/gi
 function linkify(text: string, query: string): ReactNode[] {
   const parts: ReactNode[] = []

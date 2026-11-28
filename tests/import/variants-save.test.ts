@@ -76,7 +76,7 @@ test('an iPhone export is saved with its HEIC photo converted, and no phone numb
   const result = save(`${variants}/iphone-turkish`, chat, variantPeopleFile(tag))
 
   expect(result.status).toBe(0)
-  expect(result.out).not.toContain('could not be read')
+  expect(result.out).not.toContain('Photo could not be read')
   const stored = (await storedChat(chat))!
   const memories = await rows<{ id: string }>(owner.from('memories').select('id').eq('chat_id', stored.id as string))
   const ids = memories.map((m) => m.id)

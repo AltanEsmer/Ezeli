@@ -78,18 +78,25 @@ export function readDiscord(folder: string, zone: string): ChatExport {
     })
 
     // Every attachment is a message of its own, with its own lasting id, so a photo keeps its
-    // key however its message is edited. A caption goes with the first photo.
+    // key however its message is edited. A caption goes with the first photo or clip.
     const firstPhoto = attachments.findIndex((a) => kindOf(a.fileName) === 'photo')
-    if (text.trim() !== '' && firstPhoto < 0) messages.push({ ...base, id: `message:${id}`, text, mentions })
+    const captionAt = firstPhoto >= 0 ? firstPhoto : attachments.findIndex(({ fileName }) => {
+      const kind = kindOf(fileName)
+      return kind === 'video' || kind === 'voice'
+    })
+    if (text.trim() !== '' && captionAt < 0) messages.push({ ...base, id: `message:${id}`, text, mentions })
     attachments.forEach((a, i) => {
       const kind = kindOf(a.fileName)
       const media: Media = { kind, name: a.fileName }
       // A photo that was not downloaded keeps its web address in `url`: it is missing media.
-      if (kind === 'photo') {
+      if (kind === 'photo' || kind === 'video' || kind === 'voice') {
         const found = localFile(folder, a.url)
         if (found) media.file = found
       }
-      messages.push({ ...base, id: `attachment:${a.id}`, text: i === firstPhoto ? text : '', media, mentions })
+      if (kind === 'document' && audioFile.test(a.fileName)) media.ambiguousAudio = true
+      const caption = i === captionAt ? text : ''
+      const captionId = caption && firstPhoto < 0 ? `message:${id}` : undefined
+      messages.push({ ...base, id: `attachment:${a.id}`, text: caption, captionId, media, mentions })
     })
   })
 
@@ -133,10 +140,12 @@ function localFile(folder: string, url: string): string | undefined {
 const extensions: [MediaKind, string[]][] = [
   ['photo', ['jpg', 'jpeg', 'png', 'webp', 'gif', 'heic', 'heif']],
   ['video', ['mp4', 'mov', 'webm', 'm4v', 'mkv', 'avi', '3gp']],
-  ['voice', ['ogg', 'opus', 'mp3', 'm4a', 'wav', 'aac', 'flac', 'amr']],
 ]
 
+const audioFile = /\.(?:ogg|opus|mp3|m4a|wav|aac|flac|amr)$/i
+
 function kindOf(fileName: string): MediaKind {
+  if (/^voice-message\.(?:ogg|opus)$/i.test(fileName)) return 'voice'
   const extension = fileName.split('.').at(-1)!.toLowerCase()
   return extensions.find(([, list]) => list.includes(extension))?.[0] ?? 'document'
 }
