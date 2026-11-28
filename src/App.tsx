@@ -1,13 +1,17 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useSyncExternalStore } from 'react'
+import type { GlobeView } from './globeCamera.ts'
+import { GlobeBoundary } from './GlobeUnavailable.tsx'
 import { getLanguage, subscribeLanguage, t } from './i18n.ts'
 import { Memories } from './Memories.tsx'
 import { MemoryPage } from './MemoryPage.tsx'
 import { PhotoImport } from './PhotoImport.tsx'
 import { Search } from './Search.tsx'
 import { PeoplePage, PersonPage } from './People.tsx'
-import { navigate, useRoute } from './route.ts'
+import { navigate, useGlobeEntry, useRoute } from './route.ts'
 import { type Person, useSession } from './session.ts'
 import { Shell } from './Shell.tsx'
+
+const Globe = lazy(() => import('./Globe.tsx'))
 
 export function App() {
   const { session, signOut, reload } = useSession()
@@ -38,19 +42,21 @@ export function App() {
         </Notice>
       )
     case 'in':
-      return <Signed person={session.person} onSignOut={signOut} onSessionLost={() => void reload()} />
+      return <Signed person={session.person} onSignOut={signOut} onSessionLost={reload} />
   }
 }
 
 // The screens of a signed-in person, by address, inside the shell.
 function Signed({ person, onSignOut, onSessionLost }: { person: Person; onSignOut: () => void; onSessionLost: () => void }) {
   const route = useRoute()
+  const entry = useGlobeEntry()
+  const globeViews = useMemo(() => new Map<string, GlobeView>(), [person.id])
   // A path the app does not know is the timeline, and says so in the address bar.
   const unknown = route.name === 'timeline' && location.pathname !== '/'
   useEffect(() => {
     if (unknown) navigate('/', { replace: true })
   }, [unknown])
-  const place = route.name === 'photo-import' || route.name === 'search' ? route.name : route.name === 'people' || route.name === 'person' ? 'people' : 'timeline'
+  const place = route.name === 'photo-import' || route.name === 'search' || route.name === 'globe' ? route.name : route.name === 'people' || route.name === 'person' ? 'people' : 'timeline'
   const screen = route.name === 'memory' ? `m/${route.key}` : route.name === 'person' ? `p/${route.id}` : route.name
   return (
     <Shell
@@ -61,6 +67,12 @@ function Signed({ person, onSignOut, onSessionLost }: { person: Person; onSignOu
         <MemoryPage memoryKey={route.key} person={person} onSessionLost={onSessionLost} />
       ) : route.name === 'photo-import' ? (
         null
+      ) : route.name === 'globe' ? (
+        <GlobeBoundary key={`${person.id}:${entry}`}>
+          <Suspense fallback={<div aria-busy="true" aria-label={t.loading} />}>
+            <Globe onSessionLost={onSessionLost} entry={entry} views={globeViews} />
+          </Suspense>
+        </GlobeBoundary>
       ) : route.name === 'search' ? (
         <Search onSessionLost={onSessionLost} />
       ) : route.name === 'people' ? (

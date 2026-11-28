@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { fadeMs } from './fade.ts'
 import { type Language, getLanguage, setLanguage, subscribeLanguage, t } from './i18n.ts'
-import { follow } from './route.ts'
+import { follow, globePath } from './route.ts'
 import type { Person } from './session.ts'
 import { supabase } from './supabase.ts'
 
-type Place = 'timeline' | 'people' | 'search' | 'photo-import'
+type Place = 'timeline' | 'people' | 'search' | 'photo-import' | 'globe'
 
 // The shell of a signed-in person: the bar (left on a PC, top on a phone), the menu and the page it
 // frames. `bare` is a memory on a phone: only its own back link, so the photo gets the room.
@@ -35,7 +35,10 @@ export function Shell(props: {
         {link('timeline', '/', t.memories, 'home')}
         {link('people', '/people', t.people)}
         {link('search', '/search', t.search)}
-        {link('photo-import', '/import', t.importPhotos)}
+        {link('globe', globePath, t.globe)}
+        <a href="/import" aria-label={t.importPhotos} aria-current={props.place === 'photo-import' ? 'page' : undefined} onClick={follow('/import')}>
+          <span className="import-full">{t.importPhotos}</span><span className="import-short">{t.importShort}</span>
+        </a>
         <button className="menu" aria-label={`${t.menu}: ${person.display_name}`} aria-haspopup="dialog" onClick={() => setMenuOpen(true)}>
           <span className="word">{t.menu}</span>
           <span className="name" lang="tr">

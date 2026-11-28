@@ -73,6 +73,8 @@ function PhotoDraft({ draft, personId, onFailed, onRemove, onSaved }: {
     setBusy(true)
     setError(null)
     try {
+      const { captureLocation } = await import('./captureLocation.ts')
+      const location = await captureLocation(draft.file)
       const sizes = await webPhotos(draft.file).catch(() => null)
       if (!sizes) {
         setError('format')
@@ -90,6 +92,8 @@ function PhotoDraft({ draft, personId, onFailed, onRemove, onSaved }: {
         p_comment: String(fields.get('caption')).trim(),
         p_width: view.width,
         p_height: view.height,
+        p_latitude: location?.latitude ?? null,
+        p_longitude: location?.longitude ?? null,
       })
       if (published.error) throw published.error
       onSaved()
@@ -149,7 +153,12 @@ async function encode(bitmap: ImageBitmap, longestSide: number) {
   const context = canvas.getContext('2d')
   if (!context) throw new Error('Canvas is unavailable')
   context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.86))
-  if (!blob || blob.type !== 'image/webp' || blob.size > 5242880) throw new Error('Could not encode photo')
+  let blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', 0.86))
+  // Safari decodes WebP but canvas can return PNG when asked to encode it.
+  if (blob?.type !== 'image/webp') {
+    const { default: encodeWebp } = await import('@jsquash/webp/encode.js')
+    blob = new Blob([await encodeWebp(context.getImageData(0, 0, canvas.width, canvas.height), { quality: 86 })], { type: 'image/webp' })
+  }
+  if (blob.size > 5242880) throw new Error('Could not encode photo')
   return { blob, width: canvas.width, height: canvas.height }
 }

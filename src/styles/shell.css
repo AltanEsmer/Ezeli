@@ -42,8 +42,13 @@
   font-size: var(--text-lg);
   font-weight: 600;
 }
-.bar .home {
+.bar .home,
+.bar .import-full {
   display: none;
+}
+@media (max-width: 359px) {
+  .bar { gap: 0; }
+  .bar a, .bar button { padding-inline: var(--space-1); }
 }
 .bar .menu {
   color: var(--ink);
@@ -87,9 +92,11 @@
     box-shadow: inset 2px 0 0 var(--mark);
     background: var(--surface);
   }
-  .bar .home {
+  .bar .home,
+  .bar .import-full {
     display: inline-flex;
   }
+  .bar .import-short { display: none; }
   .bar .menu {
     margin-top: auto;
     justify-content: flex-start;
